@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  slug      String    @unique
+  name      String
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Product {
+  id               String           @id @default(cuid())
+  slug             String           @unique
+  name             String
+  sku              String?
+  shortDescription String?
+  description      String?
+  price            Int
+  unit             String           @default("1 chai")
+  thumbnail        String
+  isFeatured       Boolean          @default(false)
+  isNew            Boolean          @default(false)
+  isBestSeller     Boolean          @default(false)
+  isActive         Boolean          @default(true)
+  categoryId       String?
+  category         Category?        @relation(fields: [categoryId], references: [id])
+  images           ProductImage[]
+  variants         ProductVariant[]
+  orderItems       OrderItem[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  url       String
+  alt       String?
+  sortOrder Int      @default(0)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model ProductVariant {
+  id        String  @id @default(cuid())
+  name      String
+  quantity  Int     @default(1)
+  price     Int
+  unit      String  @default("chai")
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  orderCode     String      @unique
+  fullName      String
+  phone         String
+  email         String?
+  province      String
+  district      String
+  ward          String
+  address       String
+  note          String?
+  paymentMethod String      @default("cod")
+  shippingFee   Int         @default(0)
+  subtotal      Int
+  total         Int
+  status        String      @default("PENDING")
+  items         OrderItem[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+  name      String
+  price     Int
+  quantity  Int
+  unit      String   @default("1 chai")
+  thumbnail String?
+}
