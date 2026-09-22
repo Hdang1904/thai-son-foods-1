@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Fira_Sans, Roboto } from 'next/font/google';
+import { Fira_Sans, Roboto, Playfair_Display } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
@@ -17,6 +17,14 @@ const roboto = Roboto({
   subsets: ['latin', 'vietnamese'],
   weight: ['300', '400', '500', '700'],
   variable: '--font-roboto',
+  display: 'swap',
+});
+
+const playfair = Playfair_Display({
+  subsets: ['latin', 'vietnamese'],
+  weight: ['400', '500', '600', '700'],
+  style: ['italic', 'normal'],
+  variable: '--font-playfair',
   display: 'swap',
 });
 
@@ -57,7 +65,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi" className={`${firaSans.variable} ${roboto.variable}`}>
+    <html lang="vi" className={`${firaSans.variable} ${roboto.variable} ${playfair.variable}`}>
       <body
         className="font-body antialiased bg-ivory text-text-dark"
         style={{ fontFamily: 'var(--font-roboto), sans-serif' }}

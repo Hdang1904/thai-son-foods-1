@@ -132,11 +132,16 @@ export default function LogoPreloader() {
                 y: phase !== 'drawing' ? 0 : 10,
               }}
               transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
-              className="mt-4 sm:mt-5 flex items-center gap-2 text-xs sm:text-sm font-medium text-emerald-900/80 tracking-wider uppercase font-sans"
+              className="mt-4 sm:mt-5 flex items-center gap-3"
             >
-              <span className="w-6 sm:w-10 h-[1px] bg-emerald-700/30 inline-block" />
-              <span>Món ngon quê Việt</span>
-              <span className="w-6 sm:w-10 h-[1px] bg-emerald-700/30 inline-block" />
+              <span className="w-8 sm:w-12 h-[1px] bg-gradient-to-r from-transparent via-[#1B5E3B]/30 to-transparent inline-block" />
+              <span
+                className="text-base sm:text-lg md:text-xl italic font-medium tracking-wide text-[#1B5E3B]"
+                style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
+              >
+                Uống một bữa ăn ngon lành
+              </span>
+              <span className="w-8 sm:w-12 h-[1px] bg-gradient-to-r from-transparent via-[#1B5E3B]/30 to-transparent inline-block" />
             </motion.div>
           </div>
 
