@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import CartDrawer from '@/components/cart/CartDrawer';
-import CartStickySidebar from '@/components/cart/CartStickySidebar';
+import FloatingCartWidget from '@/components/cart/FloatingCartWidget';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -14,54 +14,30 @@ interface AppLayoutProps {
 export default function AppLayout({ children }: AppLayoutProps) {
   const pathname = usePathname();
 
-  // Trang thanh toán (/thanh-toan) và trang admin (/admin) không hiển thị Cart Sidebar
-  const isExcluded = pathname?.startsWith('/thanh-toan') || pathname?.startsWith('/admin');
+  // Trang admin (/admin) và trang thanh toán (/thanh-toan) không hiển thị giỏ hàng nổi
+  const isAdmin = pathname?.startsWith('/admin');
+  const isCheckout = pathname?.startsWith('/thanh-toan');
 
-  if (isExcluded) {
-    if (pathname?.startsWith('/admin')) {
-      return <>{children}</>;
-    }
-
-    return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <main className="pt-[76px] min-h-screen flex-1">{children}</main>
-        <Footer />
-        {/* Vẫn giữ CartDrawer cho trường hợp người dùng trên mobile */}
-        <CartDrawer />
-      </div>
-    );
+  if (isAdmin) {
+    return <>{children}</>;
   }
 
   return (
-    <div className="min-h-screen flex flex-row">
-      {/* ─────────────────────────────────────────────────────────────
-          VÙNG NỘI DUNG CHÍNH (BÊN TRÁI): Header, main page, Footer
-      ────────────────────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 flex flex-col">
-        <Header />
-        <main className="pt-[76px] min-h-screen flex-1">{children}</main>
-        <Footer />
-      </div>
+    <div className="min-h-screen flex flex-col relative">
+      {/* Header chính của website */}
+      <Header />
 
-      {/* ─────────────────────────────────────────────────────────────
-          VÙNG GIỎ HÀNG CỐ ĐỊNH (BÊN PHẢI): Sticky Sidebar
-          Chỉ kích hoạt trên màn hình desktop lớn >= 1440px
-      ────────────────────────────────────────────────────────────── */}
-      <aside
-        aria-label="Giỏ hàng cố định"
-        className="hidden min-[1440px]:flex flex-col w-[380px] shrink-0 sticky top-0 h-screen border-l border-border-light bg-white shadow-xl z-40 overflow-hidden"
-      >
-        <CartStickySidebar />
-      </aside>
+      {/* Nội dung chính: 100% chiều rộng tự nhiên, không bị co ép layout */}
+      <main className="pt-[76px] min-h-screen flex-1">{children}</main>
 
-      {/* ─────────────────────────────────────────────────────────────
-          CART DRAWER TRƯỢT TỪ CẠNH PHẢI:
-          Chỉ dành riêng cho màn hình < 1440px (Laptop nhỏ, Tablet, Mobile)
-      ────────────────────────────────────────────────────────────── */}
-      <div className="min-[1440px]:hidden">
-        <CartDrawer />
-      </div>
+      {/* Chân trang */}
+      <Footer />
+
+      {/* Drawer giỏ hàng trượt đầy đủ */}
+      <CartDrawer />
+
+      {/* Widget giỏ hàng nổi "bay bay khi lướt" kèm hiệu ứng quăng đồ vào giỏ (ẩn ở trang thanh toán) */}
+      {!isCheckout && <FloatingCartWidget />}
     </div>
   );
 }

@@ -517,7 +517,7 @@ function Combo01View() {
       </div>
 
       {/* THANH TỔNG KẾT VÀ NÚT THÊM GIỎ HÀNG DƯỚI CÙNG */}
-      <div className="fixed bottom-0 left-0 right-0 min-[1440px]:right-[380px] z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 px-4 py-3 sm:py-4 shadow-xl">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 px-4 py-3 sm:py-4 shadow-xl">
         <div className="section-container max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="flex flex-col">
@@ -1144,7 +1144,7 @@ function Combo02View() {
       </div>
 
       {/* THANH TỔNG KẾT VÀ NÚT THÊM GIỎ HÀNG DƯỚI CÙNG CHO COMBO 02 */}
-      <div className="fixed bottom-0 left-0 right-0 min-[1440px]:right-[380px] z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 px-4 py-3 sm:py-4 shadow-xl">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 px-4 py-3 sm:py-4 shadow-xl">
         <div className="section-container max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="flex flex-col">
