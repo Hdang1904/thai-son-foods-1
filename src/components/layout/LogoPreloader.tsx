@@ -2,10 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function LogoPreloader() {
+  const pathname = usePathname();
   const [phase, setPhase] = useState<'drawing' | 'revealed' | 'exiting' | 'done'>('drawing');
+
+  if (pathname.startsWith('/admin')) {
+    return null;
+  }
 
   useEffect(() => {
     // 1. Giai đoạn 1: Chữ & nét outline viền logo chạy từ trái sang phải (1.4s)

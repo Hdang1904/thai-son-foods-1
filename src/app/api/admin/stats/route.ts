@@ -1,0 +1,113 @@
+import { NextResponse } from 'next/server';
+import { query } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET() {
+  try {
+    // 1. Overall summary
+    const summaryRes = await query(`
+      SELECT 
+        COUNT(*) AS total_orders,
+        COALESCE(SUM(total), 0) AS total_revenue,
+        COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) AS completed_orders,
+        COUNT(CASE WHEN status = 'PENDING' THEN 1 END) AS pending_orders,
+        COUNT(CASE WHEN status = 'PROCESSING' THEN 1 END) AS processing_orders,
+        COUNT(CASE WHEN status = 'SHIPPING' THEN 1 END) AS shipping_orders,
+        COUNT(CASE WHEN status = 'CANCELLED' THEN 1 END) AS cancelled_orders
+      FROM orders;
+    `);
+
+    // 2. Product count
+    const prodCountRes = await query(`
+      SELECT 
+        COUNT(*) AS total_products,
+        COUNT(CASE WHEN is_active = true THEN 1 END) AS active_products,
+        COUNT(CASE WHEN is_featured = true THEN 1 END) AS featured_products,
+        COUNT(CASE WHEN is_best_seller = true THEN 1 END) AS best_seller_products
+      FROM products;
+    `);
+
+    // 3. Category count
+    const catCountRes = await query(`SELECT COUNT(*) AS total_categories FROM categories;`);
+
+    // 4. Status breakdown
+    const statusBreakdownRes = await query(`
+      SELECT status, COUNT(*) AS count, COALESCE(SUM(total), 0) AS total_amount
+      FROM orders
+      GROUP BY status;
+    `);
+
+    // 5. Recent 8 orders
+    const recentOrdersRes = await query(`
+      SELECT id, order_code, full_name, phone, province, total, status, created_at
+      FROM orders
+      ORDER BY created_at DESC
+      LIMIT 8;
+    `);
+
+    // 6. Top selling products
+    const topProductsRes = await query(`
+      SELECT 
+        p.id, 
+        p.name, 
+        p.thumbnail, 
+        p.price, 
+        p.unit,
+        c.name AS category_name,
+        COALESCE(SUM(oi.quantity), 0) AS total_sold,
+        COALESCE(SUM(oi.quantity * oi.price), 0) AS total_earned
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN order_items oi ON oi.product_id = p.id
+      GROUP BY p.id, p.name, p.thumbnail, p.price, p.unit, c.name
+      ORDER BY total_sold DESC, p.price DESC
+      LIMIT 5;
+    `);
+
+    // 7. Last 7 days revenue trend
+    const last7DaysRes = await query(`
+      WITH dates AS (
+        SELECT generate_series(
+          CURRENT_DATE - INTERVAL '6 days',
+          CURRENT_DATE,
+          '1 day'::interval
+        )::date AS day
+      )
+      SELECT 
+        to_char(d.day, 'DD/MM') AS date_label,
+        COALESCE(COUNT(o.id), 0) AS order_count,
+        COALESCE(SUM(o.total), 0) AS daily_revenue
+      FROM dates d
+      LEFT JOIN orders o ON date_trunc('day', o.created_at) = d.day AND o.status != 'CANCELLED'
+      GROUP BY d.day
+      ORDER BY d.day ASC;
+    `);
+
+    return NextResponse.json({
+      success: true,
+      summary: summaryRes.rows[0] || {},
+      products: prodCountRes.rows[0] || {},
+      categories: catCountRes.rows[0] || {},
+      statusBreakdown: statusBreakdownRes.rows || [],
+      recentOrders: recentOrdersRes.rows || [],
+      topProducts: topProductsRes.rows || [],
+      revenueTrend: last7DaysRes.rows || [],
+      dbStatus: {
+        connected: true,
+        database: 'WebTSF',
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching admin stats:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message,
+        dbStatus: { connected: false, error: error.message },
+      },
+      { status: 500 }
+    );
+  }
+}
