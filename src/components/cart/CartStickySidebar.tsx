@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -21,6 +21,12 @@ import { formatPrice } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function CartStickySidebar() {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const {
     items,
     updateQuantity,
@@ -98,6 +104,62 @@ export default function CartStickySidebar() {
       setIsSubmitting(false);
     }
   };
+
+  // Tránh Hydration Mismatch: Render giao diện khởi tạo đồng bộ SSR trước khi đọc localStorage
+  if (!isMounted) {
+    return (
+      <div className="flex flex-col h-full bg-white select-none">
+        {/* Header tĩnh */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border-light bg-ivory/50">
+          <div className="flex items-center gap-2.5">
+            <div className="relative w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-800 shadow-xs">
+              <ShoppingBag className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-extrabold text-[#11241C] font-heading leading-tight">
+                Giỏ hàng của bạn
+              </h2>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[11px] font-semibold text-emerald-800">
+                  Cập nhật trực tiếp
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Thanh freeship tĩnh */}
+        <div className="px-5 py-3 bg-emerald-50/50 border-b border-emerald-100/80">
+          <div className="flex items-center justify-between text-xs text-text-dark mb-1.5">
+            <span className="font-medium text-text-body">
+              Mua thêm <strong className="font-bold text-emerald-800">200.000đ</strong> để được Freeship
+            </span>
+            <span className="font-bold text-emerald-900 text-[11px]">0%</span>
+          </div>
+          <div className="w-full h-2 bg-emerald-100/70 rounded-full overflow-hidden">
+            <div className="h-full bg-emerald-600 rounded-full w-0" />
+          </div>
+        </div>
+
+        {/* Khung trạng thái giỏ rỗng ban đầu */}
+        <div className="h-full flex flex-col items-center justify-center py-12 text-center">
+          <div className="w-20 h-20 bg-ivory rounded-2xl flex items-center justify-center mb-4 border border-dashed border-gray-300">
+            <ShoppingBag className="w-9 h-9 text-gray-400" />
+          </div>
+          <h3 className="text-base font-bold text-text-dark font-heading mb-1">
+            Giỏ hàng đang trống
+          </h3>
+          <p className="text-xs text-text-muted max-w-[240px] leading-relaxed mb-4">
+            Hãy chọn những thức uống thơm ngon tự nhiên từ Thái Sơn Foods để bỏ vào giỏ nhé!
+          </p>
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-full">
+            👈 Bấm &quot;Thêm vào giỏ&quot; bên trái
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-white select-none">

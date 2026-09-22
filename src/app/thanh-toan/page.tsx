@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCartStore } from '@/store/cart';
 import { formatPrice } from '@/lib/utils';
 import Image from 'next/image';
@@ -11,6 +11,12 @@ import { CheckCircle, ArrowLeft, Banknote, QrCode, ShieldCheck, AlertCircle } fr
 const MIN_ORDER_THRESHOLD = 120000;
 
 export default function CheckoutPage() {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const { items, clearCart } = useCartStore();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -181,6 +187,18 @@ export default function CheckoutPage() {
               Mua thêm thức uống
             </Link>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isMounted) {
+    return (
+      <div className="section-container py-20 text-center">
+        <div className="max-w-md mx-auto animate-pulse">
+          <div className="w-16 h-16 bg-ivory-dark rounded-full mx-auto mb-4" />
+          <div className="h-6 bg-ivory-dark rounded w-48 mx-auto mb-2" />
+          <div className="h-4 bg-ivory-dark rounded w-64 mx-auto" />
         </div>
       </div>
     );

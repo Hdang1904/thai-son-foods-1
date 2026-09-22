@@ -16,12 +16,14 @@ const navLinks = [
 ];
 
 export default function Header() {
+  const [isMounted, setIsMounted] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { openCart, getTotalQuantity } = useCartStore();
   const totalQuantity = useCartStore((s) => s.items.reduce((t, i) => t + i.quantity, 0));
 
   useEffect(() => {
+    setIsMounted(true);
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
@@ -93,10 +95,10 @@ export default function Header() {
             <button
               onClick={openCart}
               className="relative p-2.5 text-text-body hover:text-green-primary transition-colors rounded-lg hover:bg-ivory-dark/50 min-[1440px]:hidden"
-              aria-label={`Giỏ hàng, ${totalQuantity} sản phẩm`}
+              aria-label={`Giỏ hàng, ${isMounted ? totalQuantity : 0} sản phẩm`}
             >
               <ShoppingBag className="w-5 h-5" />
-              {totalQuantity > 0 && (
+              {isMounted && totalQuantity > 0 && (
                 <span
                   key={totalQuantity}
                   className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 flex items-center justify-center px-1 text-[11px] font-bold text-white bg-sale rounded-full animate-pulse-badge"

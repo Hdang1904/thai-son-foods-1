@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useCartStore } from '@/store/cart';
 import { formatPrice } from '@/lib/utils';
 import Image from 'next/image';
@@ -10,6 +11,12 @@ import { Trash2, ShoppingBag, ArrowLeft, AlertCircle } from 'lucide-react';
 const MIN_ORDER_THRESHOLD = 120000;
 
 export default function CartPage() {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const {
     items,
     removeItem,
@@ -28,6 +35,20 @@ export default function CartPage() {
   const hasCombo = items.some((i) => i.productId.includes('combo') || i.slug?.includes('combo'));
   const isEligibleToOrder = subtotal >= MIN_ORDER_THRESHOLD || hasCombo;
   const missingForMinOrder = Math.max(0, MIN_ORDER_THRESHOLD - subtotal);
+
+  if (!isMounted) {
+    return (
+      <div className="section-container py-20 text-center">
+        <div className="max-w-md mx-auto animate-pulse">
+          <div className="w-24 h-24 bg-ivory-dark rounded-full flex items-center justify-center mx-auto mb-6">
+            <ShoppingBag className="w-10 h-10 text-text-muted/40" />
+          </div>
+          <div className="h-7 bg-ivory-dark rounded-md w-48 mx-auto mb-3" />
+          <div className="h-4 bg-ivory-dark rounded-md w-64 mx-auto" />
+        </div>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (
