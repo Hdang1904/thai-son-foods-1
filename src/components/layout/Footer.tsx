@@ -1,6 +1,29 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Phone, Mail, MapPin } from 'lucide-react';
+import { Phone, Mail, MapPin, Clock, ShieldCheck, Truck, Headphones } from 'lucide-react';
+
+const trustBadges = [
+  {
+    icon: ShieldCheck,
+    title: '100% Tự Nhiên',
+    desc: 'Không chất bảo quản độc hại',
+  },
+  {
+    icon: Truck,
+    title: 'Giao Hàng Nhanh Chóng',
+    desc: 'Bảo quản mát trong 24h',
+  },
+  {
+    icon: Clock,
+    title: 'Tươi Mới Mỗi Ngày',
+    desc: 'Quy trình sản xuất khép kín',
+  },
+  {
+    icon: Headphones,
+    title: 'Hỗ Trợ Tận Tâm',
+    desc: 'Hotline 1900 6725 tư vấn 24/7',
+  },
+];
 
 function FacebookIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
@@ -28,7 +51,31 @@ function InstagramIcon({ className = 'w-5 h-5' }: { className?: string }) {
 
 export default function Footer() {
   return (
-    <footer className="bg-green-primary text-white">
+    <footer className="bg-green-primary text-white pt-10 border-t border-green-dark">
+      {/* 1. Trust Badges Strip */}
+      <div className="section-container pb-10 border-b border-white/10 mb-8 sm:mb-10">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          {trustBadges.map((badge, index) => {
+            const Icon = badge.icon;
+            return (
+              <div key={index} className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0 text-[#F4C542] border border-white/5 shadow-inner">
+                  <Icon className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm md:text-base font-bold text-white leading-tight">
+                    {badge.title}
+                  </h4>
+                  <p className="text-xs text-white/70 mt-1">
+                    {badge.desc}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-[480px_1fr] xl:grid-cols-[520px_1fr] 2xl:grid-cols-[540px_1fr] items-stretch">
         {/* Left — Brand Banner */}
         <div className="relative w-full max-w-sm sm:max-w-md lg:max-w-none mx-auto lg:mx-0 aspect-square lg:aspect-auto lg:h-full lg:min-h-[450px] overflow-hidden rounded-t-[32px] lg:rounded-t-none lg:rounded-tr-[52px] shadow-inner">

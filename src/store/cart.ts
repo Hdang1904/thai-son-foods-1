@@ -11,13 +11,15 @@ interface CartState {
   closeCart: () => void;
   toggleCart: () => void;
   addItem: (product: Omit<CartItem, 'quantity'>, quantity?: number) => void;
-  removeItem: (productId: string) => void;
+  removeItem: (productId: string, variantId?: string) => void;
   increaseQuantity: (productId: string) => void;
   decreaseQuantity: (productId: string) => void;
   setQuantity: (productId: string, quantity: number) => void;
+  updateQuantity: (productId: string, quantity: number, variantId?: string) => void;
   clearCart: () => void;
   getTotalQuantity: () => number;
   getSubtotal: () => number;
+  getTotalPrice: () => number;
 }
 
 export const useCartStore = create<CartState>()(
@@ -54,7 +56,7 @@ export const useCartStore = create<CartState>()(
         });
       },
 
-      removeItem: (productId) => {
+      removeItem: (productId, _variantId) => {
         set((state) => ({
           items: state.items.filter((item) => item.productId !== productId),
         }));
@@ -100,6 +102,10 @@ export const useCartStore = create<CartState>()(
         }));
       },
 
+      updateQuantity: (productId, quantity, _variantId) => {
+        get().setQuantity(productId, quantity);
+      },
+
       clearCart: () => set({ items: [] }),
 
       getTotalQuantity: () => {
@@ -111,6 +117,10 @@ export const useCartStore = create<CartState>()(
           (total, item) => total + item.price * item.quantity,
           0
         );
+      },
+
+      getTotalPrice: () => {
+        return get().getSubtotal();
       },
     }),
     {

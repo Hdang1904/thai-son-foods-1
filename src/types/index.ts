@@ -72,6 +72,8 @@ export interface CartItem {
   unit: string;
   thumbnail: string;
   quantity: number;
+  variantId?: string;
+  variantName?: string;
 }
 
 export interface CartStore {
@@ -81,13 +83,15 @@ export interface CartStore {
   closeCart: () => void;
   toggleCart: () => void;
   addItem: (product: Omit<CartItem, 'quantity'>, quantity?: number) => void;
-  removeItem: (productId: string) => void;
+  removeItem: (productId: string, variantId?: string) => void;
   increaseQuantity: (productId: string) => void;
   decreaseQuantity: (productId: string) => void;
   setQuantity: (productId: string, quantity: number) => void;
+  updateQuantity: (productId: string, quantity: number, variantId?: string) => void;
   clearCart: () => void;
   getTotalQuantity: () => number;
   getSubtotal: () => number;
+  getTotalPrice: () => number;
 }
 
 // ===== BANNER TYPES =====
