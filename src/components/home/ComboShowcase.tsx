@@ -137,65 +137,68 @@ export default function ComboShowcase() {
                 sizes="(max-width: 1024px) 100vw, 50vw"
                 priority
               />
-              {/* Overlay gradient */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+              {/* Overlay gradient - chỉ tập trung ở chân ảnh */}
+              <div className="absolute bottom-0 left-0 right-0 h-44 sm:h-52 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none" />
 
-              {/* Info overlay */}
-              <div className="absolute bottom-0 left-0 right-0 p-5 md:p-8">
+              {/* Info overlay - gom gọn gàng sát chân ảnh */}
+              <div className="absolute bottom-0 left-0 right-0 p-3.5 sm:p-4 md:px-6 md:pb-4 md:pt-1">
                 {isCombo01 && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-corn text-text-dark mb-2 shadow-xs">
-                    <Sparkles className="w-3.5 h-3.5" />
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-corn text-text-dark mb-1 shadow-xs">
+                    <Sparkles className="w-3 h-3" />
                     Đặc quyền tự chọn 4 vị
                   </span>
                 )}
-                <h3 className="text-xl md:text-2xl font-bold text-white font-heading mb-1">
+                <h3 className="text-base sm:text-lg md:text-xl font-bold text-white font-heading mb-0.5 drop-shadow-xs">
                   {activeCombo.name}
                 </h3>
-                <p className="text-white/80 text-sm mb-3 line-clamp-2">
+                <p className="text-white/85 text-xs sm:text-sm mb-2 line-clamp-1 drop-shadow-xs max-w-[95%]">
                   {activeCombo.description}
                 </p>
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-lg font-bold text-corn">
-                    {formatPrice(activeCombo.salePrice)}đ
-                  </span>
-                  <span className="text-sm text-white/50 line-through">
-                    {formatPrice(activeCombo.originalPrice)}đ
-                  </span>
-                  <span className="px-2 py-0.5 text-xs font-semibold bg-sale text-white rounded-md">
-                    -{activeCombo.discount}%
-                  </span>
-                </div>
 
-                {isCombo01 ? (
-                  /* COMBO 01: Nhảy sang trang /combo để chọn vị */
-                  <Link
-                    href="/combo"
-                    className="inline-flex items-center gap-2 px-6 py-2.5 bg-corn text-text-dark font-bold rounded-xl hover:bg-yellow-400 hover:shadow-lg transition-all text-sm active:scale-95 cursor-pointer shadow-md"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Tùy chọn 4 chai ngay ({formatPrice(activeCombo.salePrice)}đ)
-                    <ArrowRight className="w-4 h-4 ml-0.5" />
-                  </Link>
-                ) : (
-                  /* CÁC COMBO KHÁC: Thêm trực tiếp vào giỏ trên trang chủ */
-                  <button
-                    type="button"
-                    onClick={() => {
-                      useCartStore.getState().addItem({
-                        productId: activeCombo.id,
-                        name: activeCombo.name,
-                        slug: '#combo',
-                        price: activeCombo.salePrice,
-                        unit: `${activeCombo.totalItems} chai`,
-                        thumbnail: activeCombo.image,
-                      });
-                    }}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 bg-white text-green-primary font-semibold rounded-xl hover:bg-ivory hover:shadow-lg transition-all text-sm active:scale-95 cursor-pointer"
-                  >
-                    <ShoppingBag className="w-4 h-4" />
-                    Thêm combo vào giỏ ({formatPrice(activeCombo.salePrice)}đ)
-                  </button>
-                )}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base sm:text-lg md:text-xl font-bold text-corn drop-shadow-xs">
+                      {formatPrice(activeCombo.salePrice)}đ
+                    </span>
+                    <span className="text-xs sm:text-sm text-white/60 line-through">
+                      {formatPrice(activeCombo.originalPrice)}đ
+                    </span>
+                    <span className="px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold bg-sale text-white rounded">
+                      -{activeCombo.discount}%
+                    </span>
+                  </div>
+
+                  {isCombo01 ? (
+                    /* COMBO 01: Nhảy sang trang /combo để chọn vị */
+                    <Link
+                      href="/combo"
+                      className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 sm:py-2 bg-corn text-text-dark font-bold rounded-lg hover:bg-yellow-400 hover:shadow-md transition-all text-xs sm:text-sm active:scale-95 cursor-pointer shadow-xs"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Tùy chọn 4 chai</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  ) : (
+                    /* CÁC COMBO KHÁC: Thêm trực tiếp vào giỏ trên trang chủ */
+                    <button
+                      type="button"
+                      onClick={() => {
+                        useCartStore.getState().addItem({
+                          productId: activeCombo.id,
+                          name: activeCombo.name,
+                          slug: '#combo',
+                          price: activeCombo.salePrice,
+                          unit: `${activeCombo.totalItems} chai`,
+                          thumbnail: activeCombo.image,
+                        });
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 sm:py-2 bg-white text-green-primary font-semibold rounded-lg hover:bg-ivory hover:shadow-md transition-all text-xs sm:text-sm active:scale-95 cursor-pointer shadow-xs"
+                    >
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                      <span>Thêm combo vào giỏ</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </motion.div>
           </AnimatePresence>

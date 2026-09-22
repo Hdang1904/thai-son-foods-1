@@ -17,7 +17,7 @@ export default function HeroSlider() {
   if (banners.length === 1) {
     const banner = banners[0];
     return (
-      <section className="section-container pt-4 pb-6 md:pt-6 md:pb-10" aria-label="Banner quảng cáo">
+      <section className="section-container -mt-6 sm:-mt-8 md:-mt-11 pt-1 pb-6 md:pt-1 md:pb-10" aria-label="Banner quảng cáo">
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -55,7 +55,7 @@ export default function HeroSlider() {
   }
 
   return (
-    <section className="section-container pt-4 pb-6 md:pt-6 md:pb-10" aria-label="Banner quảng cáo">
+    <section className="section-container -mt-6 sm:-mt-8 md:-mt-11 pt-1 pb-6 md:pt-1 md:pb-10" aria-label="Banner quảng cáo">
       <div className="relative rounded-2xl md:rounded-[22px] overflow-hidden">
         <Swiper
           modules={[Autoplay, Pagination, Navigation]}

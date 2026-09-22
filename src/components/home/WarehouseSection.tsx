@@ -112,7 +112,7 @@ export default function WarehouseSection() {
           - Cạnh phải nhẹ: để các số 01, 02, 03, 04 màu trắng có độ tương phản
           - TUYỆT ĐỐI KHÔNG PHỦ TỐI TOÀN BỘ BỨC ẢNH
         */}
-        <div className="absolute bottom-0 left-0 right-0 h-52 bg-gradient-to-t from-black/85 via-black/35 to-transparent pointer-events-none z-10" />
+        <div className="absolute bottom-0 left-0 right-0 h-64 sm:h-72 bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-none z-10" />
         <div className="absolute top-0 right-0 bottom-0 w-64 bg-gradient-to-l from-black/35 to-transparent pointer-events-none hidden sm:block z-10" />
       </div>
 
@@ -259,7 +259,13 @@ export default function WarehouseSection() {
           transition={{ duration: 0.8, ease: 'easeOut', delay: 0.3 }}
           className="w-full pt-8 sm:pt-14 pb-1"
         >
-          <h2 className="text-xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-[56px] font-bold uppercase tracking-tight text-white font-serif drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)] text-left leading-none">
+          <h2
+            className="text-xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-[56px] font-bold uppercase tracking-tight font-serif text-left leading-none"
+            style={{
+              color: '#FFFFFF',
+              textShadow: '0 2px 12px rgba(0, 0, 0, 0.95), 0 4px 28px rgba(0, 0, 0, 0.9), 0 1px 4px rgba(0, 0, 0, 1)',
+            }}
+          >
             VÌ SAO THÁI SƠN FOODS ĐƯỢC TIN CHỌN?
           </h2>
         </motion.div>

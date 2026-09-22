@@ -17,31 +17,32 @@ export default function ProductSection() {
   ];
 
   return (
-    <section id="san-pham" className="section-container py-10 md:py-16">
+    <section id="san-pham" className="section-container max-sm:px-2.5 py-8 sm:py-10 md:py-16">
       <SectionTitle
         title="Sản phẩm Thái Sơn"
         viewAllLink="/san-pham"
         viewAllText="Xem tất cả"
+        className="mb-4 sm:mb-8 md:mb-10"
       />
 
-      <div className="space-y-6 md:space-y-8 w-full">
+      <div className="space-y-3 sm:space-y-6 md:space-y-8 w-full">
         {rows.map((row, rowIdx) => (
           <div
             key={rowIdx}
-            className={`grid grid-cols-1 ${
-              row.count === 3 ? 'sm:grid-cols-2 lg:grid-cols-3' : 'md:grid-cols-2'
-            } gap-4 md:gap-5 lg:gap-6 w-full`}
+            className={`grid ${
+              row.count === 3 ? 'grid-cols-3' : 'grid-cols-2'
+            } gap-2 sm:gap-4 md:gap-5 lg:gap-6 w-full`}
           >
             {row.items.map((product, pIdx) => (
               <motion.div
                 key={product.id}
-                initial={{ opacity: 0, y: 28 }}
+                initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.15 }}
+                viewport={{ once: true, amount: 0.1 }}
                 transition={{
-                  duration: 0.55,
+                  duration: 0.45,
                   ease: 'easeOut',
-                  delay: pIdx * 0.08,
+                  delay: pIdx * 0.05,
                 }}
                 className="h-full"
               >

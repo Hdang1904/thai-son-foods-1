@@ -35,17 +35,13 @@ export default function BrandShowcase() {
             - Border radius: 24px
           */}
           <div
-            className="relative overflow-hidden bg-[#FFF9F1] rounded-[24px] shadow-sm flex flex-col lg:flex-row w-full"
-            style={{
-              minHeight: '612.063px',
-            }}
+            className="relative overflow-hidden bg-[#FFF9F1] rounded-[20px] sm:rounded-[24px] shadow-sm flex flex-col lg:flex-row items-stretch w-full lg:min-h-[612.063px]"
           >
-          {/* ─── LEFT COLUMN: Text Content (Exact 792.782px on desktop) ─── */}
+          {/* ─── TEXT CONTENT: Nằm trên khi ở mobile, nằm bên trái khi ở desktop ─── */}
           <div
-            className="w-full lg:flex-1 flex flex-col justify-between"
+            className="w-full lg:flex-1 flex flex-col justify-between min-w-0 z-10"
             style={{
-              padding: 'clamp(36px, 4vw, 56px) clamp(28px, 3.5vw, 52px) clamp(36px, 4vw, 52px) clamp(32px, 4.5vw, 64px)',
-              minHeight: '612.063px',
+              padding: 'clamp(28px, 4vw, 56px) clamp(20px, 3.5vw, 52px) clamp(28px, 4vw, 52px) clamp(24px, 4.5vw, 64px)',
             }}
           >
             <div>
@@ -55,7 +51,7 @@ export default function BrandShowcase() {
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: false, amount: 0.25 }}
                 transition={{ duration: 0.5, ease: 'easeOut' }}
-                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#1B5E3B]/10 border border-[#1B5E3B]/20 text-[#1B5E3B] text-xs sm:text-sm font-semibold mb-4"
+                className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-full bg-[#1B5E3B]/10 border border-[#1B5E3B]/20 text-[#1B5E3B] text-xs sm:text-sm font-semibold mb-3 sm:mb-4"
               >
                 <Award className="w-4 h-4 text-[#1B5E3B] shrink-0" />
                 <span>Chứng nhận Quốc tế HACCP</span>
@@ -66,12 +62,12 @@ export default function BrandShowcase() {
                 className="text-balance overflow-hidden"
                 style={{
                   fontFamily: 'var(--font-fira-sans), sans-serif',
-                  fontSize: 'clamp(30px, 2.8vw, 44px)',
+                  fontSize: 'clamp(22px, 2.8vw, 44px)',
                   fontWeight: 700,
                   lineHeight: '1.26',
                   letterSpacing: '-0.02em',
                   color: '#001A36',
-                  marginBottom: '28px',
+                  marginBottom: 'clamp(16px, 2vw, 28px)',
                   textWrap: 'balance',
                 }}
               >
@@ -115,16 +111,15 @@ export default function BrandShowcase() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: false, amount: 0.25 }}
                 transition={{ duration: 1.2, ease: 'easeOut', delay: 0.85 }}
+                className="text-[14px] sm:text-[15.5px] lg:text-[18px] leading-[1.65] lg:leading-[1.75]"
                 style={{
                   borderLeft: '2.5px solid #FFCF83',
-                  paddingLeft: '26px',
+                  paddingLeft: 'clamp(16px, 2vw, 26px)',
                   textAlign: 'justify',
                   color: '#001A36',
-                  fontSize: 'clamp(16px, 1.2vw, 18.5px)',
-                  lineHeight: '1.75',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '16px',
+                  gap: 'clamp(12px, 1.4vw, 16px)',
                 }}
               >
                 <p>
@@ -142,7 +137,7 @@ export default function BrandShowcase() {
                   uống phù hợp cho nhiều khoảnh khắc trong cuộc sống và đưa hương vị quen thuộc của
                   quê hương đến mọi người.
                 </p>
-                <p className="font-bold text-[#1B5E3B] text-[17px] lg:text-[20px]">
+                <p className="font-bold text-[#1B5E3B] text-[15px] sm:text-[17px] lg:text-[20px]">
                   Thái Sơn Foods – Uống một bữa ăn ngon lành.
                 </p>
               </motion.div>
@@ -154,39 +149,31 @@ export default function BrandShowcase() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: false, amount: 0.25 }}
               transition={{ duration: 0.8, ease: 'easeOut', delay: 1.1 }}
-              style={{ marginTop: '36px' }}
+              style={{ marginTop: 'clamp(20px, 3vw, 36px)' }}
             >
               <a
                 href="/#san-pham"
-                className="group inline-flex items-center gap-3 font-semibold text-[#001A36] transition-all hover:brightness-95 active:scale-[0.98]"
+                className="group inline-flex items-center gap-2.5 sm:gap-3 font-semibold text-[#001A36] transition-all hover:brightness-95 active:scale-[0.98] text-sm sm:text-base px-5 py-2.5 sm:px-7 sm:py-3.5 rounded-lg shadow-sm"
                 style={{
                   background: '#FFCF83',
-                  borderRadius: '8px',
-                  padding: '13px 28px',
-                  fontSize: '16px',
                   textDecoration: 'none',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
                 }}
               >
                 <span>Về chúng tôi</span>
                 <ArrowRight
-                  className="transition-transform duration-200 group-hover:translate-x-1"
-                  style={{ width: '20px', height: '20px' }}
+                  className="transition-transform duration-200 group-hover:translate-x-1 w-4 h-4 sm:w-5 sm:h-5"
                 />
               </a>
             </motion.div>
           </div>
 
-          {/* ─── RIGHT COLUMN: Image (Exact 489.656px x 612.063px on desktop) ─── */}
+          {/* ─── IMAGE COLUMN: Nằm ở dưới khi ở mobile, nằm bên phải khi ở desktop ─── */}
           <motion.div
-            initial={{ opacity: 0, scale: 1.05 }}
+            initial={{ opacity: 0, scale: 1.03 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-full lg:w-[489.656px] shrink-0 overflow-hidden"
-            style={{
-              minHeight: '612.063px',
-            }}
+            className="relative w-full lg:w-[489.656px] h-[320px] sm:h-[400px] lg:h-auto lg:self-stretch shrink-0 overflow-hidden"
           >
             <Image
               src="/images/banners/vechungtoi1.jpg"
