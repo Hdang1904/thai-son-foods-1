@@ -3,17 +3,26 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
-import { ProductImage } from '@/types';
-import { cn } from '@/lib/utils';
+import Link from 'next/link';
+import { Product, ProductImage } from '@/types';
+import { cn, formatPrice } from '@/lib/utils';
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Share2, ZoomIn, X, Check, PlayCircle } from 'lucide-react';
 
 interface ProductGalleryProps {
   images: ProductImage[];
   productName: string;
   imageFit?: 'cover' | 'contain';
+  currentProductId?: string;
+  categoryProducts?: Product[];
 }
 
-export default function ProductGallery({ images, productName, imageFit }: ProductGalleryProps) {
+export default function ProductGallery({
+  images,
+  productName,
+  imageFit,
+  currentProductId,
+  categoryProducts,
+}: ProductGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -193,10 +202,76 @@ export default function ProductGallery({ images, productName, imageFit }: Produc
         </div>
       )}
 
+      {/* ─── DƯỚI CHÂN ẢNH: CHỌN SẢN PHẨM CÙNG DANH MỤC (Chọn vị khác) ─── */}
+      {categoryProducts && categoryProducts.length > 0 && (
+        <div className="w-full max-w-[640px] mt-3 pt-3 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-2 px-0.5">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-600 inline-block" />
+              <span className="text-xs font-bold text-[#11241C]">
+                Sản phẩm cùng danh mục ({categoryProducts.length})
+              </span>
+            </div>
+            <span className="text-[11px] text-text-muted">
+              Chọn để xem vị khác
+            </span>
+          </div>
+
+          <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+            {categoryProducts.map((prod) => {
+              const isCurrent = prod.id === currentProductId;
+              const shortName = prod.name
+                .replace('Thái Sơn', '')
+                .replace('Mekong Xanh', '')
+                .replace('Yoo', '')
+                .trim();
+
+              return (
+                <Link
+                  key={prod.id}
+                  href={`/san-pham/${prod.slug}`}
+                  className={cn(
+                    'group relative rounded-xl border p-1 sm:p-1.5 transition-all duration-200 flex flex-col items-center text-center bg-white hover:border-emerald-600',
+                    isCurrent
+                      ? 'border-emerald-700 bg-emerald-50/40 ring-1 ring-emerald-700 shadow-2xs'
+                      : 'border-gray-200 hover:shadow-2xs opacity-80 hover:opacity-100'
+                  )}
+                  title={prod.name}
+                >
+                  {isCurrent && (
+                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-700 text-white flex items-center justify-center shadow-xs text-[9px] z-10">
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                    </span>
+                  )}
+
+                  <div className="relative w-full aspect-square bg-[#FAF8F5] rounded-lg p-1 mb-1 overflow-hidden flex items-center justify-center">
+                    <Image
+                      src={prod.thumbnail}
+                      alt={prod.name}
+                      fill
+                      className="object-contain group-hover:scale-105 transition-transform duration-200"
+                      sizes="60px"
+                    />
+                  </div>
+
+                  <span className="text-[10px] sm:text-[11px] font-bold text-text-dark truncate max-w-full leading-tight">
+                    {shortName}
+                  </span>
+
+                  <span className="text-[9px] sm:text-[10px] font-semibold text-emerald-800">
+                    {formatPrice(prod.price)}đ
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* "Click to see full view" caption */}
       <button
         onClick={() => setIsZoomOpen(true)}
-        className="mt-1 inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#1B5E3B] font-medium transition-colors cursor-pointer"
+        className="mt-3 inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#1B5E3B] font-medium transition-colors cursor-pointer"
       >
         <ZoomIn className="w-3.5 h-3.5" />
         <span>Nhấp để phóng to / xem ảnh toàn màn hình</span>

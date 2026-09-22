@@ -1,10 +1,11 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { products, getProductBySlug, categories } from '@/data/products';
+import { products, getProductBySlug, categories, getProductsByCategory } from '@/data/products';
 import ProductGallery from '@/components/product/ProductGallery';
 import ProductInfo from '@/components/product/ProductInfo';
+import ProductCombosSidebar from '@/components/product/ProductCombosSidebar';
 import ProductSection from '@/components/home/ProductSection';
-import { ChevronRight, MapPin } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 
 interface ProductPageProps {
   params: Promise<{ slug: string }>;
@@ -47,6 +48,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   }
 
   const category = categories.find((c) => c.id === product.categoryId);
+  const categoryProducts = getProductsByCategory(product.categoryId);
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -94,16 +96,31 @@ export default async function ProductPage({ params }: ProductPageProps) {
         </div>
       </div>
 
-      {/* Main Product Content Area (2-Column Layout like cailonuong: 624.75px Gallery + Info) */}
-      <div className="section-container py-6 lg:py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-          {/* Column 1: Left Gallery (Exact 624.75px card like cailonuong) */}
-          <div className="lg:col-span-6 xl:col-span-6 sticky top-20 flex justify-center">
-            <ProductGallery images={product.images} productName={product.name} imageFit={product.imageFit} />
+      {/* Main Product Content Area (3-Column Layout: Combo Left + Gallery & Category Middle + Buy Box Right) */}
+      <div className="section-container py-6 lg:py-8 max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-7 items-start">
+          {/* Cột 1: Combo bên tay trái đầy đủ thông tin để chọn */}
+          <div className="order-3 lg:order-1 lg:col-span-3">
+            <div className="lg:sticky lg:top-24">
+              <ProductCombosSidebar />
+            </div>
           </div>
 
-          {/* Column 2: Right Info & Buy Box */}
-          <div className="lg:col-span-6 xl:col-span-6">
+          {/* Cột 2: Ảnh sản phẩm chính + Dưới chân là chọn sản phẩm cùng danh mục */}
+          <div className="order-1 lg:order-2 lg:col-span-5 flex justify-center">
+            <div className="w-full lg:sticky lg:top-24">
+              <ProductGallery
+                images={product.images}
+                productName={product.name}
+                imageFit={product.imageFit}
+                currentProductId={product.id}
+                categoryProducts={categoryProducts}
+              />
+            </div>
+          </div>
+
+          {/* Cột 3: Buy Box Thông tin sản phẩm & Mua hàng */}
+          <div className="order-2 lg:order-3 lg:col-span-4">
             <ProductInfo product={product} />
           </div>
         </div>
