@@ -89,10 +89,10 @@ export default function Header() {
               <User className="w-5 h-5" />
             </button>
 
-            {/* Cart */}
+            {/* Cart (Chỉ hiển thị trên màn hình < 1440px, trên desktop lớn đã có Sticky Sidebar cố định) */}
             <button
               onClick={openCart}
-              className="relative p-2.5 text-text-body hover:text-green-primary transition-colors rounded-lg hover:bg-ivory-dark/50"
+              className="relative p-2.5 text-text-body hover:text-green-primary transition-colors rounded-lg hover:bg-ivory-dark/50 min-[1440px]:hidden"
               aria-label={`Giỏ hàng, ${totalQuantity} sản phẩm`}
             >
               <ShoppingBag className="w-5 h-5" />

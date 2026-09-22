@@ -1,10 +1,8 @@
 import type { Metadata } from 'next';
 import { Fira_Sans, Roboto, Playfair_Display } from 'next/font/google';
 import './globals.css';
-import Header from '@/components/layout/Header';
-import Footer from '@/components/layout/Footer';
-import CartDrawer from '@/components/cart/CartDrawer';
 import LogoPreloader from '@/components/layout/LogoPreloader';
+import AppLayout from '@/components/layout/AppLayout';
 
 const firaSans = Fira_Sans({
   subsets: ['latin', 'vietnamese'],
@@ -71,10 +69,7 @@ export default function RootLayout({
         style={{ fontFamily: 'var(--font-roboto), sans-serif' }}
       >
         <LogoPreloader />
-        <Header />
-        <main className="pt-[76px] min-h-screen">{children}</main>
-        <Footer />
-        <CartDrawer />
+        <AppLayout>{children}</AppLayout>
       </body>
     </html>
   );
