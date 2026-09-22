@@ -13,6 +13,7 @@ export default function ComboShowcase() {
   const [activeIndex, setActiveIndex] = useState(0);
   const activeCombo = combos[activeIndex] || combos[0];
   const isCombo01 = activeCombo.id === 'combo-4-chai';
+  const isCombo02 = activeCombo.id === 'combo-van-phong';
 
   return (
     <section id="combo" className="section-container py-10 md:py-16">
@@ -26,6 +27,7 @@ export default function ComboShowcase() {
           {combos.map((combo, index) => {
             const isSelected = activeIndex === index;
             const isThisCombo01 = combo.id === 'combo-4-chai';
+            const isThisCombo02 = combo.id === 'combo-van-phong';
 
             if (isSelected) {
               return (
@@ -37,16 +39,16 @@ export default function ComboShowcase() {
                   className="w-full overflow-hidden rounded-2xl shadow-sm border border-emerald-950/10 mb-2 bg-white"
                 >
                   {/* Thanh tiêu đề tối màu đặc trưng */}
-                  {isThisCombo01 ? (
+                  {isThisCombo01 || isThisCombo02 ? (
                     <Link
-                      href="/combo"
+                      href={isThisCombo01 ? '/combo?type=combo-4-chai' : '/combo?type=combo-van-phong'}
                       className="bg-[#0B1E16] text-white px-4 py-3 flex items-center justify-between transition-colors hover:bg-[#143D28]"
                     >
                       <div className="flex items-center gap-2 font-bold text-sm sm:text-base">
                         <span className="text-corn">{String(index + 1).padStart(2, '0')}.</span>
                         <span>{combo.name}</span>
                         <span className="text-[10px] bg-corn text-text-dark px-2 py-0.5 rounded-full font-bold ml-1">
-                          Tự chọn vị
+                          {isThisCombo01 ? 'Tự chọn 4 vị' : 'Tự chọn 10 chai'}
                         </span>
                       </div>
                       <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-corn">
@@ -95,13 +97,13 @@ export default function ComboShowcase() {
                           </span>
                         </div>
 
-                        {isThisCombo01 ? (
+                        {isThisCombo01 || isThisCombo02 ? (
                           <Link
-                            href="/combo"
+                            href={isThisCombo01 ? '/combo?type=combo-4-chai' : '/combo?type=combo-van-phong'}
                             className="inline-flex items-center gap-1 px-3 py-1.5 bg-corn text-text-dark font-bold rounded-lg text-xs active:scale-95 shadow-xs"
                           >
                             <Sparkles className="w-3 h-3" />
-                            <span>Tùy chọn vị</span>
+                            <span>{isThisCombo01 ? 'Tùy chọn 4 chai' : 'Tùy chọn 10 chai'}</span>
                             <ArrowRight className="w-3 h-3" />
                           </Link>
                         ) : (
@@ -171,6 +173,7 @@ export default function ComboShowcase() {
             {combos.map((combo, index) => {
               const isSelected = activeIndex === index;
               const isThisCombo01 = combo.id === 'combo-4-chai';
+              const isThisCombo02 = combo.id === 'combo-van-phong';
 
               const innerContent = (
                 <>
@@ -199,6 +202,19 @@ export default function ComboShowcase() {
                           >
                             <Sparkles className="w-3 h-3" />
                             Tự chọn 4 vị
+                          </span>
+                        )}
+                        {isThisCombo02 && (
+                          <span
+                            className={cn(
+                              'text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0',
+                              isSelected
+                                ? 'bg-corn text-text-dark font-bold'
+                                : 'bg-green-primary/10 text-green-primary'
+                            )}
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            Tự chọn 10 chai
                           </span>
                         )}
                       </div>
@@ -230,11 +246,11 @@ export default function ComboShowcase() {
                   : 'bg-white text-text-dark hover:bg-ivory-dark border border-border-light'
               );
 
-              if (isThisCombo01) {
+              if (isThisCombo01 || isThisCombo02) {
                 return (
                   <Link
                     key={combo.id}
-                    href="/combo"
+                    href={isThisCombo01 ? '/combo?type=combo-4-chai' : '/combo?type=combo-van-phong'}
                     onMouseEnter={() => setActiveIndex(index)}
                     className={commonClassName}
                   >
@@ -285,6 +301,12 @@ export default function ComboShowcase() {
                       Đặc quyền tự chọn 4 vị
                     </span>
                   )}
+                  {isCombo02 && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-corn text-text-dark mb-1 shadow-xs">
+                      <Sparkles className="w-3 h-3" />
+                      Đặc quyền tự chọn 10 chai theo nhánh
+                    </span>
+                  )}
                   <h3 className="text-base sm:text-lg md:text-xl font-bold text-white font-heading mb-0.5 drop-shadow-xs">
                     {activeCombo.name}
                   </h3>
@@ -305,13 +327,13 @@ export default function ComboShowcase() {
                       </span>
                     </div>
 
-                    {isCombo01 ? (
+                    {isCombo01 || isCombo02 ? (
                       <Link
-                        href="/combo"
+                        href={isCombo01 ? '/combo?type=combo-4-chai' : '/combo?type=combo-van-phong'}
                         className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 sm:py-2 bg-corn text-text-dark font-bold rounded-lg hover:bg-yellow-400 hover:shadow-md transition-all text-xs sm:text-sm active:scale-95 cursor-pointer shadow-xs"
                       >
                         <Sparkles className="w-3.5 h-3.5" />
-                        <span>Tùy chọn 4 chai</span>
+                        <span>{isCombo01 ? 'Tùy chọn 4 chai' : 'Tùy chọn 10 chai'}</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
                     ) : (
