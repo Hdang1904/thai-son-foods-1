@@ -20,28 +20,28 @@ const warehouseTabs: TabItem[] = [
     num: '01',
     subTitle: 'Liên tục',
     title: 'Độ phủ rộng khắp',
-    image: '/images/warehouse/combo-4.png',
+    image: '/images/warehouse/1920x850-6.png',
   },
   {
     id: 'kho-lanh',
     num: '02',
     subTitle: 'Bảo quản',
     title: 'Kho tổng & Xe lạnh',
-    image: '/images/warehouse/1920x850-anh-2.jpg',
+    image: '/images/warehouse/1920x850-3.png',
   },
   {
     id: 'chinh-sach-si',
     num: '03',
     subTitle: 'Đồng hành',
     title: 'Chính sách sỉ hấp dẫn',
-    image: '/images/warehouse/combo-4.png',
+    image: '/images/warehouse/1920x850-2.png',
   },
   {
     id: 'phap-ly',
     num: '04',
     subTitle: 'Pháp lý & Chất lượng',
     title: 'Chứng nhận Quốc tế HACCP',
-    image: '/images/warehouse/combo-4.png',
+    image: '/images/warehouse/1920x850-4.png',
   },
 ];
 
