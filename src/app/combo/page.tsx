@@ -683,9 +683,9 @@ function Combo02View() {
             Tùy chọn Combo 10 chai Văn Phòng
           </h1>
           <p className="text-text-muted text-sm md:text-[15px] mt-1 max-w-2xl">
-            Chọn 3 bước tiện lợi: <strong className="text-emerald-800">5 chai chủ lực</strong> +{' '}
-            <strong className="text-amber-800">3 chai thảo mộc/sữa hạt</strong> +{' '}
-            <strong className="text-teal-800">2 chai trà thạch</strong> — Giá trọn gói chỉ{' '}
+            Tùy chọn combo 10 chai: <strong className="text-emerald-800">5 chai chủ đạo</strong> +{' '}
+            <strong className="text-amber-800">3 chai bổ trợ</strong> +{' '}
+            <strong className="text-teal-800">2 chai trà thạch</strong> — Trọn gói ưu đãi chỉ{' '}
             <strong className="text-text-dark font-bold">{formatPrice(COMBO_02_PRICE)}đ</strong>
           </p>
         </div>
@@ -706,15 +706,25 @@ function Combo02View() {
         </div>
       </div>
 
-      {/* THANH TIẾN TRÌNH 3 BƯỚC CHỌN (STEP PROGRESS BAR) */}
-      <div className="bg-white rounded-3xl border border-gray-200/90 p-4 sm:p-6 shadow-xs mb-8">
-        <div className="flex items-center justify-between mb-4">
+      {/* THANH TIẾN ĐỘ CHECKLIST GỌN GÀNG (PROGRESS STRIP) */}
+      <div className="bg-white rounded-2xl border border-gray-200/90 p-3.5 sm:p-4 shadow-xs mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
           <div className="flex items-center gap-2">
-            <Layers className="w-5 h-5 text-emerald-700" />
-            <h2 className="text-sm sm:text-base font-bold text-text-dark">
-              Khay 10 chai Combo ({totalSelected}/10 chai)
-            </h2>
+            <CheckCircle2 className="w-5 h-5 text-emerald-700" />
+            <span className="text-sm font-bold text-text-dark">
+              Tiến độ chọn: {totalSelected}/10 chai
+            </span>
+            {isComplete ? (
+              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                ✓ Đã đủ 10 chai
+              </span>
+            ) : (
+              <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                Còn thiếu {10 - totalSelected} chai
+              </span>
+            )}
           </div>
+
           {totalSelected > 0 && (
             <button
               type="button"
@@ -727,162 +737,71 @@ function Combo02View() {
           )}
         </div>
 
-        {/* 10 Khay chai trực quan chia 3 nhóm màu */}
-        <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 sm:gap-2.5 mb-4">
-          {/* Nhóm 1: Slots 1..5 */}
-          {[0, 1, 2, 3, 4].map((idx) => {
-            const isFilled = Boolean(selectedStep1Obj);
-            return (
-              <div
-                key={`slot-${idx}`}
-                className={cn(
-                  'relative rounded-xl border-2 p-1.5 flex flex-col items-center justify-between text-center min-h-[96px] transition-all',
-                  isFilled
-                    ? 'border-emerald-600 bg-emerald-50/50 shadow-xs'
-                    : 'border-dashed border-gray-300 bg-gray-50/70'
-                )}
-              >
-                <span className="w-4 h-4 rounded-full bg-emerald-700 text-white text-[9px] font-bold flex items-center justify-center">
-                  {idx + 1}
-                </span>
-
-                {isFilled && selectedStep1Obj ? (
-                  <>
-                    <div className="relative w-8 h-12 my-0.5">
-                      <Image
-                        src={selectedStep1Obj.image}
-                        alt={selectedStep1Obj.name}
-                        fill
-                        className="object-contain"
-                        sizes="40px"
-                      />
-                    </div>
-                    <span className="text-[9px] font-bold text-emerald-950 truncate max-w-full leading-tight">
-                      {idx === 0 ? '5x ' : ''}{selectedStep1Obj.name.replace('Thái Sơn', '').replace('Mekong Xanh', '').trim()}
-                    </span>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-2">
-                    <span className="text-[10px] font-medium text-gray-400">B.1</span>
-                    <span className="text-[9px] text-gray-400">5 chai</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Nhóm 2: Slots 6..8 */}
-          {[5, 6, 7].map((idx) => {
-            const isFilled = Boolean(selectedStep2Obj);
-            return (
-              <div
-                key={`slot-${idx}`}
-                className={cn(
-                  'relative rounded-xl border-2 p-1.5 flex flex-col items-center justify-between text-center min-h-[96px] transition-all',
-                  isFilled
-                    ? 'border-amber-600 bg-amber-50/50 shadow-xs'
-                    : 'border-dashed border-gray-300 bg-gray-50/70'
-                )}
-              >
-                <span className="w-4 h-4 rounded-full bg-amber-700 text-white text-[9px] font-bold flex items-center justify-center">
-                  {idx + 1}
-                </span>
-
-                {isFilled && selectedStep2Obj ? (
-                  <>
-                    <div className="relative w-8 h-12 my-0.5">
-                      <Image
-                        src={selectedStep2Obj.image}
-                        alt={selectedStep2Obj.name}
-                        fill
-                        className="object-contain"
-                        sizes="40px"
-                      />
-                    </div>
-                    <span className="text-[9px] font-bold text-amber-950 truncate max-w-full leading-tight">
-                      {idx === 5 ? '3x ' : ''}{selectedStep2Obj.name.replace('Thái Sơn', '').replace('Mekong Xanh', '').trim()}
-                    </span>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-2">
-                    <span className="text-[10px] font-medium text-gray-400">B.2</span>
-                    <span className="text-[9px] text-gray-400">3 chai</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Nhóm 3: Slots 9..10 */}
-          {[8, 9].map((idx) => {
-            const isFilled = Boolean(selectedStep3Obj);
-            return (
-              <div
-                key={`slot-${idx}`}
-                className={cn(
-                  'relative rounded-xl border-2 p-1.5 flex flex-col items-center justify-between text-center min-h-[96px] transition-all',
-                  isFilled
-                    ? 'border-teal-600 bg-teal-50/50 shadow-xs'
-                    : 'border-dashed border-gray-300 bg-gray-50/70'
-                )}
-              >
-                <span className="w-4 h-4 rounded-full bg-teal-700 text-white text-[9px] font-bold flex items-center justify-center">
-                  {idx + 1}
-                </span>
-
-                {isFilled && selectedStep3Obj ? (
-                  <>
-                    <div className="relative w-8 h-12 my-0.5">
-                      <Image
-                        src={selectedStep3Obj.image}
-                        alt={selectedStep3Obj.name}
-                        fill
-                        className="object-contain"
-                        sizes="40px"
-                      />
-                    </div>
-                    <span className="text-[9px] font-bold text-teal-950 truncate max-w-full leading-tight">
-                      {idx === 8 ? '2x ' : ''}{selectedStep3Obj.name}
-                    </span>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-2">
-                    <span className="text-[10px] font-medium text-gray-400">B.3</span>
-                    <span className="text-[9px] text-gray-400">2 chai</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        {/* Thanh bar % trực quan */}
+        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-emerald-600 transition-all duration-300 rounded-full"
+            style={{ width: `${(totalSelected / 10) * 100}%` }}
+          />
         </div>
 
-        {/* Chú thích 3 bước */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-gray-100 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0" />
-            <span className="text-gray-600 font-medium">
-              BƯỚC 1 (5 chai):{' '}
-              <strong className="text-text-dark">
+        {/* 3 tag tóm tắt nhanh món đang chọn */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3 pt-3 border-t border-gray-100 text-xs">
+          <div
+            className={cn(
+              'flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-colors',
+              selectedStep1Obj ? 'bg-emerald-50/80 text-emerald-900 font-semibold' : 'bg-gray-50 text-gray-400'
+            )}
+          >
+            <span
+              className={cn(
+                'w-2 h-2 rounded-full shrink-0',
+                selectedStep1Obj ? 'bg-emerald-600' : 'bg-gray-300'
+              )}
+            />
+            <span className="truncate">
+              5 chai chính:{' '}
+              <strong className={selectedStep1Obj ? 'text-emerald-950' : ''}>
                 {selectedStep1Obj ? selectedStep1Obj.name : 'Chưa chọn'}
               </strong>
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-600 shrink-0" />
-            <span className="text-gray-600 font-medium">
-              BƯỚC 2 (3 chai):{' '}
-              <strong className="text-text-dark">
+          <div
+            className={cn(
+              'flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-colors',
+              selectedStep2Obj ? 'bg-amber-50/80 text-amber-900 font-semibold' : 'bg-gray-50 text-gray-400'
+            )}
+          >
+            <span
+              className={cn(
+                'w-2 h-2 rounded-full shrink-0',
+                selectedStep2Obj ? 'bg-amber-600' : 'bg-gray-300'
+              )}
+            />
+            <span className="truncate">
+              3 chai bổ trợ:{' '}
+              <strong className={selectedStep2Obj ? 'text-amber-950' : ''}>
                 {selectedStep2Obj ? selectedStep2Obj.name : 'Chưa chọn'}
               </strong>
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-teal-600 shrink-0" />
-            <span className="text-gray-600 font-medium">
-              BƯỚC 3 (2 chai):{' '}
-              <strong className="text-text-dark">
+          <div
+            className={cn(
+              'flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-colors',
+              selectedStep3Obj ? 'bg-teal-50/80 text-teal-900 font-semibold' : 'bg-gray-50 text-gray-400'
+            )}
+          >
+            <span
+              className={cn(
+                'w-2 h-2 rounded-full shrink-0',
+                selectedStep3Obj ? 'bg-teal-600' : 'bg-gray-300'
+              )}
+            />
+            <span className="truncate">
+              2 chai trà thạch:{' '}
+              <strong className={selectedStep3Obj ? 'text-teal-950' : ''}>
                 {selectedStep3Obj ? selectedStep3Obj.name : 'Chưa chọn'}
               </strong>
             </span>
@@ -890,435 +809,339 @@ function Combo02View() {
         </div>
       </div>
 
-      {/* ─────────────────────────────────────────────────────────────
-          BƯỚC 1: CHỌN 5 CHAI CHỦ LỰC (SỮA BẮP HOẶC MỦ TRÔM)
-      ────────────────────────────────────────────────────────────── */}
-      <section className="mb-10">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            <span className="w-7 h-7 rounded-full bg-emerald-800 text-white font-bold text-xs flex items-center justify-center shadow-xs">
-              1
-            </span>
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-text-dark font-heading">
-                BƯỚC 1: Chọn 5 chai chủ lực (Chọn 1 trong 2 món)
-              </h2>
-              <p className="text-xs text-text-muted">
-                Nếu chọn 5 Sữa Bắp thì 5 Mủ Trôm sẽ bị khóa mờ lại, và ngược lại.
-              </p>
+      {/* DANH SÁCH CHECKLIST 3 MỤC CHỌN (GỌN GÀNG - TRỰC QUAN) */}
+      <div className="space-y-5 mb-10">
+        {/* MỤC 1: 5 CHAI CHỦ ĐẠO */}
+        <div className="bg-white rounded-2xl border border-gray-200/90 p-4 sm:p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
+              <h3 className="text-base font-bold text-text-dark font-heading">
+                1. Chọn 5 chai chủ đạo
+              </h3>
+              <span className="text-xs text-text-muted hidden sm:inline-block">
+                (Chọn 1 trong 2 loại)
+              </span>
             </div>
+            <span
+              className={cn(
+                'text-xs font-bold px-2.5 py-0.5 rounded-full',
+                step1 ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-500'
+              )}
+            >
+              {step1 ? '✓ Đã chọn 5 chai' : 'Bắt buộc • 5 chai'}
+            </span>
           </div>
 
-          {step1 && (
-            <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full flex items-center gap-1">
-              <Check className="w-3.5 h-3.5" />
-              Đã xong Bước 1 (5 chai)
-            </span>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          {STEP1_OPTIONS.map((opt) => {
-            const isSelected = step1 === opt.id;
-            const isMutualDisabled = step1 !== null && step1 !== opt.id;
-            const oppositeOpt = STEP1_OPTIONS.find((o) => o.id !== opt.id);
-
-            return (
-              <div
-                key={opt.id}
-                onClick={() => {
-                  if (!isMutualDisabled) handleToggleStep1(opt.id as any);
-                }}
-                className={cn(
-                  'relative rounded-2xl border-2 p-5 transition-all duration-300 flex flex-col justify-between cursor-pointer',
-                  isSelected
-                    ? 'border-emerald-600 bg-emerald-50/40 shadow-md ring-2 ring-emerald-600/20'
-                    : 'border-gray-200 hover:border-emerald-500 bg-white hover:shadow-sm',
-                  isMutualDisabled &&
-                    'opacity-35 grayscale-[25%] pointer-events-none cursor-not-allowed bg-gray-100/80 border-dashed border-gray-300 shadow-none'
-                )}
-              >
-                {/* Badge trạng thái */}
-                <div className="flex items-center justify-between mb-3">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900">
-                    <Sparkles className="w-3 h-3" />
-                    Định mức: 5 chai
-                  </span>
-
-                  {isSelected && (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-white bg-emerald-700 px-3 py-1 rounded-full shadow-xs">
-                      <Check className="w-3.5 h-3.5" />
-                      ĐÃ CHỌN 5 CHAI
-                    </span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {STEP1_OPTIONS.map((opt) => {
+              const isSelected = step1 === opt.id;
+              return (
+                <div
+                  key={opt.id}
+                  onClick={() => handleToggleStep1(opt.id as any)}
+                  className={cn(
+                    'group flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer select-none',
+                    isSelected
+                      ? 'border-emerald-600 bg-emerald-50/50 shadow-xs ring-1 ring-emerald-600/20'
+                      : 'border-gray-200 hover:border-emerald-300 bg-white hover:bg-gray-50/50'
                   )}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Checkbox / Radio indicator */}
+                    <div
+                      className={cn(
+                        'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
+                        isSelected
+                          ? 'border-emerald-600 bg-emerald-600 text-white'
+                          : 'border-gray-300 bg-white group-hover:border-emerald-500'
+                      )}
+                    >
+                      {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                    </div>
 
-                  {isMutualDisabled && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 bg-gray-200 px-2.5 py-0.5 rounded-full">
-                      <Lock className="w-3 h-3" />
-                      Đã khóa (do chọn {oppositeOpt?.name})
-                    </span>
-                  )}
-                </div>
+                    {/* Thumbnail */}
+                    <div className="relative w-12 h-14 bg-[#FAF8F5] rounded-lg p-1 shrink-0 flex items-center justify-center border border-gray-100">
+                      <Image
+                        src={opt.image}
+                        alt={opt.name}
+                        fill
+                        className="object-contain p-0.5"
+                        sizes="48px"
+                      />
+                    </div>
 
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="relative w-24 h-28 sm:w-28 sm:h-32 bg-[#FAF8F5] rounded-xl p-2 shrink-0 flex items-center justify-center">
-                    <Image
-                      src={opt.image}
-                      alt={opt.name}
-                      fill
-                      className="object-contain p-1"
-                      sizes="120px"
-                    />
-                  </div>
-
-                  <div className="min-w-0">
-                    <h3 className="text-base sm:text-lg font-bold text-text-dark font-heading leading-tight mb-1">
-                      {opt.name}
-                    </h3>
-                    <p className="text-xs text-text-muted mb-2 line-clamp-2">{opt.desc}</p>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-base font-black text-emerald-800">
-                        {formatPrice(opt.totalOriginal)}đ
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        (5 chai x {formatPrice(opt.unitPrice)}đ)
-                      </span>
+                    {/* Name & Desc */}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className={cn(
+                            'text-[11px] font-bold px-1.5 py-0.2 rounded',
+                            isSelected ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-700'
+                          )}
+                        >
+                          5 chai
+                        </span>
+                        <span
+                          className={cn(
+                            'text-sm font-bold truncate leading-tight',
+                            isSelected ? 'text-emerald-950 font-extrabold' : 'text-text-dark'
+                          )}
+                        >
+                          {opt.name}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-text-muted line-clamp-1 mt-0.5">
+                        {opt.desc}
+                      </p>
                     </div>
                   </div>
-                </div>
 
-                {/* Nút hành động */}
-                <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                  <span className="text-xs text-gray-500">
-                    {isSelected ? 'Bấm để đổi món khác' : 'Chạm để chọn 5 chai'}
-                  </span>
-                  <button
-                    type="button"
+                  <div className="text-right shrink-0 pl-2">
+                    <span
+                      className={cn(
+                        'text-xs sm:text-sm font-black block',
+                        isSelected ? 'text-emerald-800' : 'text-gray-700'
+                      )}
+                    >
+                      {formatPrice(opt.totalOriginal)}đ
+                    </span>
+                    <span className="text-[10px] text-gray-400 font-medium">
+                      {isSelected ? 'Đang chọn' : 'Chạm để chọn'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* MỤC 2: 3 CHAI BỔ TRỢ THEO VỊ */}
+        <div className="bg-white rounded-2xl border border-gray-200/90 p-4 sm:p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-600" />
+              <h3 className="text-base font-bold text-text-dark font-heading">
+                2. Chọn 3 chai bổ trợ{' '}
+                {step1 === 'sua-bap-nep'
+                  ? '(Thảo mộc thanh mát)'
+                  : step1 === 'nha-dam-mu-trom'
+                  ? '(Sữa hạt thực dưỡng)'
+                  : ''}
+              </h3>
+              <span className="text-xs text-text-muted hidden sm:inline-block">
+                (Chọn 1 trong 2 loại)
+              </span>
+            </div>
+            <span
+              className={cn(
+                'text-xs font-bold px-2.5 py-0.5 rounded-full',
+                step2 ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-500'
+              )}
+            >
+              {step2 ? '✓ Đã chọn 3 chai' : 'Bắt buộc • 3 chai'}
+            </span>
+          </div>
+
+          {!step1 ? (
+            <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-amber-50/70 border border-dashed border-amber-200 text-amber-900 text-xs sm:text-sm">
+              <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center text-xs font-bold shrink-0">
+                !
+              </span>
+              <span>
+                Vui lòng tick chọn 5 chai chủ đạo ở mục 1 trước để hiển thị 2 lựa chọn 3 chai phù hợp tại đây.
+              </span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {currentStep2Options.map((opt) => {
+                const isSelected = step2 === opt.id;
+                return (
+                  <div
+                    key={opt.id}
+                    onClick={() => handleToggleStep2(opt.id)}
                     className={cn(
-                      'px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5',
+                      'group flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer select-none',
                       isSelected
-                        ? 'bg-emerald-700 text-white shadow-xs'
-                        : 'bg-gray-100 hover:bg-emerald-600 hover:text-white text-gray-700'
+                        ? 'border-amber-600 bg-amber-50/50 shadow-xs ring-1 ring-amber-600/20'
+                        : 'border-gray-200 hover:border-amber-300 bg-white hover:bg-gray-50/50'
                     )}
                   >
-                    {isSelected ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Đã chọn 5 chai</span>
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Chọn 5 chai</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+                    <div className="flex items-center gap-3 min-w-0">
+                      {/* Checkbox / Radio indicator */}
+                      <div
+                        className={cn(
+                          'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
+                          isSelected
+                            ? 'border-amber-600 bg-amber-600 text-white'
+                            : 'border-gray-300 bg-white group-hover:border-amber-500'
+                        )}
+                      >
+                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
 
-      {/* ─────────────────────────────────────────────────────────────
-          BƯỚC 2: CHỌN 3 CHAI BỔ TRỢ THEO NHÁNH ĐÃ CHỌN Ở BƯỚC 1
-      ────────────────────────────────────────────────────────────── */}
-      <section className="mb-10">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            <span
-              className={cn(
-                'w-7 h-7 rounded-full font-bold text-xs flex items-center justify-center shadow-xs',
-                step1 ? 'bg-amber-700 text-white' : 'bg-gray-300 text-gray-600'
-              )}
-            >
-              2
-            </span>
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-text-dark font-heading">
-                BƯỚC 2: Chọn 3 chai bổ trợ theo nhánh
-              </h2>
-              <p className="text-xs text-text-muted">
-                {step1 === 'sua-bap-nep' &&
-                  'Nhánh Sữa Bắp: Chọn 3 La Hán hoặc 3 Táo Đỏ (chọn 1 món, món còn lại sẽ tối mờ).'}
-                {step1 === 'nha-dam-mu-trom' &&
-                  'Nhánh Mủ Trôm: Chọn 3 Hạt Sen hoặc 3 Gạo Lứt (chọn 1 món, món còn lại sẽ tối mờ).'}
-                {!step1 && 'Vui lòng hoàn tất Bước 1 ở trên để mở khóa bước này.'}
-              </p>
-            </div>
-          </div>
+                      {/* Thumbnail */}
+                      <div className="relative w-12 h-14 bg-[#FAF8F5] rounded-lg p-1 shrink-0 flex items-center justify-center border border-gray-100">
+                        <Image
+                          src={opt.image}
+                          alt={opt.name}
+                          fill
+                          className="object-contain p-0.5"
+                          sizes="48px"
+                        />
+                      </div>
 
-          {step2 && (
-            <span className="text-xs font-bold text-amber-800 bg-amber-100 px-3 py-1 rounded-full flex items-center gap-1">
-              <Check className="w-3.5 h-3.5" />
-              Đã xong Bước 2 (3 chai)
-            </span>
-          )}
-        </div>
-
-        {!step1 ? (
-          /* Trạng thái chưa chọn Bước 1 */
-          <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/70 p-8 text-center flex flex-col items-center justify-center">
-            <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 mb-3">
-              <Lock className="w-6 h-6" />
-            </div>
-            <p className="text-sm font-bold text-gray-600 mb-1">
-              Bước 2 đang bị khóa
-            </p>
-            <p className="text-xs text-gray-400 max-w-md">
-              Bạn hãy chọn 5 chai Sữa Bắp hoặc 5 chai Mủ Trôm ở Bước 1 trước để kích hoạt nhánh thức uống tương ứng.
-            </p>
-          </div>
-        ) : (
-          /* Danh sách 2 món tương hỗ ở Bước 2 */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-            {currentStep2Options.map((opt) => {
-              const isSelected = step2 === opt.id;
-              const isMutualDisabled = step2 !== null && step2 !== opt.id;
-              const oppositeOpt = currentStep2Options.find((o) => o.id !== opt.id);
-
-              return (
-                <div
-                  key={opt.id}
-                  onClick={() => {
-                    if (!isMutualDisabled) handleToggleStep2(opt.id);
-                  }}
-                  className={cn(
-                    'relative rounded-2xl border-2 p-5 transition-all duration-300 flex flex-col justify-between cursor-pointer',
-                    isSelected
-                      ? 'border-amber-600 bg-amber-50/40 shadow-md ring-2 ring-amber-600/20'
-                      : 'border-gray-200 hover:border-amber-500 bg-white hover:shadow-sm',
-                    isMutualDisabled &&
-                      'opacity-35 grayscale-[25%] pointer-events-none cursor-not-allowed bg-gray-100/80 border-dashed border-gray-300 shadow-none'
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-900">
-                      Định mức: 3 chai
-                    </span>
-
-                    {isSelected && (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-white bg-amber-700 px-3 py-1 rounded-full shadow-xs">
-                        <Check className="w-3.5 h-3.5" />
-                        ĐÃ CHỌN 3 CHAI
-                      </span>
-                    )}
-
-                    {isMutualDisabled && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 bg-gray-200 px-2.5 py-0.5 rounded-full">
-                        <Lock className="w-3 h-3" />
-                        Đã khóa (do chọn {oppositeOpt?.name})
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="relative w-24 h-28 sm:w-28 sm:h-32 bg-[#FAF8F5] rounded-xl p-2 shrink-0 flex items-center justify-center">
-                      <Image
-                        src={opt.image}
-                        alt={opt.name}
-                        fill
-                        className="object-contain p-1"
-                        sizes="120px"
-                      />
-                    </div>
-
-                    <div className="min-w-0">
-                      <h3 className="text-base sm:text-lg font-bold text-text-dark font-heading leading-tight mb-1">
-                        {opt.name}
-                      </h3>
-                      <p className="text-xs text-text-muted mb-2 line-clamp-2">{opt.desc}</p>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-base font-black text-amber-800">
-                          {formatPrice(opt.totalOriginal)}đ
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          (3 chai x {formatPrice(opt.unitPrice)}đ)
-                        </span>
+                      {/* Name & Desc */}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className={cn(
+                              'text-[11px] font-bold px-1.5 py-0.2 rounded',
+                              isSelected ? 'bg-amber-700 text-white' : 'bg-gray-100 text-gray-700'
+                            )}
+                          >
+                            3 chai
+                          </span>
+                          <span
+                            className={cn(
+                              'text-sm font-bold truncate leading-tight',
+                              isSelected ? 'text-amber-950 font-extrabold' : 'text-text-dark'
+                            )}
+                          >
+                            {opt.name}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-text-muted line-clamp-1 mt-0.5">
+                          {opt.desc}
+                        </p>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                    <span className="text-xs text-gray-500">
-                      {isSelected ? 'Bấm để đổi món khác' : 'Chạm để chọn 3 chai'}
-                    </span>
-                    <button
-                      type="button"
-                      className={cn(
-                        'px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5',
-                        isSelected
-                          ? 'bg-amber-700 text-white shadow-xs'
-                          : 'bg-gray-100 hover:bg-amber-600 hover:text-white text-gray-700'
-                      )}
-                    >
-                      {isSelected ? (
-                        <>
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Đã chọn 3 chai</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Chọn 3 chai</span>
-                        </>
-                      )}
-                    </button>
+                    <div className="text-right shrink-0 pl-2">
+                      <span
+                        className={cn(
+                          'text-xs sm:text-sm font-black block',
+                          isSelected ? 'text-amber-800' : 'text-gray-700'
+                        )}
+                      >
+                        {formatPrice(opt.totalOriginal)}đ
+                      </span>
+                      <span className="text-[10px] text-gray-400 font-medium">
+                        {isSelected ? 'Đang chọn' : 'Chạm để chọn'}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* ─────────────────────────────────────────────────────────────
-          BƯỚC 3: CHỌN 2 CHAI TRÀ THẠCH CUỐI CÙNG (TRÀ SỮA GO HOẶC TRÀ XANH GO)
-      ────────────────────────────────────────────────────────────── */}
-      <section className="mb-10">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            <span
-              className={cn(
-                'w-7 h-7 rounded-full font-bold text-xs flex items-center justify-center shadow-xs',
-                step2 ? 'bg-teal-800 text-white' : 'bg-gray-300 text-gray-600'
-              )}
-            >
-              3
-            </span>
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-text-dark font-heading">
-                BƯỚC 3: Chọn 2 chai kết thúc (Trà thạch sảng khoái)
-              </h2>
-              <p className="text-xs text-text-muted">
-                2 chai cuối luôn là Trà Sữa GO hoặc Trà Xanh GO (chọn 1 món, món còn lại sẽ tối mờ).
-              </p>
+                );
+              })}
             </div>
-          </div>
-
-          {step3 && (
-            <span className="text-xs font-bold text-teal-800 bg-teal-100 px-3 py-1 rounded-full flex items-center gap-1">
-              <Check className="w-3.5 h-3.5" />
-              Đã xong Bước 3 (2 chai)
-            </span>
           )}
         </div>
 
-        {!step2 ? (
-          /* Trạng thái chưa hoàn tất Bước 2 */
-          <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/70 p-8 text-center flex flex-col items-center justify-center">
-            <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 mb-3">
-              <Lock className="w-6 h-6" />
+        {/* MỤC 3: 2 CHAI TRÀ THẠCH GO */}
+        <div className="bg-white rounded-2xl border border-gray-200/90 p-4 sm:p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-teal-600" />
+              <h3 className="text-base font-bold text-text-dark font-heading">
+                3. Chọn 2 chai trà thạch GO
+              </h3>
+              <span className="text-xs text-text-muted hidden sm:inline-block">
+                (Chọn 1 trong 2 loại)
+              </span>
             </div>
-            <p className="text-sm font-bold text-gray-600 mb-1">
-              Bước 3 đang bị khóa
-            </p>
-            <p className="text-xs text-gray-400 max-w-md">
-              Bạn hãy hoàn tất Bước 2 ở trên trước để mở khóa 2 chai Trà thạch giải khát cuối cùng.
-            </p>
+            <span
+              className={cn(
+                'text-xs font-bold px-2.5 py-0.5 rounded-full',
+                step3 ? 'bg-teal-100 text-teal-800' : 'bg-gray-100 text-gray-500'
+              )}
+            >
+              {step3 ? '✓ Đã chọn 2 chai' : 'Bắt buộc • 2 chai'}
+            </span>
           </div>
-        ) : (
-          /* Danh sách 2 món tương hỗ ở Bước 3 */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {STEP3_OPTIONS.map((opt) => {
               const isSelected = step3 === opt.id;
-              const isMutualDisabled = step3 !== null && step3 !== opt.id;
-              const oppositeOpt = STEP3_OPTIONS.find((o) => o.id !== opt.id);
-
               return (
                 <div
                   key={opt.id}
-                  onClick={() => {
-                    if (!isMutualDisabled) handleToggleStep3(opt.id as any);
-                  }}
+                  onClick={() => handleToggleStep3(opt.id as any)}
                   className={cn(
-                    'relative rounded-2xl border-2 p-5 transition-all duration-300 flex flex-col justify-between cursor-pointer',
+                    'group flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer select-none',
                     isSelected
-                      ? 'border-teal-600 bg-teal-50/40 shadow-md ring-2 ring-teal-600/20'
-                      : 'border-gray-200 hover:border-teal-500 bg-white hover:shadow-sm',
-                    isMutualDisabled &&
-                      'opacity-35 grayscale-[25%] pointer-events-none cursor-not-allowed bg-gray-100/80 border-dashed border-gray-300 shadow-none'
+                      ? 'border-teal-600 bg-teal-50/50 shadow-xs ring-1 ring-teal-600/20'
+                      : 'border-gray-200 hover:border-teal-300 bg-white hover:bg-gray-50/50'
                   )}
                 >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-teal-100 text-teal-900">
-                      Định mức: 2 chai
-                    </span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Checkbox / Radio indicator */}
+                    <div
+                      className={cn(
+                        'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
+                        isSelected
+                          ? 'border-teal-600 bg-teal-600 text-white'
+                          : 'border-gray-300 bg-white group-hover:border-teal-500'
+                      )}
+                    >
+                      {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                    </div>
 
-                    {isSelected && (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-white bg-teal-700 px-3 py-1 rounded-full shadow-xs">
-                        <Check className="w-3.5 h-3.5" />
-                        ĐÃ CHỌN 2 CHAI
-                      </span>
-                    )}
-
-                    {isMutualDisabled && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 bg-gray-200 px-2.5 py-0.5 rounded-full">
-                        <Lock className="w-3 h-3" />
-                        Đã khóa (do chọn {oppositeOpt?.name})
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="relative w-24 h-28 sm:w-28 sm:h-32 bg-[#FAF8F5] rounded-xl p-2 shrink-0 flex items-center justify-center">
+                    {/* Thumbnail */}
+                    <div className="relative w-12 h-14 bg-[#FAF8F5] rounded-lg p-1 shrink-0 flex items-center justify-center border border-gray-100">
                       <Image
                         src={opt.image}
                         alt={opt.name}
                         fill
-                        className="object-contain p-1"
-                        sizes="120px"
+                        className="object-contain p-0.5"
+                        sizes="48px"
                       />
                     </div>
 
+                    {/* Name & Desc */}
                     <div className="min-w-0">
-                      <h3 className="text-base sm:text-lg font-bold text-text-dark font-heading leading-tight mb-1">
-                        {opt.name}
-                      </h3>
-                      <p className="text-xs text-text-muted mb-2 line-clamp-2">{opt.desc}</p>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-base font-black text-teal-800">
-                          {formatPrice(opt.totalOriginal)}đ
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className={cn(
+                            'text-[11px] font-bold px-1.5 py-0.2 rounded',
+                            isSelected ? 'bg-teal-700 text-white' : 'bg-gray-100 text-gray-700'
+                          )}
+                        >
+                          2 chai
                         </span>
-                        <span className="text-xs text-gray-400">
-                          (2 chai x {formatPrice(opt.unitPrice)}đ)
+                        <span
+                          className={cn(
+                            'text-sm font-bold truncate leading-tight',
+                            isSelected ? 'text-teal-950 font-extrabold' : 'text-text-dark'
+                          )}
+                        >
+                          {opt.name}
                         </span>
                       </div>
+                      <p className="text-[11px] text-text-muted line-clamp-1 mt-0.5">
+                        {opt.desc}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                    <span className="text-xs text-gray-500">
-                      {isSelected ? 'Bấm để đổi món khác' : 'Chạm để chọn 2 chai'}
-                    </span>
-                    <button
-                      type="button"
+                  <div className="text-right shrink-0 pl-2">
+                    <span
                       className={cn(
-                        'px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5',
-                        isSelected
-                          ? 'bg-teal-700 text-white shadow-xs'
-                          : 'bg-gray-100 hover:bg-teal-600 hover:text-white text-gray-700'
+                        'text-xs sm:text-sm font-black block',
+                        isSelected ? 'text-teal-800' : 'text-gray-700'
                       )}
                     >
-                      {isSelected ? (
-                        <>
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Đã chọn 2 chai</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Chọn 2 chai</span>
-                        </>
-                      )}
-                    </button>
+                      {formatPrice(opt.totalOriginal)}đ
+                    </span>
+                    <span className="text-[10px] text-gray-400 font-medium">
+                      {isSelected ? 'Đang chọn' : 'Chạm để chọn'}
+                    </span>
                   </div>
                 </div>
               );
             })}
           </div>
-        )}
-      </section>
+        </div>
+      </div>
 
       {/* THANH TỔNG KẾT VÀ NÚT THÊM GIỎ HÀNG DƯỚI CÙNG CHO COMBO 02 */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 px-4 py-3 sm:py-4 shadow-xl">
@@ -1337,8 +1160,8 @@ function Combo02View() {
                 </span>
               </div>
               <span className="text-xs text-emerald-800 font-semibold">
-                Đã hoàn tất: {totalSelected}/{COMBO_02_TARGET} chai
-                {isComplete ? ' (Đầy đủ 3 bước)' : ' (Chưa đủ 3 bước)'}
+                Đã chọn: {totalSelected}/{COMBO_02_TARGET} chai
+                {isComplete ? ' (Đã đủ 10 chai)' : ' (Chưa đủ 10 chai)'}
               </span>
             </div>
           </div>
@@ -1347,7 +1170,7 @@ function Combo02View() {
             {!isComplete && (
               <div className="hidden sm:flex items-center gap-1 px-3.5 py-2.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold shrink-0">
                 <AlertCircle className="w-4 h-4 text-amber-600" />
-                Vui lòng hoàn thành đủ 3 bước ({totalSelected}/10 chai)
+                Vui lòng tick chọn đủ 10 chai ({totalSelected}/10 chai)
               </div>
             )}
 
