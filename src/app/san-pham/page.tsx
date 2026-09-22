@@ -30,9 +30,9 @@ export default function ProductsPage() {
   }, [selectedCategory, searchQuery, sortBy]);
 
   return (
-    <div className="section-container py-6 md:py-10">
+    <div className="section-container pt-4 pb-8 md:pt-5 md:pb-10">
       {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" className="mb-6">
+      <nav aria-label="Breadcrumb" className="mb-4">
         <ol className="flex items-center gap-1.5 text-sm text-text-muted">
           <li>
             <Link href="/" className="hover:text-green-primary transition-colors">

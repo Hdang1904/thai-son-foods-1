@@ -25,7 +25,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     return (
       <div className="min-h-screen flex flex-col">
         <Header />
-        <main className="pt-[76px] min-h-screen flex-1">{children}</main>
+        <main className="min-h-screen flex-1">{children}</main>
         <Footer />
         {/* Vẫn giữ CartDrawer cho trường hợp người dùng trên mobile */}
         <CartDrawer />
@@ -40,7 +40,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       ────────────────────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 flex flex-col">
         <Header />
-        <main className="pt-[76px] min-h-screen flex-1">{children}</main>
+        <main className="min-h-screen flex-1">{children}</main>
         <Footer />
       </div>
 

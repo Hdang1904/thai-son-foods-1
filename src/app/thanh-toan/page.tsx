@@ -265,9 +265,9 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="section-container py-6 md:py-10">
+    <div className="section-container pt-4 pb-8 md:pt-5 md:pb-10">
       {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" className="mb-6">
+      <nav aria-label="Breadcrumb" className="mb-4">
         <ol className="flex items-center gap-1.5 text-sm text-text-muted">
           <li>
             <a href="/" className="hover:text-green-primary transition-colors">Trang chủ</a>
