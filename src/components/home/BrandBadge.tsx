@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function BrandBadge() {
+  const { language } = useLanguage();
   const [isHovered, setIsHovered] = useState(false);
   const shouldReduceMotion = useReducedMotion();
 
@@ -142,7 +144,11 @@ export default function BrandBadge() {
                 textLength="262"
                 lengthAdjust="spacing"
               >
-                THÁI SƠN FOODS<tspan fill="#D4A82E" fontSize="9" fontWeight="900"> • </tspan>THỨC UỐNG TỰ NHIÊN<tspan fill="#D4A82E" fontSize="9" fontWeight="900"> • </tspan>
+                {language === 'en' ? (
+                  <>THAI SON FOODS<tspan fill="#D4A82E" fontSize="9" fontWeight="900"> • </tspan>NATURAL BEVERAGES<tspan fill="#D4A82E" fontSize="9" fontWeight="900"> • </tspan></>
+                ) : (
+                  <>THÁI SƠN FOODS<tspan fill="#D4A82E" fontSize="9" fontWeight="900"> • </tspan>THỨC UỐNG TỰ NHIÊN<tspan fill="#D4A82E" fontSize="9" fontWeight="900"> • </tspan></>
+                )}
               </textPath>
             </text>
           </motion.g>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { syncProductToStaticFile } from '@/lib/products-file-sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -228,7 +229,27 @@ export async function PUT(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, data: result.rows[0] });
+    const updatedProd = result.rows[0];
+
+    // Tự động đồng bộ vào file src/data/products.ts để toàn bộ website lập tức hiển thị thông tin mới
+    syncProductToStaticFile({
+      id: updatedProd?.id || id,
+      sku: updatedProd?.sku || sku,
+      slug: updatedProd?.slug,
+      name: updatedProd?.name || name,
+      price: updatedProd?.price !== undefined ? Number(updatedProd.price) : price,
+      unit: updatedProd?.unit || unit,
+      short_description: updatedProd?.short_description || short_description,
+      description: updatedProd?.description || description,
+      thumbnail: updatedProd?.thumbnail || thumbnail,
+      category_id: updatedProd?.category_id || category_id,
+      is_active: updatedProd?.is_active ?? is_active,
+      is_featured: updatedProd?.is_featured ?? is_featured,
+      is_best_seller: updatedProd?.is_best_seller ?? is_best_seller,
+      is_new: updatedProd?.is_new ?? is_new,
+    });
+
+    return NextResponse.json({ success: true, data: updatedProd });
   } catch (error: any) {
     console.error('Error updating product:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

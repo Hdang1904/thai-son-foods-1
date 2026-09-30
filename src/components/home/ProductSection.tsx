@@ -1,54 +1,195 @@
 'use client';
 
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { products } from '@/data/products';
 import ProductCard from '@/components/product/ProductCard';
 import SectionTitle from '@/components/ui/SectionTitle';
 import { motion } from 'framer-motion';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
-export default function ProductSection() {
-  // Mô hình 3 / 2 / 3 / 2 / 2 cho 12 sản phẩm Thái Sơn
-  // Tất cả các hàng 2 sản phẩm và 3 sản phẩm đều dùng layout 'vertical' chuẩn đồng bộ
+interface ProductSectionProps {
+  title?: string;
+  viewAllLink?: string;
+  viewAllText?: string;
+  showViewAll?: boolean;
+  excludeProductId?: string;
+  itemsPerRow?: number;
+  className?: string;
+}
+
+export default function ProductSection({
+  title = 'Sản phẩm Thái Sơn',
+  viewAllLink,
+  viewAllText = 'Xem tất cả',
+  showViewAll = false,
+  excludeProductId,
+  itemsPerRow,
+  className = '',
+}: ProductSectionProps = {}) {
+  const { language } = useLanguage();
+  const sectionTitle = title === 'Sản phẩm Thái Sơn'
+    ? (language === 'en' ? 'Thai Son Products' : 'Sản phẩm Thái Sơn')
+    : title === 'Những sản phẩm khác bạn có thể quan tâm'
+    ? (language === 'en' ? 'Other products you may like' : 'Những sản phẩm khác bạn có thể quan tâm')
+    : title === 'Sản phẩm gợi ý' || title === 'Các sản phẩm nổi bật đáng cân nhắc' || title === 'Các sản phẩm bạn có thể thích'
+    ? (language === 'en' ? 'Products you may like' : 'Các sản phẩm bạn có thể thích')
+    : title;
+  const sectionViewAllText = viewAllText === 'Xem tất cả'
+    ? (language === 'en' ? 'View all' : 'Xem tất cả')
+    : viewAllText;
+
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const checkScroll = useCallback(() => {
+    if (!sliderRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = sliderRef.current;
+    setCanScrollLeft(scrollLeft > 6);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 6);
+  }, []);
+
+  useEffect(() => {
+    checkScroll();
+    const handleResize = () => checkScroll();
+    window.addEventListener('resize', handleResize);
+    const timer = setTimeout(checkScroll, 300);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timer);
+    };
+  }, [checkScroll]);
+
+  const handleScroll = (direction: 'left' | 'right') => {
+    if (!sliderRef.current) return;
+    const container = sliderRef.current;
+    const scrollAmount = Math.max(container.clientWidth * 0.65, 320);
+    container.scrollBy({
+      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth',
+    });
+  };
+
+  // Chế độ Slider / Carousel 7 sản phẩm 1 hàng (trang chi tiết sản phẩm)
+  if (excludeProductId || itemsPerRow === 7) {
+    const currentProduct = products.find(
+      (p) => p.id === excludeProductId || p.slug === excludeProductId
+    );
+
+    // Lọc bỏ sản phẩm hiện tại để không bị trùng lặp
+    const availableProducts = products.filter(
+      (p) => p.id !== excludeProductId && p.slug !== excludeProductId && p.isActive
+    );
+
+    // Ưu tiên sản phẩm cùng danh mục lên trước, tiếp đến các sản phẩm khác
+    const sortedProducts = currentProduct
+      ? [
+          ...availableProducts.filter((p) => p.categoryId === currentProduct.categoryId),
+          ...availableProducts.filter((p) => p.categoryId !== currentProduct.categoryId),
+        ]
+      : availableProducts;
+
+    return (
+      <section id="san-pham" className={`section-container max-sm:px-2.5 py-8 sm:py-10 md:py-16 ${className}`}>
+        <SectionTitle
+          title={sectionTitle}
+          viewAllLink={showViewAll ? viewAllLink : undefined}
+          viewAllText={sectionViewAllText}
+          className="mb-4 sm:mb-6 md:mb-8"
+        />
+
+        {/* Khung slider sản phẩm với nút mũi tên lướt */}
+        <div className="relative w-full group">
+          {/* Mũi tên lướt sang trái */}
+          {canScrollLeft && (
+            <button
+              type="button"
+              onClick={() => handleScroll('left')}
+              className="absolute -left-2 sm:-left-3.5 md:-left-4 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white shadow-md hover:shadow-xl border border-gray-200/90 flex items-center justify-center text-gray-700 hover:text-white hover:bg-green-primary transition-all duration-200 cursor-pointer active:scale-90"
+              aria-label={language === 'en' ? 'Previous products' : 'Lướt sang trái xem sản phẩm trước'}
+              title={language === 'en' ? 'Previous products' : 'Xem sản phẩm trước'}
+            >
+              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
+            </button>
+          )}
+
+          {/* Danh sách sản phẩm cuộn ngang (7 sản phẩm 1 hàng trên desktop) */}
+          <div
+            ref={sliderRef}
+            onScroll={checkScroll}
+            className="flex gap-2 sm:gap-3 lg:gap-3.5 overflow-x-auto scroll-smooth scrollbar-none py-2 px-0.5 snap-x snap-mandatory"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {sortedProducts.map((product) => (
+              <div
+                key={product.id}
+                className="shrink-0 snap-start w-[calc((100%-8px)/2)] sm:w-[calc((100%-16px)/3)] md:w-[calc((100%-36px)/4)] lg:w-[calc((100%-72px)/7)] self-stretch flex flex-col"
+              >
+                <ProductCard
+                  product={product}
+                  layout="compact"
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* Mũi tên lướt sang phải (vị trí người dùng khoanh đỏ) */}
+          {canScrollRight && (
+            <button
+              type="button"
+              onClick={() => handleScroll('right')}
+              className="absolute -right-2 sm:-right-3.5 md:-right-4 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white shadow-md hover:shadow-xl border border-gray-200/90 flex items-center justify-center text-gray-700 hover:text-white hover:bg-green-primary transition-all duration-200 cursor-pointer active:scale-90"
+              aria-label={language === 'en' ? 'Next products' : 'Lướt sang phải xem thêm sản phẩm'}
+              title={language === 'en' ? 'Next products' : 'Xem thêm sản phẩm'}
+            >
+              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
+            </button>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  // Bố cục mặc định cho Trang chủ: 2 hàng, mỗi hàng 6 mã sản phẩm (kích thước nhỏ gọn)
   const rows = [
-    { count: 3, items: products.slice(0, 3), layout: 'vertical' as const },
-    { count: 2, items: products.slice(3, 5), layout: 'vertical' as const },
-    { count: 3, items: products.slice(5, 8), layout: 'vertical' as const },
-    { count: 2, items: products.slice(8, 10), layout: 'vertical' as const },
-    { count: 2, items: products.slice(10, 12), layout: 'vertical' as const },
+    { id: 'row-1', items: products.slice(0, 6) },
+    { id: 'row-2', items: products.slice(6, 12) },
   ];
 
   return (
-    <section id="san-pham" className="section-container max-sm:px-2.5 py-8 sm:py-10 md:py-16">
+    <section id="san-pham" className={`section-container max-sm:px-2.5 pt-2 sm:pt-3 md:pt-4 pb-3 sm:pb-4 md:pb-6 ${className}`}>
       <SectionTitle
-        title="Sản phẩm Thái Sơn"
-        viewAllLink="/san-pham"
-        viewAllText="Xem tất cả"
-        className="mb-4 sm:mb-8 md:mb-10"
+        title={sectionTitle}
+        viewAllLink={showViewAll ? viewAllLink : undefined}
+        viewAllText={sectionViewAllText}
+        variant="default"
+        className="mb-4 sm:mb-5 md:mb-6"
       />
 
-      <div className="space-y-3 sm:space-y-6 md:space-y-8 w-full">
-        {rows.map((row, rowIdx) => (
+      <div className="space-y-3 sm:space-y-4 md:space-y-5 lg:space-y-6 w-full">
+        {rows.map((row) => (
           <div
-            key={rowIdx}
-            className={`grid ${
-              row.count === 3 ? 'grid-cols-3' : 'grid-cols-2'
-            } gap-2 sm:gap-4 md:gap-5 lg:gap-6 w-full`}
+            key={row.id}
+            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 md:gap-3.5 lg:gap-4 w-full"
           >
             {row.items.map((product, pIdx) => (
               <motion.div
                 key={product.id}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.1 }}
                 transition={{
-                  duration: 0.45,
+                  duration: 0.4,
                   ease: 'easeOut',
-                  delay: pIdx * 0.05,
+                  delay: pIdx * 0.04,
                 }}
                 className="h-full"
               >
                 <ProductCard
                   product={product}
-                  layout={row.layout}
+                  layout="compact"
+                  isHomepage={true}
                 />
               </motion.div>
             ))}

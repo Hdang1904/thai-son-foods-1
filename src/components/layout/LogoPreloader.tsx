@@ -9,11 +9,9 @@ export default function LogoPreloader() {
   const pathname = usePathname();
   const [phase, setPhase] = useState<'drawing' | 'revealed' | 'exiting' | 'done'>('drawing');
 
-  if (pathname.startsWith('/admin')) {
-    return null;
-  }
-
   useEffect(() => {
+    if (pathname.startsWith('/admin')) return;
+
     // 1. Giai đoạn 1: Chữ & nét outline viền logo chạy từ trái sang phải (1.4s)
     const t1 = setTimeout(() => {
       setPhase('revealed'); // Chuyển thành logo hoàn chỉnh đầy đủ màu sắc
@@ -34,7 +32,12 @@ export default function LogoPreloader() {
       clearTimeout(t2);
       clearTimeout(t3);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (pathname.startsWith('/admin')) {
+    return null;
+  }
 
   return (
     <AnimatePresence>

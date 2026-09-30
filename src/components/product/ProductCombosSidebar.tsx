@@ -1,30 +1,412 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { combos } from '@/data/combos';
 import { formatPrice, cn } from '@/lib/utils';
 import { useCartStore } from '@/store/cart';
-import { Sparkles, ArrowRight, ShoppingBag, Check, Layers } from 'lucide-react';
+import { useFlyToCart } from '@/context/FlyToCartContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { Sparkles, ArrowRight, ShoppingBag, Check, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function ProductCombosSidebar() {
+import SectionTitle from '@/components/ui/SectionTitle';
+
+interface ProductCombosSidebarProps {
+  layout?: 'vertical' | 'horizontal';
+  title?: string;
+  showViewAll?: boolean;
+}
+
+export default function ProductCombosSidebar({
+  layout = 'vertical',
+  title,
+  showViewAll = false,
+}: ProductCombosSidebarProps) {
+  const { language } = useLanguage();
+  const { flyToCart } = useFlyToCart();
   const [addedId, setAddedId] = useState<string | null>(null);
+  const maxDiscount = Math.max(...combos.map((c) => c.discount || 0), 0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
-  const handleQuickAdd = (combo: typeof combos[0]) => {
+  const sectionTitle = title === 'Combo tiết kiệm'
+    ? (language === 'en' ? 'Value Combos' : 'Combo tiết kiệm')
+    : title === 'Combo gợi ý' || title === 'Các combo nổi bật đáng cân nhắc' || !title
+    ? (language === 'en' ? 'Featured Combos to Consider' : 'Các combo nổi bật đáng cân nhắc')
+    : title;
+
+  const checkScroll = useCallback(() => {
+    if (!scrollRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+    setCanScrollLeft(scrollLeft > 6);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 6);
+  }, []);
+
+  useEffect(() => {
+    if (layout !== 'horizontal') return;
+    checkScroll();
+    const handleResize = () => checkScroll();
+    window.addEventListener('resize', handleResize);
+    const timer = setTimeout(checkScroll, 300);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timer);
+    };
+  }, [layout, checkScroll]);
+
+  const handleScroll = (dir: 'left' | 'right') => {
+    if (!scrollRef.current) return;
+    const container = scrollRef.current;
+    const scrollAmount = Math.max(container.clientWidth * 0.65, 320);
+    container.scrollBy({
+      left: dir === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth',
+    });
+  };
+
+  const handleQuickAdd = (combo: typeof combos[0], e?: React.MouseEvent) => {
+    const comboName = (language === 'en' && combo.nameEn) ? combo.nameEn : combo.name;
+    const comboUnit = `${combo.totalItems} ${language === 'en' ? 'bottles' : 'chai'}`;
+
+    if (e) {
+      const cardEl = (e.currentTarget as HTMLElement).closest('article, div.border') as HTMLElement | null;
+      const imgEl = cardEl?.querySelector('img') as HTMLElement | null;
+
+      flyToCart({
+        startElement: imgEl || (e.currentTarget as HTMLElement),
+        imageSrc: combo.image,
+      });
+    }
+
     useCartStore.getState().addItem({
       productId: combo.id,
-      name: combo.name,
-      slug: '#combo',
+      name: comboName,
+      slug: combo.slug || '#combo',
       price: combo.salePrice,
-      unit: `${combo.totalItems} chai`,
+      unit: comboUnit,
       thumbnail: combo.image,
     });
     setAddedId(combo.id);
-    useCartStore.getState().openCart();
     setTimeout(() => setAddedId(null), 2000);
   };
 
+  // ──────────────────────────────────────────────────────
+  // Card layout ngang (7 combo 1 hàng trên desktop, chuẩn ProductSection)
+  // ──────────────────────────────────────────────────────
+  const renderHorizontalCard = (combo: typeof combos[0], index: number) => {
+    const isCombo01 = combo.id === 'combo-4-chai';
+    const isCombo02 = combo.id === 'combo-van-phong';
+    const isComboUuDai = combo.id === 'combo-uu-dai' || combo.id === 'combo-5-old';
+    const isComboSieuHoi = combo.id === 'combo-sieu-hoi' || combo.id === 'combo-6-old';
+    const isCustomizable = isCombo01 || isCombo02 || isComboUuDai || isComboSieuHoi;
+    const isJustAdded = addedId === combo.id;
+
+    const customText = language === 'en'
+      ? (isCombo01
+        ? 'Custom 4'
+        : isCombo02
+        ? 'Custom 10'
+        : isComboUuDai
+        ? 'Buy 10+5 Free 2'
+        : 'Custom 20-30')
+      : (isCombo01
+        ? 'Tùy chọn 4 chai'
+        : isCombo02
+        ? 'Tùy chọn 10 chai'
+        : isComboUuDai
+        ? 'Mua 10+5 Tặng 2'
+        : 'Tùy chọn 20-30 chai');
+
+    const comboTitle = (language === 'en' && combo.nameEn) ? combo.nameEn : combo.name;
+    const comboDesc = (language === 'en' && combo.descriptionEn) ? combo.descriptionEn : combo.description;
+
+    return (
+      <div
+        key={combo.id}
+        className="shrink-0 snap-start w-[calc((100%-8px)/2)] sm:w-[calc((100%-16px)/3)] md:w-[calc((100%-36px)/4)] lg:w-[calc((100%-72px)/7)] self-stretch flex flex-col"
+      >
+        <article className="group h-full flex flex-col bg-white rounded-xl sm:rounded-2xl overflow-hidden border border-gray-200/80 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-md">
+          {/* Link toàn bộ phần trên thẻ đến trang chi tiết combo */}
+          <Link
+            href={`/combo/${combo.slug}`}
+            className="flex flex-col flex-1 cursor-pointer"
+            title={`Xem chi tiết ${combo.name}`}
+          >
+            {/* Ảnh Combo Thumbnail (aspect 4/3 đồng bộ ProductCard) */}
+            <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#FAF8F5] flex items-center justify-center">
+              <Image
+                src={combo.image}
+                alt={comboTitle}
+                fill
+                className="object-cover group-hover:scale-105 transition-transform duration-500"
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 15vw"
+                loading="lazy"
+              />
+
+              {/* Badge số chai */}
+              <span className="absolute bottom-1 right-1 bg-black/75 backdrop-blur-xs text-white text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded">
+                {combo.totalItems} {language === 'en' ? 'chai' : 'chai'}
+              </span>
+
+              {/* Badge giảm giá */}
+              {combo.discount > 0 && (
+                <span className="absolute top-1 left-1 px-1.5 py-0.5 text-[8px] sm:text-[9px] font-bold bg-sale text-white rounded shadow-xs">
+                  -{combo.discount}%
+                </span>
+              )}
+            </div>
+
+            {/* Thông tin Text */}
+            <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-between">
+              <div>
+                <h4
+                  title={comboTitle}
+                  className="text-xs sm:text-[13px] font-bold text-text-dark leading-snug group-hover:text-green-primary transition-colors"
+                >
+                  {comboTitle}
+                </h4>
+
+                <p className="text-[11px] text-text-muted leading-tight mt-0.5" title={comboDesc}>
+                  {comboDesc}
+                </p>
+
+                {/* Giá bán */}
+                <div className="flex items-baseline gap-1.5 mt-1">
+                  <span className="text-xs sm:text-[13px] font-extrabold text-green-primary">
+                    {formatPrice(combo.salePrice)}đ
+                  </span>
+                  <span className="text-[10px] text-gray-400 line-through">
+                    {formatPrice(combo.originalPrice)}đ
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          {/* Nút hành động cố định chân thẻ */}
+          <div className="p-2 sm:p-2.5 pt-0 mt-auto">
+            <div className="pt-1.5 border-t border-gray-100 flex items-center justify-between gap-1">
+              {isCustomizable ? (
+                <Link
+                  href={`/combo/${combo.slug}`}
+                  className="w-full py-1.5 px-1.5 rounded-lg bg-emerald-50 hover:bg-green-primary text-emerald-900 hover:text-white font-bold text-[10px] sm:text-[11px] flex items-center justify-center gap-1 transition-all active:scale-95 shadow-2xs"
+                >
+                  <Sparkles className="w-3 h-3 text-corn shrink-0" />
+                  <span>{customText}</span>
+                  <ArrowRight className="w-3 h-3 shrink-0" />
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => handleQuickAdd(combo, e)}
+                  className={cn(
+                    'w-full py-1.5 px-1.5 rounded-lg font-bold text-[10px] sm:text-[11px] flex items-center justify-center gap-1 transition-all active:scale-95 shadow-2xs cursor-pointer',
+                    isJustAdded
+                      ? 'bg-green-primary text-white'
+                      : 'bg-[#FAF8F5] hover:bg-green-primary text-gray-800 hover:text-white border border-gray-200/80 hover:border-green-primary'
+                  )}
+                >
+                  {isJustAdded ? (
+                    <>
+                      <Check className="w-3 h-3 shrink-0" />
+                      <span>{language === 'en' ? 'Added!' : 'Đã thêm!'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingBag className="w-3 h-3 text-green-primary group-hover:text-white shrink-0" />
+                      <span>{language === 'en' ? 'Add combo' : 'Thêm combo'}</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </article>
+      </div>
+    );
+  };
+
+  // ──────────────────────────────────────────────────────
+  // Card layout dọc (dùng cho sidebar)
+  // ──────────────────────────────────────────────────────
+  const renderVerticalCard = (combo: typeof combos[0], index: number) => {
+    const isCombo01 = combo.id === 'combo-4-chai';
+    const isCombo02 = combo.id === 'combo-van-phong';
+    const isComboUuDai = combo.id === 'combo-uu-dai' || combo.id === 'combo-5-old';
+    const isComboSieuHoi = combo.id === 'combo-sieu-hoi' || combo.id === 'combo-6-old';
+    const isCustomizable = isCombo01 || isCombo02 || isComboUuDai || isComboSieuHoi;
+    const isJustAdded = addedId === combo.id;
+
+    const customText = language === 'en'
+      ? (isCombo01
+        ? 'Custom 4 bottles'
+        : isCombo02
+        ? 'Custom 10 bottles'
+        : isComboUuDai
+        ? 'Buy 10+5 Get 2 Free'
+        : 'Custom 20 - 30 bottles')
+      : (isCombo01
+        ? 'Tùy chọn 4 chai'
+        : isCombo02
+        ? 'Tùy chọn 10 chai'
+        : isComboUuDai
+        ? 'Tùy chọn Mua 10+5 Tặng 2'
+        : 'Tùy chọn 20 - 30 chai');
+
+    const comboTitle = (language === 'en' && combo.nameEn) ? combo.nameEn : combo.name;
+    const comboDesc = (language === 'en' && combo.descriptionEn) ? combo.descriptionEn : combo.description;
+
+    return (
+      <div
+        key={combo.id}
+        className="group bg-white rounded-xl border border-gray-200/90 hover:border-emerald-600/70 p-2.5 transition-all duration-200 hover:shadow-sm flex flex-col justify-between"
+      >
+        <Link
+          href={`/combo/${combo.slug}`}
+          className="flex gap-2.5 items-start cursor-pointer w-full group/card"
+          title={`Xem chi tiết ${combo.name}`}
+        >
+          {/* Ảnh Combo Thumbnail */}
+          <div className="relative rounded-lg overflow-hidden bg-[#F5F2EB] shrink-0 border border-gray-100 w-16 h-16 sm:w-18 sm:h-18">
+            <Image
+              src={combo.image}
+              alt={comboTitle}
+              fill
+              className="object-cover group-hover/card:scale-105 transition-transform duration-300"
+              sizes="72px"
+            />
+            {/* Badge số chai */}
+            <span className="absolute bottom-1 right-1 bg-black/75 backdrop-blur-xs text-white text-[9px] font-bold px-1.5 py-0.2 rounded">
+              {combo.totalItems} {language === 'en' ? 'bottles' : 'chai'}
+            </span>
+          </div>
+
+          {/* Thông tin Text */}
+          <div className="min-w-0 flex-1 w-full">
+            <h4 className="text-xs font-bold text-text-dark leading-snug group-hover/card:text-emerald-800 transition-colors">
+              {comboTitle}
+            </h4>
+
+            <p className="text-[11px] text-text-muted leading-tight mt-0.5" title={comboDesc}>
+              {comboDesc}
+            </p>
+
+            {/* Giá bán */}
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-xs sm:text-sm font-extrabold text-emerald-800">
+                {formatPrice(combo.salePrice)}đ
+              </span>
+              <span className="text-[10px] text-gray-400 line-through">
+                {formatPrice(combo.originalPrice)}đ
+              </span>
+              <span className="text-[9px] font-bold text-sale bg-red-50 px-1 py-0.2 rounded">
+                -{combo.discount}%
+              </span>
+            </div>
+          </div>
+        </Link>
+
+        {/* Nút hành động */}
+        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-1.5">
+          {isCustomizable ? (
+            <Link
+              href={`/combo/${combo.slug}`}
+              className="w-full py-1.5 px-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-700 text-emerald-900 hover:text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-all active:scale-95 shadow-2xs"
+            >
+              <Sparkles className="w-3 h-3 text-corn" />
+              <span>{customText}</span>
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => handleQuickAdd(combo, e)}
+              className={cn(
+                'w-full py-1.5 px-2.5 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 transition-all active:scale-95 shadow-2xs cursor-pointer',
+                isJustAdded
+                  ? 'bg-emerald-700 text-white'
+                  : 'bg-[#FAF8F5] hover:bg-emerald-800 text-gray-800 hover:text-white border border-gray-200/80 hover:border-emerald-800'
+              )}
+            >
+              {isJustAdded ? (
+                <>
+                  <Check className="w-3 h-3" />
+                  <span>{language === 'en' ? 'Added to cart!' : 'Đã thêm giỏ!'}</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingBag className="w-3 h-3 text-emerald-700 group-hover:text-white" />
+                  <span>{language === 'en' ? 'Add combo to cart' : 'Thêm combo vào giỏ'}</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ──────────────────────────────────────────────────────
+  // LAYOUT NGANG (horizontal) — chuẩn 7 combo 1 hàng, đồng bộ SectionTitle
+  // ──────────────────────────────────────────────────────
+  if (layout === 'horizontal') {
+    return (
+      <section className="w-full">
+        {/* Tiêu đề đồng bộ chuẩn SectionTitle giống Sản phẩm gợi ý */}
+        <SectionTitle
+          title={sectionTitle}
+          viewAllLink={showViewAll ? '/combo' : undefined}
+          viewAllText={language === 'en' ? 'View all' : 'Xem tất cả'}
+          className="mb-4 sm:mb-6 md:mb-8"
+        />
+
+        {/* Khung slider combo với nút mũi tên lướt */}
+        <div className="relative w-full group">
+          {/* Mũi tên lướt sang trái */}
+          {canScrollLeft && (
+            <button
+              type="button"
+              onClick={() => handleScroll('left')}
+              className="absolute -left-2 sm:-left-3.5 md:-left-4 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white shadow-md hover:shadow-xl border border-gray-200/90 flex items-center justify-center text-gray-700 hover:text-white hover:bg-green-primary transition-all duration-200 cursor-pointer active:scale-90"
+              aria-label={language === 'en' ? 'Previous combos' : 'Lướt sang trái xem combo trước'}
+              title={language === 'en' ? 'Previous combos' : 'Xem combo trước'}
+            >
+              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
+            </button>
+          )}
+
+          {/* Danh sách combo cuộn ngang (7 combo 1 hàng trên desktop) */}
+          <div
+            ref={scrollRef}
+            onScroll={checkScroll}
+            className="flex gap-2 sm:gap-3 lg:gap-3.5 overflow-x-auto scroll-smooth scrollbar-none py-2 px-0.5 snap-x snap-mandatory"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {combos.map((combo, index) => renderHorizontalCard(combo, index))}
+          </div>
+
+          {/* Mũi tên lướt sang phải */}
+          {canScrollRight && (
+            <button
+              type="button"
+              onClick={() => handleScroll('right')}
+              className="absolute -right-2 sm:-right-3.5 md:-right-4 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white shadow-md hover:shadow-xl border border-gray-200/90 flex items-center justify-center text-gray-700 hover:text-white hover:bg-green-primary transition-all duration-200 cursor-pointer active:scale-90"
+              aria-label={language === 'en' ? 'Next combos' : 'Lướt sang phải xem thêm combo'}
+              title={language === 'en' ? 'Next combos' : 'Xem thêm combo'}
+            >
+              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
+            </button>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  // ──────────────────────────────────────────────────────
+  // LAYOUT DỌC (vertical) — sidebar gốc
+  // ──────────────────────────────────────────────────────
   return (
     <aside className="w-full bg-[#FAF9F5] border border-[#EBE4D8] rounded-2xl p-3.5 sm:p-4 shadow-xs">
       {/* Tiêu đề Khối Combo */}
@@ -35,122 +417,21 @@ export default function ProductCombosSidebar() {
           </div>
           <div>
             <h3 className="text-sm font-bold text-[#11241C] font-heading leading-none">
-              Combo tiết kiệm
+              {language === 'en' ? 'Value Combos' : 'Combo tiết kiệm'}
             </h3>
-            <p className="text-[11px] text-text-muted mt-0.5">Gói nhiều chai giá ưu đãi</p>
+            <p className="text-[11px] text-text-muted mt-0.5">
+              {language === 'en' ? 'Multi-bottle bundle savings' : 'Gói nhiều chai giá ưu đãi'}
+            </p>
           </div>
         </div>
         <span className="text-[10px] font-bold bg-sale/10 text-sale px-2 py-0.5 rounded-full border border-sale/20">
-          Giảm đến 19%
+          {language === 'en' ? `Up to ${maxDiscount}% off` : `Giảm đến ${maxDiscount}%`}
         </span>
       </div>
 
       {/* Danh sách 4 Combo đầy đủ thông tin */}
       <div className="flex flex-col gap-2.5">
-        {combos.map((combo, index) => {
-          const isCombo01 = combo.id === 'combo-4-chai';
-          const isCombo02 = combo.id === 'combo-van-phong';
-          const isCustomizable = isCombo01 || isCombo02;
-          const isJustAdded = addedId === combo.id;
-
-          const customLink = isCombo01
-            ? '/combo?type=combo-4-chai'
-            : '/combo?type=combo-van-phong';
-
-          return (
-            <div
-              key={combo.id}
-              className="group bg-white rounded-xl border border-gray-200/90 hover:border-emerald-600/70 p-2.5 transition-all duration-200 hover:shadow-sm flex flex-col justify-between"
-            >
-              {/* Hàng trên: Ảnh + Thông tin chi tiết */}
-              <div className="flex gap-2.5 items-start">
-                {/* Ảnh Combo Thumbnail */}
-                <div className="relative w-16 h-16 sm:w-18 sm:h-18 rounded-lg overflow-hidden bg-[#F5F2EB] shrink-0 border border-gray-100">
-                  <Image
-                    src={combo.image}
-                    alt={combo.name}
-                    fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-300"
-                    sizes="72px"
-                  />
-                  {/* Badge số chai */}
-                  <span className="absolute bottom-1 right-1 bg-black/75 backdrop-blur-xs text-white text-[9px] font-bold px-1.5 py-0.2 rounded">
-                    {combo.totalItems} chai
-                  </span>
-                </div>
-
-                {/* Thông tin Text */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <span className="text-[10px] font-bold text-emerald-800">
-                      0{index + 1}.
-                    </span>
-                    <h4 className="text-xs font-bold text-text-dark truncate leading-tight group-hover:text-emerald-800 transition-colors">
-                      {combo.name}
-                    </h4>
-                  </div>
-
-                  <p className="text-[11px] text-text-muted line-clamp-1 mt-0.5">
-                    {isCombo01 && 'Tự chọn 4 chai bất kỳ'}
-                    {isCombo02 && '10 chai theo cặp vị'}
-                    {combo.id === 'combo-dung-thu' && 'Thưởng thức đủ vị'}
-                    {combo.id === 'combo-sua-hat' && 'Sữa hạt thanh lành'}
-                  </p>
-
-                  {/* Giá bán */}
-                  <div className="flex items-baseline gap-1.5 mt-1">
-                    <span className="text-xs sm:text-sm font-extrabold text-emerald-800">
-                      {formatPrice(combo.salePrice)}đ
-                    </span>
-                    <span className="text-[10px] text-gray-400 line-through">
-                      {formatPrice(combo.originalPrice)}đ
-                    </span>
-                    <span className="text-[9px] font-bold text-sale bg-red-50 px-1 py-0.2 rounded">
-                      -{combo.discount}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Hàng dưới: Nút hành động (Tùy chọn vị / Thêm nhanh) */}
-              <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-1.5">
-                {isCustomizable ? (
-                  <Link
-                    href={customLink}
-                    className="w-full py-1.5 px-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-700 text-emerald-900 hover:text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-all active:scale-95 shadow-2xs"
-                  >
-                    <Sparkles className="w-3 h-3 text-corn" />
-                    <span>{isCombo01 ? 'Tùy chọn 4 chai' : 'Tùy chọn 10 chai'}</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </Link>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleQuickAdd(combo)}
-                    className={cn(
-                      'w-full py-1.5 px-2.5 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 transition-all active:scale-95 shadow-2xs cursor-pointer',
-                      isJustAdded
-                        ? 'bg-emerald-700 text-white'
-                        : 'bg-[#FAF8F5] hover:bg-emerald-800 text-gray-800 hover:text-white border border-gray-200/80 hover:border-emerald-800'
-                    )}
-                  >
-                    {isJustAdded ? (
-                      <>
-                        <Check className="w-3 h-3" />
-                        <span>Đã thêm giỏ!</span>
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingBag className="w-3 h-3 text-emerald-700 group-hover:text-white" />
-                        <span>Thêm combo vào giỏ</span>
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {combos.map((combo, index) => renderVerticalCard(combo, index))}
       </div>
 
       {/* Ghi chú chân sidebar */}
@@ -159,7 +440,7 @@ export default function ProductCombosSidebar() {
           href="/combo"
           className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-950 inline-flex items-center gap-1 hover:underline"
         >
-          <span>Xem tất cả ưu đãi Combo</span>
+          <span>{language === 'en' ? 'View all combo offers' : 'Xem tất cả ưu đãi Combo'}</span>
           <ArrowRight className="w-3 h-3" />
         </Link>
       </div>

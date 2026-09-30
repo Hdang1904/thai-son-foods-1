@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Website Thái Sơn Foods (WebTSF)
 
-## Getting Started
+Hệ thống Website Thương mại Điện tử và Quản trị Bán hàng Đa chi nhánh cho Thương hiệu Nước Đóng Chai Thái Sơn Foods (Sữa Bắp Nếp, Nha Đam Đường Phèn, v.v.).
 
-First, run the development server:
+---
+
+## 🏬 Kiến trúc Quản lý Tồn kho Đa Chi Nhánh (Multi-Branch Inventory)
+
+Hệ thống quản lý kho của dự án được thiết kế chuyên biệt để chống bán lố (overselling) tuyệt đối trong môi trường concurrency cao:
+
+### 1. Cơ chế Giữ chỗ & Khóa hàng (Stock Reservation & Concurrency Control)
+- **Đơn hàng Chờ xác nhận (PENDING):** Tăng chỉ số `reserved` tại chi nhánh tương ứng và sinh bản ghi trong bảng `stock_reservations`.
+- **Tồn khả dụng (Available):** `available_quantity = GREATEST(0, stock_quantity - reserved - safety_stock)`.
+- **Đơn hàng Xác nhận (CONFIRMED):** Giảm `stock_quantity` thật, trừ `reserved`, và đổi trạng thái reservation thành `confirmed`. Thao tác hoàn toàn Idempotent.
+- **Hủy đơn (CANCELLED) hoặc Quá hạn:** Tự động nhả `reserved` về kho khả dụng và chuyển reservation sang `released`/`expired`.
+- **Bóc combo tự động:** Mọi combo (combo cố định từ DB, combo tự chọn 4 chai, combo văn phòng, combo siêu hời) đều được quy đổi ra từng chai thành phần để kiểm tra tồn và giữ chỗ chính xác.
+
+### 2. Công nghệ Lưu trữ & Giao dịch
+- **Raw SQL Transaction Locking:** Toàn bộ thao tác kiểm tra tồn, giữ chỗ, xác nhận và chuyển kho được thực thi thông qua Raw SQL trên PostgreSQL (`pg.Pool` tại `@/lib/db`) sử dụng `SELECT ... FOR UPDATE` (sắp xếp tăng dần theo `product_id` để ngăn ngừa deadlock).
+- **Đồng bộ Prisma Schema:** Tệp `prisma/schema.prisma` phản chiếu 100% cấu trúc các bảng: `stores`, `store_inventory`, `stock_reservations`, `inventory_logs`, `orders`, `order_items`.
+
+---
+
+## 🚀 Khởi chạy Dự án
 
 ```bash
+# Cài đặt thư viện
+npm install
+
+# Khởi chạy môi trường phát triển (Dev server)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Truy cập: [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🧪 Bộ Kiểm thử Nghiệp vụ Kho Tự động (Automated Test Suites)
 
-## Learn More
+Hệ thống cung cấp các bộ kịch bản kiểm thử độc lập kiểm tra toàn diện logic kho:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+# Kiểm thử Giai đoạn 1: Nền tảng dữ liệu & Chống bán lố (29 assertions)
+node scripts/test_inventory_phase1.mjs
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Kiểm thử Giai đoạn 4: Checkout chặn thiếu hàng, Admin 3 cột, Chuyển kho & Logs (32 assertions)
+node scripts/test_inventory_phase4.mjs
+```

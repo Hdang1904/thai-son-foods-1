@@ -28,8 +28,26 @@ export async function GET() {
       FROM products;
     `);
 
+    // 2b. Combo count
+    const comboCountRes = await query(`
+      SELECT 
+        COUNT(*) AS total_combos,
+        COUNT(CASE WHEN is_active = true THEN 1 END) AS active_combos,
+        COUNT(CASE WHEN is_featured = true THEN 1 END) AS featured_combos
+      FROM combos;
+    `);
+
     // 3. Category count
     const catCountRes = await query(`SELECT COUNT(*) AS total_categories FROM categories;`);
+
+    // 3b. Member users count
+    const memberCountRes = await query(`
+      SELECT 
+        COUNT(*) AS total_members,
+        COUNT(CASE WHEN provider = 'google' THEN 1 END) AS google_members,
+        COUNT(CASE WHEN is_active = true THEN 1 END) AS active_members
+      FROM users;
+    `);
 
     // 4. Status breakdown
     const statusBreakdownRes = await query(`
@@ -88,7 +106,9 @@ export async function GET() {
       success: true,
       summary: summaryRes.rows[0] || {},
       products: prodCountRes.rows[0] || {},
+      combos: comboCountRes.rows[0] || {},
       categories: catCountRes.rows[0] || {},
+      members: memberCountRes.rows[0] || {},
       statusBreakdown: statusBreakdownRes.rows || [],
       recentOrders: recentOrdersRes.rows || [],
       topProducts: topProductsRes.rows || [],

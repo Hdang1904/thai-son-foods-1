@@ -37,10 +37,88 @@ import {
   Menu,
   FileSpreadsheet,
   Layers,
-  ChevronDown
+  ChevronDown,
+  LogOut,
+  UserCheck,
+  UserPlus,
+  ShieldCheck,
+  Lock,
+  Store,
+  Save,
+  PackageCheck,
+  SlidersHorizontal,
+  Key,
+  History,
+  ArrowRightLeft
 } from 'lucide-react';
 
 // ==================== INTERFACES ====================
+export interface AdminUser {
+  id: string;
+  username: string;
+  email: string;
+  full_name?: string | null;
+  role: 'ADMIN' | 'SUPER_ADMIN';
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface MemberUser {
+  id: string;
+  email: string;
+  full_name: string;
+  phone?: string | null;
+  address?: string | null;
+  province?: string | null;
+  district?: string | null;
+  ward?: string | null;
+  provider?: string | null;
+  avatar_url?: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+  total_orders: number;
+  total_spent: number;
+  last_order_date?: string | null;
+}
+
+export interface InventoryItem {
+  product_id: string;
+  product_name: string;
+  sku: string;
+  price: number;
+  unit: string;
+  thumbnail: string;
+  is_active: boolean;
+  category_name?: string;
+  stock_quantity: number;
+  reserved?: number;
+  available_quantity?: number;
+  safety_stock?: number;
+  updated_at?: string;
+  updated_by?: string;
+}
+
+export interface InventoryLogItem {
+  id: string;
+  store_code: string;
+  store_name?: string;
+  product_id: string;
+  product_name?: string;
+  thumbnail?: string;
+  unit?: string;
+  old_stock: number;
+  new_stock: number;
+  old_reserved: number;
+  new_reserved: number;
+  change_type: string;
+  order_id?: string;
+  actor: string;
+  note?: string;
+  created_at: string;
+}
+
 interface Category {
   id: string;
   slug: string;
@@ -107,7 +185,43 @@ interface Order {
   status: 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPING' | 'COMPLETED' | 'CANCELLED';
   item_count?: number;
   items?: OrderItem[];
+  store_code?: string | null;
+  store_address?: string | null;
+  inventory_deducted?: boolean | null;
+  cod_reconciled?: boolean | null;
+  cod_collected_amount?: number | null;
+  cod_reconciled_at?: string | null;
+  cod_reconciled_by?: string | null;
+  return_reason?: string | null;
+  return_disposition?: string | null;
+  return_at?: string | null;
   created_at: string;
+}
+
+interface ComboItem {
+  id?: string;
+  product_id: string;
+  quantity: number;
+  unit?: string;
+}
+
+interface Combo {
+  id: string;
+  slug: string;
+  name: string;
+  name_en?: string | null;
+  description: string | null;
+  description_en?: string | null;
+  original_price: number;
+  sale_price: number;
+  total_items: number;
+  discount: number;
+  image: string | null;
+  is_featured: boolean;
+  is_best_seller: boolean;
+  is_active: boolean;
+  items?: ComboItem[];
+  created_at?: string;
 }
 
 interface StatsData {
@@ -126,8 +240,18 @@ interface StatsData {
     featured_products: string | number;
     best_seller_products: string | number;
   };
+  combos?: {
+    total_combos: string | number;
+    active_combos: string | number;
+    featured_combos: string | number;
+  };
   categories: {
     total_categories: string | number;
+  };
+  members?: {
+    total_members: string | number;
+    google_members?: string | number;
+    active_members?: string | number;
   };
   statusBreakdown: { status: string; count: string | number; total_amount: string | number }[];
   recentOrders: Order[];
@@ -136,24 +260,129 @@ interface StatsData {
   dbStatus: { connected: boolean; database: string; timestamp: string };
 }
 
+export type AdminTab =
+  | 'overview'
+  | 'inventory'
+  | 'products'
+  | 'combos'
+  | 'orders'
+  | 'categories'
+  | 'analytics'
+  | 'database'
+  | 'users'
+  | 'members';
+
 export default function AdminPage() {
-  // Navigation tabs: 'overview' | 'products' | 'orders' | 'categories' | 'analytics' | 'database'
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'categories' | 'analytics' | 'database'>('overview');
+  // Navigation tabs: 'overview' | 'inventory' | 'products' | 'combos' | 'orders' | 'categories' | 'analytics' | 'database' | 'users' | 'members'
+  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Data states
   const [stats, setStats] = useState<StatsData | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [combos, setCombos] = useState<Combo[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Authenticated Admin User
+  const [currentUser, setCurrentUser] = useState<{
+    id: string;
+    username: string;
+    fullName?: string | null;
+    role: string;
+    email: string;
+  } | null>(null);
+
+  // Admin Users Management (Super Admin only)
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [userModalMode, setUserModalMode] = useState<'create' | 'edit'>('create');
+  const [userFormData, setUserFormData] = useState({
+    id: '',
+    username: '',
+    email: '',
+    fullName: '',
+    password: '',
+    role: 'ADMIN' as 'ADMIN' | 'SUPER_ADMIN',
+    isActive: true,
+  });
+  const [userSearch, setUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('ALL');
+
+  // Customer Member Management
+  const [members, setMembers] = useState<MemberUser[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [memberProviderFilter, setMemberProviderFilter] = useState('ALL');
+  const [memberStatusFilter, setMemberStatusFilter] = useState('ALL');
+  const [selectedMember, setSelectedMember] = useState<MemberUser | null>(null);
+  const [memberOrders, setMemberOrders] = useState<any[]>([]);
+  const [isMemberDetailModalOpen, setIsMemberDetailModalOpen] = useState(false);
+  const [memberDetailLoading, setMemberDetailLoading] = useState(false);
+
+  // Store Inventory Management (Store Accounts & Super Admin)
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [selectedStoreCode, setSelectedStoreCode] = useState('NH');
+  const [storeList, setStoreList] = useState<{
+    code: string;
+    name: string;
+    address?: string;
+    phone?: string;
+    district?: string;
+    province?: string;
+    ward?: string;
+    map_url?: string;
+  }[]>([]);
+  const [inventorySearch, setInventorySearch] = useState('');
+  const [inventoryStockFilter, setInventoryStockFilter] = useState('ALL');
+  const [editedStock, setEditedStock] = useState<Record<string, number>>({});
+  const [inventorySaving, setInventorySaving] = useState(false);
+
+  // Lịch sử biến động tồn kho & Chuyển chi nhánh đơn hàng
+  const [inventoryLogs, setInventoryLogs] = useState<InventoryLogItem[]>([]);
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [isTransferringOrder, setIsTransferringOrder] = useState(false);
+  const [transferTargetStore, setTransferTargetStore] = useState('');
+
+  // Quản lý thông tin địa chỉ cửa hàng
+  const [isStoreAddressModalOpen, setIsStoreAddressModalOpen] = useState(false);
+  const [storeAddressForm, setStoreAddressForm] = useState({
+    code: 'NH',
+    name: 'Cửa Hàng Vườn Lài (Tân Phú)',
+    address: '298/4 Vườn Lài, P Phú Thọ Hòa, Quận Tân Phú, TP. HCM',
+    phone: '0911812425',
+    district: 'Tân Phú',
+    province: 'Hồ Chí Minh',
+    ward: 'Phú Thọ Hòa',
+    map_url: 'https://maps.app.goo.gl/dPfkW2gVxy9k55TD7',
+  });
+
+  // Pop-up cập nhật số lượng chai cho mặt hàng
+  const [stockModalItem, setStockModalItem] = useState<{
+    product_id: string;
+    product_name: string;
+    sku: string;
+    thumbnail: string;
+    unit: string;
+    current_stock: number;
+    new_stock: number;
+    updated_at?: string;
+  } | null>(null);
 
   // Filters & Search
   const [prodSearch, setProdSearch] = useState('');
   const [prodCatFilter, setProdCatFilter] = useState('ALL');
   const [prodStatusFilter, setProdStatusFilter] = useState('ALL');
+
+  const [comboSearch, setComboSearch] = useState('');
+  const [comboFilter, setComboFilter] = useState('ALL');
 
   const [orderSearch, setOrderSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState('ALL');
@@ -163,8 +392,18 @@ export default function AdminPage() {
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [productFormVariants, setProductFormVariants] = useState<ProductVariant[]>([]);
 
+  const [isComboModalOpen, setIsComboModalOpen] = useState(false);
+  const [editingCombo, setEditingCombo] = useState<Partial<Combo> | null>(null);
+
   const [isOrderDetailModalOpen, setIsOrderDetailModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    orderId: string;
+    orderCode: string;
+    customerName: string;
+    currentStatus: Order['status'];
+    newStatus: Order['status'];
+  } | null>(null);
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<{ id?: string; name: string; slug: string } | null>(null);
@@ -185,17 +424,21 @@ export default function AdminPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [statsRes, prodsRes, catsRes, ordersRes] = await Promise.all([
+      const [statsRes, prodsRes, combosRes, catsRes, ordersRes, membersRes] = await Promise.all([
         fetch('/api/admin/stats', { cache: 'no-store' }).then((r) => r.json()),
         fetch('/api/admin/products', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/admin/combos', { cache: 'no-store' }).then((r) => r.json()),
         fetch('/api/admin/categories', { cache: 'no-store' }).then((r) => r.json()),
         fetch('/api/admin/orders', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/admin/members', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ success: false })),
       ]);
 
       if (statsRes.success) setStats(statsRes);
       if (prodsRes.success) setProducts(prodsRes.data || []);
+      if (combosRes.success) setCombos(combosRes.data || []);
       if (catsRes.success) setCategories(catsRes.data || []);
       if (ordersRes.success) setOrders(ordersRes.data || []);
+      if (membersRes && membersRes.success) setMembers(membersRes.members || []);
     } catch (err: any) {
       console.error('Error fetching data:', err);
       showToast('Lỗi kết nối cơ sở dữ liệu: ' + err.message, 'error');
@@ -204,9 +447,584 @@ export default function AdminPage() {
     }
   };
 
+  // Tải danh sách khách hàng thành viên
+  const fetchMembers = async () => {
+    setMembersLoading(true);
+    try {
+      const res = await fetch('/api/admin/members', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success) {
+        setMembers(data.members || []);
+      }
+    } catch (err: any) {
+      console.error('Error fetching members:', err);
+    } finally {
+      setMembersLoading(false);
+    }
+  };
+
+  // 1-Click Sync from Store Website to Database
+  const handleSyncStore = async () => {
+    setSyncLoading(true);
+    try {
+      const res = await fetch('/api/admin/sync', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'Đã đồng bộ toàn bộ sản phẩm và combo vào DB thành công!');
+        fetchData();
+      } else {
+        showToast(data.error || 'Lỗi khi đồng bộ dữ liệu', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
+
+    // Fetch current authenticated admin user
+    fetch('/api/admin/auth/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.authenticated && data.user) {
+          setCurrentUser(data.user);
+          // Tài khoản cửa hàng (ADMIN) tự động ưu tiên mở mục Cập nhật số lượng mặt hàng
+          if (data.user.role === 'ADMIN') {
+            setActiveTab('inventory');
+          }
+        }
+      })
+      .catch((err) => console.error('Failed to load current admin user', err));
   }, []);
+
+  // Fetch admin accounts (Super Admin only)
+  const fetchAdminUsers = async () => {
+    setAdminUsersLoading(true);
+    try {
+      const res = await fetch('/api/admin/users', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success) {
+        setAdminUsers(data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching admin users:', err);
+    } finally {
+      setAdminUsersLoading(false);
+    }
+  };
+
+  // Fetch inventory for store
+  const fetchInventory = async (storeCode?: string) => {
+    setInventoryLoading(true);
+    try {
+      const targetStore = storeCode || selectedStoreCode;
+      const res = await fetch(`/api/admin/inventory?storeCode=${targetStore}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success) {
+        setInventoryItems(data.data || []);
+        if (data.stores) setStoreList(data.stores);
+        if (data.currentStore) setSelectedStoreCode(data.currentStore);
+        const stockMap: Record<string, number> = {};
+        (data.data || []).forEach((item: InventoryItem) => {
+          stockMap[item.product_id] = item.stock_quantity;
+        });
+        setEditedStock(stockMap);
+      }
+    } catch (err) {
+      console.error('Error fetching inventory:', err);
+    } finally {
+      setInventoryLoading(false);
+    }
+  };
+
+  // Nạp lịch sử biến động tồn kho
+  const fetchInventoryLogs = async (storeCode?: string) => {
+    setLogsLoading(true);
+    try {
+      const code = storeCode || selectedStoreCode;
+      const res = await fetch(`/api/admin/inventory/logs?storeCode=${code}&limit=50`, { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        setInventoryLogs(data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching inventory logs:', err);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  // Chuyển đơn sang chi nhánh khác (Chỉ SUPER_ADMIN)
+  const handleTransferOrderStore = async (orderId: string, newStoreCode: string) => {
+    if (!orderId || !newStoreCode) return;
+    const storeName = storeList.find((s) => s.code === newStoreCode)?.name || newStoreCode;
+    if (!confirm(`Bạn có chắc chắn muốn chuyển đơn hàng này sang chi nhánh: ${storeName}?`)) {
+      return;
+    }
+    setIsTransferringOrder(true);
+    try {
+      const res = await fetch('/api/admin/orders/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, targetStoreCode: newStoreCode }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'Đã chuyển chi nhánh thành công!');
+        fetchData();
+        if (selectedOrder && selectedOrder.id === orderId) {
+          setSelectedOrder({
+            ...selectedOrder,
+            store_code: newStoreCode,
+            store_address: data.order?.store_address,
+            note: data.order?.note,
+          });
+        }
+      } else {
+        alert(data.error || 'Lỗi khi chuyển chi nhánh');
+      }
+    } catch (err) {
+      console.error('Error transferring order:', err);
+      alert('Không thể kết nối đến máy chủ khi chuyển chi nhánh.');
+    } finally {
+      setIsTransferringOrder(false);
+    }
+  };
+
+  // Đồng bộ nạp dữ liệu khi chuyển tab sang Users hoặc Inventory
+  useEffect(() => {
+    if (activeTab === 'users' && currentUser?.role === 'SUPER_ADMIN') {
+      fetchAdminUsers();
+    } else if (activeTab === 'inventory') {
+      fetchInventory(selectedStoreCode);
+    }
+  }, [activeTab]);
+
+  // Handler mở modal tạo tài khoản admin mới
+  const handleOpenCreateUser = () => {
+    setUserModalMode('create');
+    setUserFormData({
+      id: '',
+      username: '',
+      email: '',
+      fullName: '',
+      password: '',
+      role: 'ADMIN',
+      isActive: true,
+    });
+    setIsUserModalOpen(true);
+  };
+
+  // Handler mở modal sửa tài khoản admin
+  const handleOpenEditUser = (user: AdminUser) => {
+    setUserModalMode('edit');
+    setUserFormData({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      fullName: user.full_name || '',
+      password: '',
+      role: user.role,
+      isActive: user.is_active,
+    });
+    setIsUserModalOpen(true);
+  };
+
+  // Lưu tài khoản admin (Tạo mới hoặc Sửa)
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionLoading(true);
+    try {
+      if (userModalMode === 'create') {
+        const res = await fetch('/api/admin/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: userFormData.username,
+            email: userFormData.email,
+            fullName: userFormData.fullName,
+            password: userFormData.password,
+            role: userFormData.role,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message || 'Tạo tài khoản quản trị thành công!');
+          setIsUserModalOpen(false);
+          fetchAdminUsers();
+        } else {
+          showToast(data.error || 'Lỗi khi tạo tài khoản', 'error');
+        }
+      } else {
+        const res = await fetch('/api/admin/users', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: userFormData.id,
+            fullName: userFormData.fullName,
+            email: userFormData.email,
+            role: userFormData.role,
+            isActive: userFormData.isActive,
+            password: userFormData.password || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message || 'Cập nhật tài khoản thành công!');
+          setIsUserModalOpen(false);
+          fetchAdminUsers();
+        } else {
+          showToast(data.error || 'Lỗi khi cập nhật tài khoản', 'error');
+        }
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Khóa / Mở khóa tài khoản admin
+  const handleToggleUserStatus = async (user: AdminUser) => {
+    if (currentUser?.id === user.id) {
+      showToast('Bạn không thể tự khóa tài khoản của chính mình', 'error');
+      return;
+    }
+    const nextStatus = !user.is_active;
+    const confirmMsg = nextStatus
+      ? `Kích hoạt lại tài khoản "${user.username}"?`
+      : `Tạm khóa tài khoản "${user.username}"? Tài khoản này sẽ không thể đăng nhập.`;
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: user.id, isActive: nextStatus }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(nextStatus ? `Đã kích hoạt tài khoản ${user.username}` : `Đã tạm khóa tài khoản ${user.username}`);
+        fetchAdminUsers();
+      } else {
+        showToast(data.error || 'Không thể cập nhật trạng thái', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    }
+  };
+
+  // Xóa tài khoản admin
+  const handleDeleteUser = async (user: AdminUser) => {
+    if (currentUser?.id === user.id) {
+      showToast('Bạn không thể xóa tài khoản của chính mình', 'error');
+      return;
+    }
+    if (!confirm(`Bạn có chắc muốn xóa tài khoản "${user.username}" (${user.full_name})? Hành động này không thể hoàn tác.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/users?id=${user.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'Đã xóa tài khoản thành công!');
+        fetchAdminUsers();
+      } else {
+        showToast(data.error || 'Không thể xóa tài khoản', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    }
+  };
+
+  // ==================== MEMBER ACTIONS ====================
+  // Xem chi tiết khách hàng thành viên & nạp danh sách đơn hàng
+  const handleOpenMemberDetail = async (member: MemberUser) => {
+    setSelectedMember(member);
+    setIsMemberDetailModalOpen(true);
+    setMemberDetailLoading(true);
+    try {
+      const res = await fetch(`/api/admin/members?id=${member.id}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success) {
+        setSelectedMember(data.member);
+        setMemberOrders(data.orders || []);
+      }
+    } catch (err: any) {
+      showToast('Lỗi khi tải thông tin chi tiết: ' + err.message, 'error');
+    } finally {
+      setMemberDetailLoading(false);
+    }
+  };
+
+  // Khóa / Mở khóa tài khoản thành viên
+  const handleToggleMemberStatus = async (member: MemberUser) => {
+    const nextStatus = !member.is_active;
+    const confirmMsg = nextStatus
+      ? `Kích hoạt lại tài khoản thành viên "${member.full_name}" (${member.email})?`
+      : `Tạm khóa tài khoản thành viên "${member.full_name}" (${member.email})? Khách hàng này sẽ không thể đăng nhập hoặc đặt đơn bằng tài khoản.`;
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      const res = await fetch('/api/admin/members', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: member.id, isActive: nextStatus }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(nextStatus ? `Đã kích hoạt tài khoản ${member.full_name}` : `Đã tạm khóa tài khoản ${member.full_name}`);
+        fetchMembers();
+        if (selectedMember && selectedMember.id === member.id) {
+          setSelectedMember({ ...selectedMember, is_active: nextStatus });
+        }
+      } else {
+        showToast(data.error || 'Không thể cập nhật trạng thái', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    }
+  };
+
+  // Xóa tài khoản thành viên
+  const handleDeleteMember = async (member: MemberUser) => {
+    if (!confirm(`Bạn có chắc muốn xóa tài khoản thành viên "${member.full_name}" (${member.email})? Dữ liệu lịch sử đơn hàng của khách vẫn được lưu giữ.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/members?id=${member.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'Đã xóa tài khoản thành viên thành công!');
+        fetchMembers();
+        if (selectedMember?.id === member.id) setIsMemberDetailModalOpen(false);
+      } else {
+        showToast(data.error || 'Không thể xóa thành viên', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    }
+  };
+
+  // Xuất file CSV danh sách thành viên
+  const handleExportMembersCSV = () => {
+    if (members.length === 0) {
+      showToast('Chưa có thành viên nào để xuất', 'info');
+      return;
+    }
+    const headers = ['Mã TV', 'Họ Và Tên', 'Email', 'Điện Thoại', 'Đăng Ký Qua', 'Địa Chỉ', 'Tỉnh/TP', 'Số Đơn', 'Tổng Chi Tiêu (VNĐ)', 'Trạng Thái', 'Ngày Đăng Ký'];
+    const rows = members.map((m) => [
+      m.id,
+      `"${m.full_name}"`,
+      `"${m.email}"`,
+      `"${m.phone || ''}"`,
+      m.provider || 'local',
+      `"${m.address || ''}"`,
+      `"${m.province || ''}"`,
+      m.total_orders,
+      m.total_spent,
+      m.is_active ? 'Hoạt động' : 'Tạm khóa',
+      new Date(m.created_at).toLocaleDateString('vi-VN'),
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Thanh_Vien_Thai_Son_Foods_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Đã xuất danh sách thành viên ra file CSV!');
+  };
+
+  // Thay đổi số lượng mặt hàng trong state
+  const handleStockChange = (productId: string, value: number) => {
+    setEditedStock((prev) => ({
+      ...prev,
+      [productId]: Math.max(0, value),
+    }));
+  };
+
+  // Thêm nhanh số lượng (+1, +5, +10, -1, -5)
+  const handleQuickStockAdd = (productId: string, amount: number) => {
+    setEditedStock((prev) => {
+      const current = prev[productId] !== undefined ? prev[productId] : 100;
+      return {
+        ...prev,
+        [productId]: Math.max(0, current + amount),
+      };
+    });
+  };
+
+  // Lưu số lượng của 1 mặt hàng
+  const handleSaveInventoryItem = async (productId: string) => {
+    const qty = editedStock[productId];
+    if (qty === undefined) return;
+    try {
+      const res = await fetch('/api/admin/inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeCode: selectedStoreCode,
+          productId,
+          stockQuantity: qty,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'Đã cập nhật số lượng mặt hàng!');
+        fetchInventory(selectedStoreCode);
+      } else {
+        showToast(data.error || 'Lỗi khi cập nhật tồn kho', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    }
+  };
+
+  // Mở Pop-up cập nhật số lượng chai cho mặt hàng
+  const handleOpenStockModal = (item: InventoryItem) => {
+    const currentQty = editedStock[item.product_id] !== undefined ? editedStock[item.product_id] : item.stock_quantity;
+    setStockModalItem({
+      product_id: item.product_id,
+      product_name: item.product_name,
+      sku: item.sku || 'N/A',
+      thumbnail: item.thumbnail,
+      unit: item.unit || '1 chai',
+      current_stock: currentQty,
+      new_stock: currentQty,
+      updated_at: item.updated_at,
+    });
+  };
+
+  // Xác nhận cập nhật số lượng từ Pop-up
+  const handleConfirmStockUpdate = async () => {
+    if (!stockModalItem) return;
+    const qty = Math.max(0, parseInt(String(stockModalItem.new_stock), 10) || 0);
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/admin/inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeCode: selectedStoreCode,
+          productId: stockModalItem.product_id,
+          stockQuantity: qty,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`Đã cập nhật số lượng ${stockModalItem.product_name} thành ${qty} chai!`);
+        setEditedStock((prev) => ({
+          ...prev,
+          [stockModalItem.product_id]: qty,
+        }));
+        setStockModalItem(null);
+        fetchInventory(selectedStoreCode);
+      } else {
+        showToast(data.error || 'Lỗi khi cập nhật số lượng', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Lưu tất cả số lượng của tất cả mặt hàng
+  const handleSaveAllInventory = async () => {
+    setInventorySaving(true);
+    try {
+      const itemsToUpdate = Object.entries(editedStock).map(([productId, stockQuantity]) => ({
+        productId,
+        stockQuantity,
+      }));
+
+      const res = await fetch('/api/admin/inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeCode: selectedStoreCode,
+          items: itemsToUpdate,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'Đã lưu tất cả số lượng mặt hàng thành công!');
+        fetchInventory(selectedStoreCode);
+      } else {
+        showToast(data.error || 'Lỗi khi lưu số lượng', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    } finally {
+      setInventorySaving(false);
+    }
+  };
+
+  const handleOpenStoreAddressModal = (store?: any) => {
+    const target =
+      store ||
+      storeList.find((s) => s.code === selectedStoreCode) || {
+        code: selectedStoreCode,
+        name: `Cửa hàng ${selectedStoreCode}`,
+        address: '',
+        phone: '',
+        district: '',
+        province: 'Hồ Chí Minh',
+        ward: '',
+        map_url: '',
+      };
+    setStoreAddressForm({
+      code: target.code || selectedStoreCode,
+      name: target.name || `Cửa hàng ${target.code || selectedStoreCode}`,
+      address: target.address || '',
+      phone: target.phone || '',
+      district: target.district || '',
+      province: target.province || 'Hồ Chí Minh',
+      ward: target.ward || '',
+      map_url: target.map_url || '',
+    });
+    setIsStoreAddressModalOpen(true);
+  };
+
+  const handleSaveStoreAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/admin/stores', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(storeAddressForm),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'Đã cập nhật thông tin địa chỉ cửa hàng thành công!');
+        setIsStoreAddressModalOpen(false);
+        fetchInventory(selectedStoreCode);
+      } else {
+        showToast(data.error || 'Cập nhật thất bại', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (!confirm('Bạn có chắc muốn đăng xuất khỏi hệ thống quản trị?')) return;
+    try {
+      await fetch('/api/admin/auth/logout', { method: 'POST' });
+      window.location.href = '/admin/login';
+    } catch {
+      window.location.href = '/admin/login';
+    }
+  };
 
   // Quick seed demo orders
   const handleSeedDemoOrders = async () => {
@@ -334,6 +1152,17 @@ export default function AdminPage() {
   };
 
   // ==================== ORDER ACTIONS ====================
+  const handleRequestStatusChange = (order: Order, newStatus: Order['status']) => {
+    if (order.status === newStatus) return;
+    setPendingStatusChange({
+      orderId: order.id,
+      orderCode: order.order_code,
+      customerName: order.full_name,
+      currentStatus: order.status,
+      newStatus,
+    });
+  };
+
   const handleUpdateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
     setActionLoading(true);
     try {
@@ -344,17 +1173,82 @@ export default function AdminPage() {
       });
       const data = await res.json();
       if (data.success) {
-        showToast(`Đã cập nhật trạng thái đơn thành ${statusMap[newStatus]?.label}`);
+        showToast(
+          data.message ||
+            `Đã cập nhật trạng thái đơn thành ${statusMap[newStatus]?.label}`
+        );
         setOrders((prev) =>
-          prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+          prev.map((o) =>
+            o.id === orderId
+              ? {
+                  ...o,
+                  status: newStatus,
+                  inventory_deducted: data.data?.inventory_deducted ?? o.inventory_deducted,
+                  store_code: data.data?.store_code ?? o.store_code,
+                }
+              : o
+          )
         );
         if (selectedOrder && selectedOrder.id === orderId) {
-          setSelectedOrder({ ...selectedOrder, status: newStatus });
+          setSelectedOrder({
+            ...selectedOrder,
+            status: newStatus,
+            inventory_deducted: data.data?.inventory_deducted ?? selectedOrder.inventory_deducted,
+            store_code: data.data?.store_code ?? selectedOrder.store_code,
+          });
         }
+        // Làm mới tồn kho nếu đang quản lý kho
+        fetchInventory(selectedStoreCode);
         // Refresh stats
         fetch('/api/admin/stats').then((r) => r.json()).then((d) => d.success && setStats(d));
       } else {
         showToast(data.error || 'Cập nhật thất bại', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Đối soát tiền thu COD
+  const handleReconcileCod = async (orderId: string, amount: number) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/admin/orders/reconcile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'reconcile_cod',
+          orderId,
+          amount,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'Đã đối soát COD thành công!');
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === orderId
+              ? {
+                  ...o,
+                  cod_reconciled: true,
+                  cod_collected_amount: amount,
+                  cod_reconciled_at: new Date().toISOString(),
+                }
+              : o
+          )
+        );
+        if (selectedOrder && selectedOrder.id === orderId) {
+          setSelectedOrder({
+            ...selectedOrder,
+            cod_reconciled: true,
+            cod_collected_amount: amount,
+            cod_reconciled_at: new Date().toISOString(),
+          });
+        }
+      } else {
+        showToast(data.error || 'Lỗi đối soát COD', 'error');
       }
     } catch (err: any) {
       showToast('Lỗi: ' + err.message, 'error');
@@ -461,6 +1355,94 @@ export default function AdminPage() {
     }
   };
 
+  // ==================== COMBO CRUD ====================
+  const handleOpenCreateCombo = () => {
+    setEditingCombo({
+      name: '',
+      description: '',
+      original_price: 180000,
+      sale_price: 160000,
+      total_items: 10,
+      discount: 11,
+      image: '/images/combos/combo-1.jpg',
+      is_featured: true,
+      is_best_seller: false,
+      is_active: true,
+    });
+    setIsComboModalOpen(true);
+  };
+
+  const handleOpenEditCombo = (c: Combo) => {
+    setEditingCombo({ ...c });
+    setIsComboModalOpen(true);
+  };
+
+  const handleSaveCombo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCombo?.name || editingCombo?.sale_price === undefined) {
+      showToast('Vui lòng nhập tên combo và giá bán', 'error');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const isUpdating = Boolean(editingCombo.id);
+      const url = '/api/admin/combos';
+      const method = isUpdating ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingCombo),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(isUpdating ? 'Đã cập nhật combo thành công!' : 'Đã tạo combo mới thành công!');
+        setIsComboModalOpen(false);
+        fetchData();
+      } else {
+        showToast(data.error || 'Không thể lưu combo', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleToggleComboActive = async (c: Combo) => {
+    try {
+      const res = await fetch('/api/admin/combos', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: c.id, is_active: !c.is_active }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`Đã ${!c.is_active ? 'bật bán' : 'tạm dừng'} combo "${c.name.slice(0, 30)}..."`);
+        fetchData();
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    }
+  };
+
+  const handleDeleteCombo = async (id: string, name: string) => {
+    if (!confirm(`Bạn có chắc chắn muốn xóa combo "${name}" khỏi cơ sở dữ liệu?`)) return;
+    try {
+      const res = await fetch(`/api/admin/combos?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`Đã xóa combo "${name.slice(0, 30)}..."`);
+        fetchData();
+      } else {
+        showToast(data.error || 'Không thể xóa combo', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    }
+  };
+
   // ==================== CSV EXPORT ====================
   const handleExportOrdersCSV = () => {
     if (orders.length === 0) {
@@ -507,6 +1489,21 @@ export default function AdminPage() {
     });
   }, [products, prodSearch, prodCatFilter, prodStatusFilter]);
 
+  const filteredCombos = useMemo(() => {
+    return combos.filter((c) => {
+      const matchSearch =
+        c.name.toLowerCase().includes(comboSearch.toLowerCase()) ||
+        (c.description && c.description.toLowerCase().includes(comboSearch.toLowerCase()));
+      const matchFilter =
+        comboFilter === 'ALL' ||
+        (comboFilter === 'ACTIVE' && c.is_active) ||
+        (comboFilter === 'INACTIVE' && !c.is_active) ||
+        (comboFilter === 'FEATURED' && c.is_featured) ||
+        (comboFilter === 'BEST_SELLER' && c.is_best_seller);
+      return matchSearch && matchFilter;
+    });
+  }, [combos, comboSearch, comboFilter]);
+
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
       const matchSearch =
@@ -517,6 +1514,63 @@ export default function AdminPage() {
       return matchSearch && matchStatus;
     });
   }, [orders, orderSearch, orderStatusFilter]);
+
+  // Bộ lọc danh sách tồn kho mặt hàng
+  const filteredInventory = useMemo(() => {
+    return inventoryItems.filter((item) => {
+      const matchSearch =
+        item.product_name.toLowerCase().includes(inventorySearch.toLowerCase()) ||
+        item.sku.toLowerCase().includes(inventorySearch.toLowerCase());
+      if (!matchSearch) return false;
+
+      const qty = editedStock[item.product_id] !== undefined ? editedStock[item.product_id] : item.stock_quantity;
+      if (inventoryStockFilter === 'IN_STOCK') return qty > 30;
+      if (inventoryStockFilter === 'LOW_STOCK') return qty > 0 && qty <= 30;
+      if (inventoryStockFilter === 'OUT_OF_STOCK') return qty === 0;
+      return true;
+    });
+  }, [inventoryItems, inventorySearch, inventoryStockFilter, editedStock]);
+
+  // Bộ lọc danh sách tài khoản admin
+  const filteredAdminUsers = useMemo(() => {
+    return adminUsers.filter((u) => {
+      const matchSearch =
+        u.username.toLowerCase().includes(userSearch.toLowerCase()) ||
+        u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
+        (u.full_name && u.full_name.toLowerCase().includes(userSearch.toLowerCase()));
+      if (!matchSearch) return false;
+
+      if (userRoleFilter === 'SUPER_ADMIN') return u.role === 'SUPER_ADMIN';
+      if (userRoleFilter === 'ADMIN') return u.role === 'ADMIN';
+      return true;
+    });
+  }, [adminUsers, userSearch, userRoleFilter]);
+
+  // Bộ lọc danh sách khách hàng thành viên
+  const filteredMembers = useMemo(() => {
+    return members.filter((m) => {
+      const q = memberSearch.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        m.full_name.toLowerCase().includes(q) ||
+        m.email.toLowerCase().includes(q) ||
+        (m.phone && m.phone.toLowerCase().includes(q)) ||
+        (m.address && m.address.toLowerCase().includes(q)) ||
+        (m.province && m.province.toLowerCase().includes(q));
+
+      const matchProvider =
+        memberProviderFilter === 'ALL' ||
+        (memberProviderFilter === 'local' && (m.provider === 'local' || !m.provider)) ||
+        m.provider === memberProviderFilter;
+
+      const matchStatus =
+        memberStatusFilter === 'ALL' ||
+        (memberStatusFilter === 'ACTIVE' && m.is_active) ||
+        (memberStatusFilter === 'LOCKED' && !m.is_active);
+
+      return matchSearch && matchProvider && matchStatus;
+    });
+  }, [members, memberSearch, memberProviderFilter, memberStatusFilter]);
 
   // Status mapping colors & labels
   const statusMap: Record<string, { label: string; bg: string; text: string; icon: any }> = {
@@ -590,6 +1644,17 @@ export default function AdminPage() {
         {/* Right action tools */}
         <div className="flex items-center gap-2.5">
           <button
+            onClick={handleSyncStore}
+            disabled={syncLoading}
+            title="Đồng bộ toàn bộ sản phẩm và combo từ website vào cơ sở dữ liệu PostgreSQL WebTSF"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30 transition-all cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${syncLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{syncLoading ? 'Đang đồng bộ...' : 'Đồng bộ Store -> DB'}</span>
+            <span className="sm:hidden">{syncLoading ? 'Đồng bộ...' : 'Sync DB'}</span>
+          </button>
+
+          <button
             onClick={handleSeedDemoOrders}
             disabled={actionLoading}
             title="Tạo đơn hàng mẫu để kiểm tra tính năng biểu đồ & danh sách đơn"
@@ -617,6 +1682,18 @@ export default function AdminPage() {
             <span>Xem Website</span>
             <ExternalLink className="w-3.5 h-3.5" />
           </Link>
+
+          {/* Admin User Badge & Logout in Header */}
+          <div className="hidden md:flex items-center pl-1.5 border-l border-slate-800">
+            <button
+              onClick={handleLogout}
+              title="Đăng xuất tài khoản quản trị"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-300 hover:text-white bg-rose-500/10 hover:bg-rose-600/30 border border-rose-500/20 transition-all cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5 text-rose-400" />
+              <span>Đăng xuất</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -651,6 +1728,27 @@ export default function AdminPage() {
                 </div>
               </button>
 
+              {/* MỤC DÀNH CHO CỬA HÀNG & QUẢN TRỊ: CẬP NHẬT SỐ LƯỢNG MẶT HÀNG */}
+              <button
+                onClick={() => {
+                  setActiveTab('inventory');
+                  setSidebarOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  activeTab === 'inventory'
+                    ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
+                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <PackageCheck className="w-4 h-4 text-amber-400" />
+                  <span>Cập nhật số lượng</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  {currentUser?.role === 'ADMIN' ? 'Cửa hàng' : 'Kho hàng'}
+                </span>
+              </button>
+
               <button
                 onClick={() => {
                   setActiveTab('products');
@@ -673,6 +1771,26 @@ export default function AdminPage() {
 
               <button
                 onClick={() => {
+                  setActiveTab('combos');
+                  setSidebarOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  activeTab === 'combos'
+                    ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
+                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Boxes className="w-4 h-4" />
+                  <span>Gói Combo</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">
+                  {combos.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
                   setActiveTab('orders');
                   setSidebarOpen(false);
                 }}
@@ -688,6 +1806,26 @@ export default function AdminPage() {
                 </div>
                 <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">
                   {orders.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('members');
+                  setSidebarOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  activeTab === 'members'
+                    ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
+                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <UserCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Khách thành viên</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-emerald-300 border border-slate-700">
+                  {members.length}
                 </span>
               </button>
 
@@ -745,6 +1883,29 @@ export default function AdminPage() {
                 </div>
                 <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
               </button>
+
+              {/* CHỨC NĂNG DÀNH CHO SUPER ADMIN: QUẢN LÝ & TẠO TÀI KHOẢN ADMIN */}
+              {currentUser?.role === 'SUPER_ADMIN' && (
+                <button
+                  onClick={() => {
+                    setActiveTab('users');
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    activeTab === 'users'
+                      ? 'bg-indigo-600 text-white font-semibold shadow-lg shadow-indigo-900/30'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck className="w-4 h-4 text-indigo-400" />
+                    <span>Quản lý tài khoản</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono">
+                    Super
+                  </span>
+                </button>
+              )}
             </div>
 
             {/* Quick Summary Card */}
@@ -768,14 +1929,37 @@ export default function AdminPage() {
 
           {/* Sidebar Footer */}
           <div className="p-4 border-t border-slate-800/80 bg-slate-950/40">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-emerald-400 text-sm">
-                TS
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 border border-emerald-400/30 flex items-center justify-center font-bold text-white text-xs shrink-0 shadow-md">
+                  {currentUser?.fullName
+                    ? currentUser.fullName.slice(0, 2).toUpperCase()
+                    : currentUser?.username
+                    ? currentUser.username.slice(0, 2).toUpperCase()
+                    : 'TS'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-bold text-slate-200 truncate">
+                      {currentUser?.fullName || currentUser?.username || 'Admin Quản Lý'}
+                    </p>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase">
+                      {currentUser?.role === 'SUPER_ADMIN' ? 'Super' : 'Admin'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    {currentUser?.email || 'admin@thaisonfoods.vn'}
+                  </p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-slate-200 truncate">Admin Quản Lý</p>
-                <p className="text-[11px] text-slate-400 truncate">admin@thaisonfoods.vn</p>
-              </div>
+
+              <button
+                onClick={handleLogout}
+                title="Đăng xuất"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </aside>
@@ -819,8 +2003,8 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* 4 KPI Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* 5 KPI Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 {/* Total Revenue */}
                 <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800 relative overflow-hidden group hover:border-emerald-500/40 transition-all">
                   <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -880,6 +2064,27 @@ export default function AdminPage() {
                     <span className="text-purple-400 font-semibold">{categories.length} danh mục</span>
                     <span>•</span>
                     <span className="text-emerald-400 font-semibold">{products.filter((p) => p.is_active).length} kích hoạt</span>
+                  </div>
+                </div>
+
+                {/* Combos Count */}
+                <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800 relative overflow-hidden group hover:border-amber-500/40 transition-all">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <Boxes className="w-16 h-16 text-amber-400" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-400">Gói Combo Tiết Kiệm</span>
+                    <span className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+                      <Boxes className="w-4 h-4" />
+                    </span>
+                  </div>
+                  <div className="text-2xl font-black text-white mt-2 tracking-tight">
+                    {combos.length}
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-2">
+                    <span className="text-amber-400 font-semibold">{combos.filter((c) => c.is_active).length} đang bán</span>
+                    <span>•</span>
+                    <span className="text-emerald-400 font-semibold">100% Khớp Store</span>
                   </div>
                 </div>
 
@@ -1091,7 +2296,7 @@ export default function AdminPage() {
                       {orders.length === 0 && (
                         <tr>
                           <td colSpan={7} className="py-8 text-center text-slate-500">
-                            Chưa có đơn hàng nào trong cơ sở dữ liệu. Hãy bấm "Nạp Đơn Mẫu" ở trên góc phải để thử nghiệm!
+                            Chưa có đơn hàng nào trong cơ sở dữ liệu. Hãy bấm &quot;Nạp Đơn Mẫu&quot; ở trên góc phải để thử nghiệm!
                           </td>
                         </tr>
                       )}
@@ -1288,6 +2493,219 @@ export default function AdminPage() {
           )}
 
           {/* ======================================================== */}
+          {/* TAB 2b: COMBO MANAGEMENT */}
+          {/* ======================================================== */}
+          {activeTab === 'combos' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
+                    <span>Quản Lý Gói Combo Tiết Kiệm</span>
+                    <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-slate-800 text-amber-400 border border-slate-700">
+                      {filteredCombos.length} / {combos.length} gói
+                    </span>
+                  </h1>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Toàn bộ gói ưu đãi được đồng bộ trực tiếp từ website cửa hàng vào CSDL PostgreSQL WebTSF
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSyncStore}
+                    disabled={syncLoading}
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30 transition-all cursor-pointer"
+                  >
+                    <RefreshCw className={`w-4 h-4 text-emerald-400 ${syncLoading ? 'animate-spin' : ''}`} />
+                    <span>{syncLoading ? 'Đang đồng bộ...' : 'Đồng Bộ Store -> DB'}</span>
+                  </button>
+
+                  <button
+                    onClick={handleOpenCreateCombo}
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/30 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Thêm Combo Mới</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Filters & Search */}
+              <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row gap-3 items-center justify-between">
+                <div className="relative w-full sm:w-80">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Tìm tên combo, chi tiết chai..."
+                    value={comboSearch}
+                    onChange={(e) => setComboSearch(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <select
+                    value={comboFilter}
+                    onChange={(e) => setComboFilter(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-amber-500 cursor-pointer"
+                  >
+                    <option value="ALL">Tất cả trạng thái</option>
+                    <option value="ACTIVE">Đang mở bán ({combos.filter((c) => c.is_active).length})</option>
+                    <option value="INACTIVE">Tạm dừng ({combos.filter((c) => !c.is_active).length})</option>
+                    <option value="FEATURED">Nổi bật ⭐ ({combos.filter((c) => c.is_featured).length})</option>
+                    <option value="BEST_SELLER">Bán chạy 🔥 ({combos.filter((c) => c.is_best_seller).length})</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-slate-950/60 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
+                      <tr>
+                        <th className="py-3 px-4">Gói Combo & Ảnh</th>
+                        <th className="py-3 px-4">Quy Cách & Chi Tiết</th>
+                        <th className="py-3 px-4 text-right">Giá Gốc</th>
+                        <th className="py-3 px-4 text-right">Giá Bán</th>
+                        <th className="py-3 px-4 text-center">Tiết Kiệm</th>
+                        <th className="py-3 px-4 text-center">Trạng Thái</th>
+                        <th className="py-3 px-4 text-right">Thao Tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {filteredCombos.map((c) => {
+                        const savings = (c.original_price || 0) - (c.sale_price || 0);
+                        return (
+                          <tr key={c.id} className="hover:bg-slate-800/40 transition-colors">
+                            {/* Image & Name */}
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700/60 overflow-hidden relative shrink-0">
+                                  {c.image ? (
+                                    <Image
+                                      src={c.image}
+                                      alt={c.name}
+                                      fill
+                                      className="object-cover"
+                                      sizes="48px"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-slate-500">
+                                      <Boxes className="w-5 h-5" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-bold text-white text-xs hover:text-amber-400 transition-colors flex items-center gap-1.5 flex-wrap">
+                                    <span>{c.name}</span>
+                                    {c.is_featured && (
+                                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                        Nổi bật
+                                      </span>
+                                    )}
+                                    {c.is_best_seller && (
+                                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                        Bán chạy
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+                                    slug: {c.slug}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Quy cách */}
+                            <td className="py-3 px-4 max-w-xs">
+                              <span className="inline-block px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[11px] font-bold mb-1">
+                                {c.total_items} chai
+                              </span>
+                              <p className="text-[11px] text-slate-400 line-clamp-2" title={c.description || ''}>
+                                {c.description || 'Không có mô tả'}
+                              </p>
+                            </td>
+
+                            {/* Original Price */}
+                            <td className="py-3 px-4 text-right font-mono text-slate-500 line-through">
+                              {formatVND(c.original_price)}
+                            </td>
+
+                            {/* Sale Price */}
+                            <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400 text-sm">
+                              {formatVND(c.sale_price)}
+                            </td>
+
+                            {/* Savings */}
+                            <td className="py-3 px-4 text-center">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                <span>-{c.discount}%</span>
+                                {savings > 0 && <span className="font-mono">({formatVND(savings)})</span>}
+                              </span>
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3 px-4 text-center">
+                              <button
+                                onClick={() => handleToggleComboActive(c)}
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold border cursor-pointer transition-all ${
+                                  c.is_active
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                                }`}
+                              >
+                                {c.is_active ? '● Đang mở bán' : '○ Tạm ẩn'}
+                              </button>
+                            </td>
+
+                            {/* Actions */}
+                            <td className="py-3 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Link
+                                  href="/san-pham"
+                                  target="_blank"
+                                  title="Xem trên trang cửa hàng"
+                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </Link>
+                                <button
+                                  onClick={() => handleOpenEditCombo(c)}
+                                  title="Chỉnh sửa combo"
+                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors cursor-pointer"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteCombo(c.id, c.name)}
+                                  title="Xóa combo"
+                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {filteredCombos.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-slate-500">
+                            Không tìm thấy gói combo nào khớp với điều kiện lọc.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
           {/* TAB 3: ORDER MANAGEMENT */}
           {/* ======================================================== */}
           {activeTab === 'orders' && (
@@ -1377,8 +2795,41 @@ export default function AdminPage() {
                         const st = statusMap[order.status] || statusMap['PENDING'];
                         return (
                           <tr key={order.id} className="hover:bg-slate-800/40 transition-colors">
-                            <td className="py-3 px-4 font-mono font-bold text-emerald-400">
-                              #{order.order_code}
+                            <td className="py-3 px-4">
+                              <div className="font-mono font-bold text-emerald-400">
+                                #{order.order_code}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-semibold" title="Chi nhánh tiếp nhận">
+                                  {order.store_code || 'NH'}
+                                </span>
+                                {order.status === 'PENDING' ? (
+                                  (() => {
+                                    const hoursAgo = (Date.now() - new Date(order.created_at).getTime()) / (1000 * 60 * 60);
+                                    if (hoursAgo >= 20) {
+                                      return (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse font-bold flex items-center gap-1" title={`Đã tạo ${Math.floor(hoursAgo)} giờ trước, sắp quá hạn giữ chỗ 24h!`}>
+                                          <AlertCircle className="w-2.5 h-2.5 text-rose-400" />
+                                          <span>Sắp hết hạn 24h</span>
+                                        </span>
+                                      );
+                                    }
+                                    return (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium">
+                                        Đang giữ chỗ
+                                      </span>
+                                    );
+                                  })()
+                                ) : order.inventory_deducted ? (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-medium">
+                                    Đã trừ kho
+                                  </span>
+                                ) : order.status === 'CANCELLED' ? (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-medium">
+                                    Đã nhả
+                                  </span>
+                                ) : null}
+                              </div>
                             </td>
                             <td className="py-3 px-4">
                               <p className="font-bold text-slate-100">{order.full_name}</p>
@@ -1401,7 +2852,7 @@ export default function AdminPage() {
                               <select
                                 value={order.status}
                                 onChange={(e) =>
-                                  handleUpdateOrderStatus(order.id, e.target.value as Order['status'])
+                                  handleRequestStatusChange(order, e.target.value as Order['status'])
                                 }
                                 className={`text-[11px] font-bold rounded-lg px-2.5 py-1 border focus:outline-none cursor-pointer ${st.bg}`}
                               >
@@ -1692,6 +3143,58 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              {/* Store to DB Sync Control Center */}
+              <div className="p-6 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-amber-950/40 border border-emerald-500/30 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400">
+                      <RefreshCw className={`w-6 h-6 ${syncLoading ? 'animate-spin' : ''}`} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white">Đồng Bộ Dữ Liệu Store Website Vào CSDL WebTSF</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Lưu trữ toàn bộ 12 sản phẩm chuẩn (tên, giá mới, dung tích chai 330ml/568ml, đạt chuẩn HACCP, phân loại, biến thể) và 12 gói combo ưu đãi lên PostgreSQL
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleSyncStore}
+                    disabled={syncLoading}
+                    className="shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/40 transition-all cursor-pointer"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${syncLoading ? 'animate-spin' : ''}`} />
+                    <span>{syncLoading ? 'Đang thực thi đồng bộ...' : 'Đồng Bộ Toàn Bộ Dữ Liệu Ngay'}</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                    <div>
+                      <p className="text-[11px] text-slate-400">Sản phẩm trên Store</p>
+                      <p className="text-sm font-bold text-white mt-0.5">{products.length} sản phẩm</p>
+                    </div>
+                    <span className="text-[11px] font-semibold text-emerald-400">100% Khớp CSDL</span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                    <div>
+                      <p className="text-[11px] text-slate-400">Gói Combo trên Store</p>
+                      <p className="text-sm font-bold text-amber-400 mt-0.5">{combos.length} gói combo</p>
+                    </div>
+                    <span className="text-[11px] font-semibold text-emerald-400">100% Khớp CSDL</span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                    <div>
+                      <p className="text-[11px] text-slate-400">Trạng thái CSDL</p>
+                      <p className="text-sm font-bold text-emerald-400 mt-0.5">Sẵn sàng phục vụ</p>
+                    </div>
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  </div>
+                </div>
+              </div>
+
               {/* Table Metrics */}
               <div className="rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden">
                 <div className="p-4 border-b border-slate-800 bg-slate-950/40">
@@ -1721,6 +3224,18 @@ export default function AdminPage() {
                         <td className="py-3 px-4 text-emerald-400 font-semibold">Đã đồng bộ</td>
                       </tr>
                       <tr>
+                        <td className="py-3 px-4 font-mono font-bold text-amber-400">combos</td>
+                        <td className="py-3 px-4">Gói combo sản phẩm ưu đãi & tiết kiệm</td>
+                        <td className="py-3 px-4 font-mono font-bold">{combos.length} dòng</td>
+                        <td className="py-3 px-4 text-emerald-400 font-semibold">Đã đồng bộ</td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 px-4 font-mono font-bold text-amber-400">combo_items</td>
+                        <td className="py-3 px-4">Chi tiết các chai đồ uống trong từng gói combo</td>
+                        <td className="py-3 px-4 font-mono font-bold">Tự động liên kết</td>
+                        <td className="py-3 px-4 text-emerald-400 font-semibold">Đã đồng bộ</td>
+                      </tr>
+                      <tr>
                         <td className="py-3 px-4 font-mono font-bold text-emerald-400">orders</td>
                         <td className="py-3 px-4">Đơn đặt hàng từ website khách hàng</td>
                         <td className="py-3 px-4 font-mono font-bold">{orders.length} dòng</td>
@@ -1740,6 +3255,987 @@ export default function AdminPage() {
                         <td className="py-3 px-4 font-mono font-bold">Tự động liên kết</td>
                         <td className="py-3 px-4 text-emerald-400 font-semibold">Đã đồng bộ</td>
                       </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* TAB 8: CẬP NHẬT SỐ LƯỢNG MẶT HÀNG (CỬA HÀNG & ADMIN) */}
+          {/* ======================================================== */}
+          {activeTab === 'inventory' && (
+            <div className="space-y-6">
+              {/* Page header */}
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
+                    <PackageCheck className="w-7 h-7 text-amber-400" />
+                    <span>Cập Nhật Số Lượng Mặt Hàng</span>
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      Kho Cửa Hàng
+                    </span>
+                  </h1>
+
+                  {/* Chi nhánh / Cửa hàng đang chọn */}
+                  {currentUser?.role === 'SUPER_ADMIN' ? (
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span className="text-xs text-slate-400">Chọn chi nhánh cửa hàng:</span>
+                      <select
+                        value={selectedStoreCode}
+                        onChange={(e) => {
+                          setSelectedStoreCode(e.target.value);
+                          fetchInventory(e.target.value);
+                        }}
+                        className="bg-slate-900 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer shadow-sm"
+                      >
+                        {storeList.map((st) => (
+                          <option key={st.code} value={st.code}>
+                            {st.name} ({st.code})
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-[11px] text-slate-500 hidden sm:inline">
+                        (Quản trị viên Super Admin có thể xem và cập nhật kho cho tất cả các chi nhánh)
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-400 mt-2 font-medium flex items-center gap-1.5">
+                      <Store className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>
+                        Đang quản lý kho cho:{' '}
+                        <strong className="text-white font-bold">
+                          {storeList.find((s) => s.code === selectedStoreCode)?.name || currentUser?.fullName || currentUser?.username}
+                        </strong>
+                      </span>
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={() => fetchInventory(selectedStoreCode)}
+                    disabled={inventoryLoading}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer shadow-sm"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${inventoryLoading ? 'animate-spin' : ''}`} />
+                    <span>Làm mới dữ liệu</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* THÔNG TIN & ĐỊA CHỈ CHI NHÁNH CỬA HÀNG */}
+              {(() => {
+                const currentStore = storeList.find((s) => s.code === selectedStoreCode);
+                return (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900/90 via-slate-900/80 to-slate-950 border border-amber-500/30 shadow-lg">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="space-y-1.5 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
+                            <Store className="w-3.5 h-3.5" />
+                            {currentStore?.name || selectedStoreCode}
+                          </span>
+                          <span className="text-xs text-slate-400 font-mono">({selectedStoreCode})</span>
+                        </div>
+
+                        <div className="text-sm text-slate-200 flex items-start gap-2 pt-1">
+                          <MapPin className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                          <span>
+                            <strong className="text-slate-400 font-normal">Địa chỉ cửa hàng: </strong>
+                            <span className="font-semibold text-white">
+                              {currentStore?.address || 'Chưa cập nhật địa chỉ'}
+                            </span>
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-slate-300 pt-0.5">
+                          <span className="flex items-center gap-1.5 text-red-400 font-semibold">
+                            <Phone className="w-3.5 h-3.5" />
+                            <span>Hotline: {currentStore?.phone || '02871000472'}</span>
+                          </span>
+                          <span className="text-slate-500">•</span>
+                          <span>
+                            Khu vực:{' '}
+                            <strong>
+                              {currentStore?.district || 'Chưa rõ'}, {currentStore?.province || 'Hồ Chí Minh'}
+                            </strong>
+                          </span>
+                          {currentStore?.map_url && (
+                            <>
+                              <span className="text-slate-500">•</span>
+                              <a
+                                href={currentStore.map_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-400 hover:underline flex items-center gap-1"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Bản đồ</span>
+                              </a>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-start md:self-center shrink-0 flex-wrap">
+                        <button
+                          onClick={() => {
+                            setIsLogModalOpen(true);
+                            fetchInventoryLogs(selectedStoreCode);
+                          }}
+                          className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                          <History className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Lịch sử biến động kho</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenStoreAddressModal(currentStore)}
+                          className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          <span>Cập nhật địa chỉ cửa hàng</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* KPI Summary Cards for Inventory */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800">
+                  <span className="text-[11px] font-medium text-slate-400">Tổng Số Mặt Hàng</span>
+                  <div className="text-xl sm:text-2xl font-black text-white mt-1">
+                    {inventoryItems.length} sản phẩm
+                  </div>
+                  <span className="text-[10px] text-slate-500">100% thức uống chính hãng</span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800">
+                  <span className="text-[11px] font-medium text-slate-400">Tổng Tồn Thực</span>
+                  <div className="text-xl sm:text-2xl font-black text-amber-400 mt-1">
+                    {Object.values(editedStock).reduce((a, b) => a + (Number(b) || 0), 0)} chai
+                  </div>
+                  <span className="text-[10px] text-slate-400">Kho thực tế tại {selectedStoreCode}</span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800">
+                  <span className="text-[11px] font-medium text-slate-400">Đang Giữ Chỗ (Reserved)</span>
+                  <div className="text-xl sm:text-2xl font-black text-amber-300 mt-1">
+                    {inventoryItems.reduce((acc, i) => acc + (Number(i.reserved) || 0), 0)} chai
+                  </div>
+                  <span className="text-[10px] text-amber-400/80">Từ các đơn hàng PENDING</span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800">
+                  <span className="text-[11px] font-medium text-slate-400">Tồn Khả Dụng Bán</span>
+                  <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">
+                    {inventoryItems.reduce((acc, i) => {
+                      const cur = editedStock[i.product_id] !== undefined ? editedStock[i.product_id] : i.stock_quantity;
+                      return acc + Math.max(0, cur - (Number(i.reserved) || 0));
+                    }, 0)} chai
+                  </div>
+                  <span className="text-[10px] text-emerald-400/80">Khách có thể đặt mua</span>
+                </div>
+              </div>
+
+              {/* Search & Filter Bar */}
+              <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={inventorySearch}
+                    onChange={(e) => setInventorySearch(e.target.value)}
+                    placeholder="Tìm kiếm mặt hàng theo tên hoặc mã SKU..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={inventoryStockFilter}
+                    onChange={(e) => setInventoryStockFilter(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-amber-500 cursor-pointer"
+                  >
+                    <option value="ALL">Tất cả trạng thái kho</option>
+                    <option value="IN_STOCK">Còn hàng dồi dào (&gt;30 chai)</option>
+                    <option value="LOW_STOCK">Sắp hết hàng (1 - 30 chai)</option>
+                    <option value="OUT_OF_STOCK">Hết hàng (0 chai)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Product Inventory Table */}
+              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-slate-950/60 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
+                      <tr>
+                        <th className="py-3.5 px-4">Mặt hàng</th>
+                        <th className="py-3.5 px-4">Danh mục</th>
+                        <th className="py-3.5 px-4">Giá bán</th>
+                        <th className="py-3.5 px-4 text-center">Tồn thực</th>
+                        <th className="py-3.5 px-4 text-center">Đang giữ</th>
+                        <th className="py-3.5 px-4 text-center">Khả dụng</th>
+                        <th className="py-3.5 px-4 text-center">Trạng thái & Cập nhật</th>
+                        <th className="py-3.5 px-4 text-right">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {inventoryLoading ? (
+                        <tr>
+                          <td colSpan={8} className="py-12 text-center text-slate-500">
+                            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-amber-400 mb-2" />
+                            <span>Đang nạp dữ liệu tồn kho...</span>
+                          </td>
+                        </tr>
+                      ) : filteredInventory.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-12 text-center text-slate-500">
+                            Không tìm thấy mặt hàng nào phù hợp
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredInventory.map((item) => {
+                          const currentQty = editedStock[item.product_id] !== undefined ? editedStock[item.product_id] : item.stock_quantity;
+                          const reservedQty = Number(item.reserved) || 0;
+                          const availableQty = Math.max(0, currentQty - reservedQty);
+                          const isLow = availableQty > 0 && availableQty <= 5;
+                          const isOut = availableQty === 0;
+
+                          return (
+                            <tr key={item.product_id} className="hover:bg-slate-800/40 transition-colors">
+                              {/* Thông tin mặt hàng */}
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 relative overflow-hidden shrink-0 flex items-center justify-center p-1">
+                                    <Image
+                                      src={item.thumbnail}
+                                      alt={item.product_name}
+                                      fill
+                                      className="object-contain p-0.5"
+                                      unoptimized
+                                    />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="font-bold text-white text-xs truncate max-w-[240px]" title={item.product_name}>
+                                      {item.product_name}
+                                    </p>
+                                    <p className="text-[11px] font-mono text-slate-400">
+                                      SKU: <span className="text-amber-400 font-semibold">{item.sku || 'N/A'}</span> • {item.unit || '1 chai'}
+                                    </p>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Danh mục */}
+                              <td className="py-3 px-4">
+                                <span className="px-2.5 py-1 rounded-lg text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                                  {item.category_name || 'Đồ uống'}
+                                </span>
+                              </td>
+
+                              {/* Giá bán */}
+                              <td className="py-3 px-4 font-bold text-emerald-400 font-mono">
+                                {formatVND(item.price)}
+                              </td>
+
+                              {/* Cột 1: Tồn thực */}
+                              <td className="py-3 px-4 text-center">
+                                <span className="inline-block px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 font-mono font-bold text-slate-200 text-xs shadow-xs">
+                                  {currentQty} <span className="text-[10px] text-slate-500 font-normal">chai</span>
+                                </span>
+                              </td>
+
+                              {/* Cột 2: Đang giữ */}
+                              <td className="py-3 px-4 text-center">
+                                <span className={`inline-block px-2.5 py-1 rounded-xl font-mono font-bold text-xs border ${
+                                  reservedQty > 0
+                                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 shadow-xs'
+                                    : 'bg-slate-950/60 text-slate-500 border-slate-800'
+                                }`}>
+                                  {reservedQty} <span className="text-[10px] font-normal">chai</span>
+                                </span>
+                              </td>
+
+                              {/* Cột 3: Khả dụng */}
+                              <td className="py-3 px-4 text-center">
+                                <span className={`inline-block px-3 py-1 rounded-xl font-mono font-black text-xs border shadow-xs ${
+                                  isOut
+                                    ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                                    : isLow
+                                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                      : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                }`}>
+                                  {availableQty} <span className="text-[10px] font-normal">chai</span>
+                                </span>
+                              </td>
+
+                              {/* Trạng thái kho & Thời gian cập nhật */}
+                              <td className="py-3 px-4 text-center">
+                                <div className="flex flex-col items-center justify-center gap-1">
+                                  {isOut ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+                                      <AlertCircle className="w-3 h-3" />
+                                      <span>Hết hàng</span>
+                                    </span>
+                                  ) : isLow ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                      <Clock className="w-3 h-3" />
+                                      <span>Sắp hết (≤ 5)</span>
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      <span>Còn hàng</span>
+                                    </span>
+                                  )}
+
+                                  {/* Dòng hiển thị thời gian cập nhật lần cuối */}
+                                  {item.updated_at ? (
+                                    <span
+                                      className="text-[10px] text-slate-400 font-mono whitespace-nowrap flex items-center justify-center gap-1"
+                                      title={`Cập nhật lần cuối: ${new Date(item.updated_at).toLocaleString('vi-VN')}${item.updated_by ? ` bởi ${item.updated_by}` : ''}`}
+                                    >
+                                      <Clock className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+                                      <span>
+                                        Cập nhật:{' '}
+                                        {new Date(item.updated_at).toLocaleTimeString('vi-VN', {
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                        })}{' '}
+                                        {new Date(item.updated_at).toLocaleDateString('vi-VN', {
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                        })}
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-500 italic">
+                                      Chưa cập nhật
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Nút Cập nhật duy nhất - Mở Pop-up nhập số lượng */}
+                              <td className="py-3 px-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenStockModal(item)}
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-950/30 transition-all cursor-pointer active:scale-95"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                  <span>Cập nhật</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* TAB 9: QUẢN LÝ & TẠO TÀI KHOẢN ADMIN (SUPER ADMIN ONLY) */}
+          {/* ======================================================== */}
+          {activeTab === 'users' && currentUser?.role === 'SUPER_ADMIN' && (
+            <div className="space-y-6">
+              {/* Page header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
+                    <ShieldCheck className="w-7 h-7 text-indigo-400" />
+                    <span>Quản Lý Tài Khoản Quản Trị</span>
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                      Super Admin
+                    </span>
+                  </h1>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Cấp tài khoản, phân quyền quản lý cho các cửa hàng chi nhánh Thái Sơn Foods
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={fetchAdminUsers}
+                    disabled={adminUsersLoading}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${adminUsersLoading ? 'animate-spin' : ''}`} />
+                    <span>Làm mới</span>
+                  </button>
+
+                  <button
+                    onClick={handleOpenCreateUser}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/30 transition-all cursor-pointer"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Tạo Tài Khoản Mới</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800">
+                  <span className="text-xs text-slate-400 font-medium">Tổng Quản Trị Viên</span>
+                  <div className="text-2xl font-black text-white mt-1">{adminUsers.length} tài khoản</div>
+                  <span className="text-[10px] text-slate-500">Trong CSDL WebTSF</span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800">
+                  <span className="text-xs text-slate-400 font-medium">Quản Trị Cấp Cao</span>
+                  <div className="text-2xl font-black text-indigo-400 mt-1">
+                    {adminUsers.filter((u) => u.role === 'SUPER_ADMIN').length} Super Admin
+                  </div>
+                  <span className="text-[10px] text-indigo-400/80">Toàn quyền hệ thống</span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800">
+                  <span className="text-xs text-slate-400 font-medium">Admin Cửa Hàng</span>
+                  <div className="text-2xl font-black text-emerald-400 mt-1">
+                    {adminUsers.filter((u) => u.role === 'ADMIN').length} Cửa hàng
+                  </div>
+                  <span className="text-[10px] text-emerald-400/80">TCH, TN, THB, NH, D1...</span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800">
+                  <span className="text-xs text-slate-400 font-medium">Đang Hoạt Động</span>
+                  <div className="text-2xl font-black text-teal-400 mt-1">
+                    {adminUsers.filter((u) => u.is_active).length} / {adminUsers.length}
+                  </div>
+                  <span className="text-[10px] text-teal-400/80">Sẵn sàng đăng nhập</span>
+                </div>
+              </div>
+
+              {/* Search & Filter */}
+              <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    placeholder="Tìm theo Username, Email, Họ tên quản trị..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={userRoleFilter}
+                    onChange={(e) => setUserRoleFilter(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="ALL">Tất cả vai trò</option>
+                    <option value="SUPER_ADMIN">Quản trị cấp cao (Super Admin)</option>
+                    <option value="ADMIN">Quản trị viên cửa hàng (ADMIN)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Admin Users Table */}
+              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-slate-950/60 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
+                      <tr>
+                        <th className="py-3.5 px-4">Tài khoản &amp; Họ tên</th>
+                        <th className="py-3.5 px-4">Email đăng nhập</th>
+                        <th className="py-3.5 px-4">Vai trò (Role)</th>
+                        <th className="py-3.5 px-4">Trạng thái</th>
+                        <th className="py-3.5 px-4">Ngày khởi tạo</th>
+                        <th className="py-3.5 px-4 text-right">Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {adminUsersLoading ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-slate-500">
+                            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-indigo-400 mb-2" />
+                            <span>Đang nạp danh sách tài khoản quản trị...</span>
+                          </td>
+                        </tr>
+                      ) : filteredAdminUsers.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-slate-500">
+                            Không tìm thấy tài khoản quản trị nào
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredAdminUsers.map((user) => {
+                          const isSelf = currentUser?.id === user.id;
+
+                          return (
+                            <tr key={user.id} className="hover:bg-slate-800/40 transition-colors">
+                              {/* Username & Avatar */}
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-sm shrink-0 ${
+                                      user.role === 'SUPER_ADMIN'
+                                        ? 'bg-gradient-to-tr from-indigo-600 to-purple-500'
+                                        : 'bg-gradient-to-tr from-emerald-600 to-teal-500'
+                                    }`}
+                                  >
+                                    {user.username.slice(0, 2).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <p className="font-bold text-white text-xs flex items-center gap-1.5">
+                                      <span>{user.username}</span>
+                                      {isSelf && (
+                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold">
+                                          (Tôi)
+                                        </span>
+                                      )}
+                                    </p>
+                                    <p className="text-[11px] text-slate-400">{user.full_name || 'Quản trị viên'}</p>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Email */}
+                              <td className="py-3 px-4 font-mono text-slate-300">
+                                {user.email}
+                              </td>
+
+                              {/* Role */}
+                              <td className="py-3 px-4">
+                                {user.role === 'SUPER_ADMIN' ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 uppercase">
+                                    <ShieldCheck className="w-3 h-3" />
+                                    <span>Super Admin</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase">
+                                    <Store className="w-3 h-3" />
+                                    <span>Admin Cửa Hàng</span>
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Trạng thái */}
+                              <td className="py-3 px-4">
+                                {user.is_active ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                    <span>Hoạt động</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                                    <span>Tạm khóa</span>
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Ngày tạo */}
+                              <td className="py-3 px-4 text-slate-400 text-[11px]">
+                                {new Date(user.created_at).toLocaleDateString('vi-VN')}
+                              </td>
+
+                              {/* Thao tác */}
+                              <td className="py-3 px-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    onClick={() => handleOpenEditUser(user)}
+                                    title="Sửa thông tin / Đổi mật khẩu"
+                                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {!isSelf && (
+                                    <>
+                                      <button
+                                        onClick={() => handleToggleUserStatus(user)}
+                                        title={user.is_active ? 'Khóa tài khoản này' : 'Mở khóa tài khoản'}
+                                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                          user.is_active
+                                            ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400'
+                                            : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'
+                                        }`}
+                                      >
+                                        <Lock className="w-3.5 h-3.5" />
+                                      </button>
+
+                                      <button
+                                        onClick={() => handleDeleteUser(user)}
+                                        title="Xóa tài khoản này"
+                                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors cursor-pointer"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* TAB: QUẢN LÝ KHÁCH HÀNG THÀNH VIÊN (MEMBERS) */}
+          {/* ======================================================== */}
+          {activeTab === 'members' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
+                    <span>Khách Hàng Thành Viên</span>
+                    <span className="text-xs font-normal px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                      {members.length} tài khoản
+                    </span>
+                  </h1>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Quản lý danh sách hội viên đăng ký trên website, theo dõi đơn hàng và trạng thái tài khoản
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleExportMembersCSV}
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 shadow-sm transition-all cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-slate-400" />
+                    <span>Xuất CSV Thành Viên</span>
+                  </button>
+
+                  <button
+                    onClick={fetchMembers}
+                    disabled={membersLoading}
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30 transition-all cursor-pointer"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${membersLoading ? 'animate-spin' : ''}`} />
+                    <span>{membersLoading ? 'Đang tải...' : 'Làm mới'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Thẻ KPI Thành viên */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 1. Tổng Thành Viên */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-400">Tổng Thành Viên</span>
+                    <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+                      <Users className="w-4 h-4" />
+                    </span>
+                  </div>
+                  <div className="text-2xl font-black text-white mt-2 tracking-tight">
+                    {members.length}
+                  </div>
+                  <p className="text-[11px] text-emerald-400 mt-1.5 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{members.filter((m) => m.provider === 'google').length} tài khoản Google</span>
+                  </p>
+                </div>
+
+                {/* 2. Thành viên có đơn */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-400">Thành Viên Mua Hàng</span>
+                    <span className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
+                      <ShoppingCart className="w-4 h-4" />
+                    </span>
+                  </div>
+                  <div className="text-2xl font-black text-white mt-2 tracking-tight">
+                    {members.filter((m) => Number(m.total_orders) > 0).length}
+                  </div>
+                  <p className="text-[11px] text-blue-400 mt-1.5">
+                    {members.length > 0
+                      ? `${Math.round((members.filter((m) => Number(m.total_orders) > 0).length / members.length) * 100)}% đã phát sinh đơn`
+                      : 'Chưa có đơn hàng'}
+                  </p>
+                </div>
+
+                {/* 3. Tổng chi tiêu của thành viên */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-400">Tổng Chi Tiêu Tích Lũy</span>
+                    <span className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+                      <DollarSign className="w-4 h-4" />
+                    </span>
+                  </div>
+                  <div className="text-2xl font-black text-white mt-2 tracking-tight">
+                    {formatVND(members.reduce((acc, m) => acc + (Number(m.total_spent) || 0), 0))}
+                  </div>
+                  <p className="text-[11px] text-amber-400 mt-1.5">Doanh thu từ các đơn thành viên</p>
+                </div>
+
+                {/* 4. Tài khoản hoạt động */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-400">Trạng Thái Hoạt Động</span>
+                    <span className="p-2 rounded-xl bg-purple-500/10 text-purple-400">
+                      <UserCheck className="w-4 h-4" />
+                    </span>
+                  </div>
+                  <div className="text-2xl font-black text-white mt-2 tracking-tight">
+                    {members.filter((m) => m.is_active).length} / {members.length}
+                  </div>
+                  <p className="text-[11px] text-purple-400 mt-1.5">
+                    {members.filter((m) => !m.is_active).length > 0
+                      ? `${members.filter((m) => !m.is_active).length} tài khoản đang bị khóa`
+                      : '100% tài khoản hoạt động tốt'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Bảng Danh Sách Thành Viên & Bộ Lọc */}
+              <div className="bg-[#0f172a] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                {/* Search & Filter Toolbar */}
+                <div className="p-4 border-b border-slate-800 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-slate-900/40">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={memberSearch}
+                      onChange={(e) => setMemberSearch(e.target.value)}
+                      placeholder="Tìm theo họ tên, email, số điện thoại, địa chỉ..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Lọc theo Nguồn đăng ký */}
+                    <select
+                      value={memberProviderFilter}
+                      onChange={(e) => setMemberProviderFilter(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="ALL">Tất cả nguồn đăng ký</option>
+                      <option value="local">Đăng ký Trực tiếp (Web)</option>
+                      <option value="google">Đăng nhập Google</option>
+                      <option value="facebook">Đăng nhập Facebook</option>
+                    </select>
+
+                    {/* Lọc theo Trạng thái */}
+                    <select
+                      value={memberStatusFilter}
+                      onChange={(e) => setMemberStatusFilter(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="ALL">Tất cả trạng thái</option>
+                      <option value="ACTIVE">Đang hoạt động</option>
+                      <option value="LOCKED">Đã tạm khóa</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Table Data */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800/80 bg-slate-950/60 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        <th className="py-3 px-4">Thành Viên</th>
+                        <th className="py-3 px-4">Liên Hệ</th>
+                        <th className="py-3 px-4">Địa Chỉ Nhận Hàng</th>
+                        <th className="py-3 px-4">Đơn Hàng & Chi Tiêu</th>
+                        <th className="py-3 px-4">Trạng Thái</th>
+                        <th className="py-3 px-4">Ngày Đăng Ký</th>
+                        <th className="py-3 px-4 text-right">Thao Tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 text-xs text-slate-300">
+                      {membersLoading ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <RefreshCw className="w-6 h-6 animate-spin text-emerald-400" />
+                              <span>Đang tải danh sách thành viên...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : filteredMembers.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <Users className="w-8 h-8 text-slate-600" />
+                              <p className="font-semibold text-slate-300">Không tìm thấy khách hàng nào</p>
+                              <p className="text-[11px] text-slate-500">
+                                Hãy thử thay đổi từ khóa tìm kiếm hoặc bộ lọc trạng thái
+                              </p>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredMembers.map((member) => (
+                          <tr
+                            key={member.id}
+                            className="hover:bg-slate-800/40 transition-colors group"
+                          >
+                            {/* Cột 1: Thông tin khách hàng */}
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 border border-emerald-400/30 flex items-center justify-center font-bold text-white text-xs shrink-0 shadow-md">
+                                  {member.full_name
+                                    ? member.full_name.slice(0, 2).toUpperCase()
+                                    : 'KH'}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="font-bold text-white group-hover:text-emerald-400 transition-colors">
+                                      {member.full_name || 'Khách vãng lai'}
+                                    </p>
+                                    {member.provider === 'google' && (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                        Google
+                                      </span>
+                                    )}
+                                    {member.provider === 'facebook' && (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                        Facebook
+                                      </span>
+                                    )}
+                                    {(!member.provider || member.provider === 'local') && (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                                        Web
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 font-mono truncate">
+                                    ID: {member.id}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Cột 2: Liên hệ (Email + SĐT) */}
+                            <td className="py-3.5 px-4">
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1.5 text-slate-200">
+                                  <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <span className="truncate max-w-[200px]" title={member.email}>
+                                    {member.email}
+                                  </span>
+                                </div>
+                                {member.phone ? (
+                                  <div className="flex items-center gap-1.5 text-emerald-400 font-mono text-[11px]">
+                                    <Phone className="w-3 h-3 text-slate-500 shrink-0" />
+                                    <span>{member.phone}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-slate-500 italic">
+                                    Chưa cập nhật SĐT
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Cột 3: Địa chỉ nhận hàng */}
+                            <td className="py-3.5 px-4 max-w-[220px]">
+                              {member.address || member.province ? (
+                                <div className="space-y-0.5">
+                                  <p className="text-slate-300 truncate" title={member.address || ''}>
+                                    {member.address || 'Địa chỉ chưa cập nhật'}
+                                  </p>
+                                  <p className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+                                    <MapPin className="w-3 h-3 text-slate-600 shrink-0" />
+                                    <span>
+                                      {[member.ward, member.district, member.province]
+                                        .filter(Boolean)
+                                        .join(', ')}
+                                    </span>
+                                  </p>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-slate-500 italic">
+                                  Chưa lưu địa chỉ
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Cột 4: Đơn hàng & Chi tiêu */}
+                            <td className="py-3.5 px-4">
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                    {member.total_orders || 0} đơn
+                                  </span>
+                                  <span className="font-bold text-white">
+                                    {formatVND(member.total_spent || 0)}
+                                  </span>
+                                </div>
+                                {member.last_order_date && (
+                                  <p className="text-[10px] text-slate-500">
+                                    Gần nhất: {new Date(member.last_order_date).toLocaleDateString('vi-VN')}
+                                  </p>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Cột 5: Trạng thái */}
+                            <td className="py-3.5 px-4">
+                              {member.is_active ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                  <span>Hoạt động</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                                  <span>Đã tạm khóa</span>
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Cột 6: Ngày đăng ký */}
+                            <td className="py-3.5 px-4 text-slate-400 text-[11px] font-mono">
+                              {new Date(member.created_at).toLocaleDateString('vi-VN')}
+                            </td>
+
+                            {/* Cột 7: Thao tác */}
+                            <td className="py-3.5 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => handleOpenMemberDetail(member)}
+                                  title="Xem chi tiết hồ sơ & lịch sử đơn hàng"
+                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+
+                                <button
+                                  onClick={() => handleToggleMemberStatus(member)}
+                                  title={member.is_active ? 'Khóa tài khoản thành viên này' : 'Mở khóa tài khoản'}
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                    member.is_active
+                                      ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400'
+                                      : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'
+                                  }`}
+                                >
+                                  <Lock className="w-3.5 h-3.5" />
+                                </button>
+
+                                <button
+                                  onClick={() => handleDeleteMember(member)}
+                                  title="Xóa tài khoản thành viên"
+                                  className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2053,6 +4549,229 @@ export default function AdminPage() {
       )}
 
       {/* ======================================================== */}
+      {/* MODAL: THÊM / SỬA GÓI COMBO */}
+      {/* ======================================================== */}
+      {isComboModalOpen && editingCombo && (
+        <div className="fixed inset-0 z-[1001] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <Boxes className="w-5 h-5 text-amber-400" />
+                  <span>{editingCombo.id ? 'Chỉnh Sửa Gói Combo' : 'Thêm Gói Combo Mới'}</span>
+                </h2>
+                <p className="text-xs text-slate-400">Lưu dữ liệu trực tiếp vào CSDL PostgreSQL WebTSF</p>
+              </div>
+              <button
+                onClick={() => setIsComboModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSaveCombo} className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Tên combo */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Tên Gói Combo *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingCombo.name || ''}
+                    onChange={(e) => setEditingCombo({ ...editingCombo, name: e.target.value })}
+                    placeholder="VD: Combo 10 Chai Sữa Hạt Sen"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Đường dẫn Slug */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Đường dẫn (Slug)
+                  </label>
+                  <input
+                    type="text"
+                    value={editingCombo.slug || ''}
+                    onChange={(e) => setEditingCombo({ ...editingCombo, slug: e.target.value })}
+                    placeholder="combo-10-chai-sua-hat-sen"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+
+                {/* Tổng số chai */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Tổng số chai (Quy cách) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    value={editingCombo.total_items || 10}
+                    onChange={(e) =>
+                      setEditingCombo({ ...editingCombo, total_items: parseInt(e.target.value, 10) || 1 })
+                    }
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Giá gốc */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Giá Gốc Niêm Yết (VNĐ) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    step={1000}
+                    value={editingCombo.original_price || 0}
+                    onChange={(e) => {
+                      const orig = parseInt(e.target.value, 10) || 0;
+                      const sale = editingCombo.sale_price || 0;
+                      const disc = orig > 0 ? Math.round(((orig - sale) / orig) * 100) : 0;
+                      setEditingCombo({ ...editingCombo, original_price: orig, discount: disc > 0 ? disc : 0 });
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Giá bán */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Giá Bán Ưu Đãi (VNĐ) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    step={1000}
+                    value={editingCombo.sale_price || 0}
+                    onChange={(e) => {
+                      const sale = parseInt(e.target.value, 10) || 0;
+                      const orig = editingCombo.original_price || 0;
+                      const disc = orig > 0 ? Math.round(((orig - sale) / orig) * 100) : 0;
+                      setEditingCombo({ ...editingCombo, sale_price: sale, discount: disc > 0 ? disc : 0 });
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-bold text-emerald-400"
+                  />
+                </div>
+
+                {/* Tỷ lệ giảm giá % */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Phần Trăm Giảm Giá (%)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={editingCombo.discount || 0}
+                    onChange={(e) =>
+                      setEditingCombo({ ...editingCombo, discount: parseInt(e.target.value, 10) || 0 })
+                    }
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Ảnh combo */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Đường Dẫn Hình Ảnh
+                  </label>
+                  <input
+                    type="text"
+                    value={editingCombo.image || ''}
+                    onChange={(e) => setEditingCombo({ ...editingCombo, image: e.target.value })}
+                    placeholder="/images/combos/combo-1.jpg"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Mô tả chi tiết */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Mô Tả & Danh Sách Chai Trong Gói
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editingCombo.description || ''}
+                    onChange={(e) => setEditingCombo({ ...editingCombo, description: e.target.value })}
+                    placeholder="VD: 5 Sữa Hạt Sen + 5 Sữa Gạo Lứt..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  ></textarea>
+                </div>
+              </div>
+
+              {/* Thuộc tính hiển thị */}
+              <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
+                <p className="text-xs font-bold text-slate-300">Thuộc tính hiển thị</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editingCombo.is_active)}
+                      onChange={(e) =>
+                        setEditingCombo({ ...editingCombo, is_active: e.target.checked })
+                      }
+                      className="accent-emerald-600 rounded"
+                    />
+                    <span>Kích hoạt bán</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editingCombo.is_featured)}
+                      onChange={(e) =>
+                        setEditingCombo({ ...editingCombo, is_featured: e.target.checked })
+                      }
+                      className="accent-amber-600 rounded"
+                    />
+                    <span>Gói nổi bật ⭐</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editingCombo.is_best_seller)}
+                      onChange={(e) =>
+                        setEditingCombo({ ...editingCombo, is_best_seller: e.target.checked })
+                      }
+                      className="accent-rose-600 rounded"
+                    />
+                    <span>Gói bán chạy 🔥</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsComboModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/30 transition-all cursor-pointer flex items-center gap-2"
+                >
+                  {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  <span>{editingCombo.id ? 'Cập Nhật Combo' : 'Tạo Combo Mới'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
       {/* MODAL: CHI TIẾT ĐƠN HÀNG */}
       {/* ======================================================== */}
       {isOrderDetailModalOpen && selectedOrder && (
@@ -2121,7 +4840,9 @@ export default function AdminPage() {
                   <div className="sm:col-span-2">
                     <span className="text-slate-400">Địa chỉ giao hàng:</span>{' '}
                     <span className="text-slate-200">
-                      {selectedOrder.address}, {selectedOrder.ward}, {selectedOrder.district}, {selectedOrder.province}
+                      {[selectedOrder.address, selectedOrder.ward, selectedOrder.district, selectedOrder.province]
+                        .filter((p) => p && p.trim() && p !== 'Đặt hàng nhanh' && p !== 'Chưa cập nhật')
+                        .join(', ') || selectedOrder.address}
                     </span>
                   </div>
                   {selectedOrder.note && (
@@ -2129,6 +4850,41 @@ export default function AdminPage() {
                       <span className="font-semibold">Ghi chú của khách:</span> {selectedOrder.note}
                     </div>
                   )}
+                  <div className="sm:col-span-2 pt-2 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <span className="text-slate-400">Chi nhánh xử lý:</span>{' '}
+                      <span className="text-amber-300 font-bold">
+                        {storeList.find((s) => s.code === selectedOrder.store_code)?.name ||
+                          selectedOrder.store_code ||
+                          'Chưa gán (Tự động CH1)'}
+                      </span>
+                      {selectedOrder.store_address && (
+                        <p className="text-[11px] text-slate-400 mt-0.5">{selectedOrder.store_address}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {selectedOrder.inventory_deducted ? (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          ✓ Đã trừ kho hàng
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            Chưa trừ kho
+                          </span>
+                          {selectedOrder.status !== 'CANCELLED' && (
+                            <button
+                              type="button"
+                              onClick={() => handleRequestStatusChange(selectedOrder, 'CONFIRMED')}
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-sm transition-colors cursor-pointer"
+                            >
+                              Xác nhận xuất kho ngay
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -2158,9 +4914,16 @@ export default function AdminPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-bold text-slate-100 truncate">{item.name}</p>
-                          <p className="text-[11px] text-slate-400">
-                            {formatVND(item.price)} × {item.quantity} {item.unit}
-                          </p>
+                          <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                            <p className="text-[11px] text-slate-400">
+                              {formatVND(item.price)} × {item.quantity} {item.unit}
+                            </p>
+                            {(item as any).total_bottles && (item as any).total_bottles > 0 && (
+                              <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
+                                📦 Xuất kho: {(item as any).total_bottles} chai
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="text-right">
                           <p className="text-xs font-bold text-emerald-400">
@@ -2191,19 +4954,102 @@ export default function AdminPage() {
                     {formatVND(selectedOrder.shipping_fee || 0)}
                   </span>
                 </div>
-                <div className="flex justify-between text-slate-400">
+                <div className="flex justify-between items-center text-slate-400">
                   <span>Phương thức:</span>
                   <span className="uppercase font-bold text-slate-200">
                     {selectedOrder.payment_method}
                   </span>
                 </div>
+                {selectedOrder.payment_method === 'cod' && (
+                  <div className="flex justify-between items-center text-slate-400 pt-1 border-t border-slate-900">
+                    <span>Đối soát tiền COD:</span>
+                    {selectedOrder.cod_reconciled ? (
+                      <span className="font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 text-[11px]">
+                        ✓ Đã thu {formatVND(selectedOrder.cod_collected_amount || selectedOrder.total)}
+                      </span>
+                    ) : (
+                      <span className="font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 text-[11px]">
+                        ⏳ Chờ thu tiền mặt
+                      </span>
+                    )}
+                  </div>
+                )}
+                {selectedOrder.status === 'CANCELLED' && selectedOrder.return_disposition && (
+                  <div className="p-2.5 bg-red-950/40 border border-red-900/50 rounded-xl space-y-1 mt-1 text-[11px]">
+                    <div className="flex justify-between text-red-300">
+                      <span className="font-bold">Lý do hủy/hoàn:</span>
+                      <span>{selectedOrder.return_reason || 'Không rõ'}</span>
+                    </div>
+                    <div className="flex justify-between text-red-300">
+                      <span className="font-bold">Xử lý tồn kho:</span>
+                      <span className={selectedOrder.return_disposition === 'restocked' ? 'text-emerald-400 font-bold' : 'text-amber-300 font-bold'}>
+                        {selectedOrder.return_disposition === 'restocked' ? '✓ Đã nhập lại kho' : '⚠️ Ghi nhận hủy/hư hỏng'}
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm font-extrabold text-white pt-2 border-t border-slate-800">
                   <span>Tổng tiền thanh toán:</span>
                   <span className="text-emerald-400 text-base">
                     {formatVND(selectedOrder.total)}
                   </span>
                 </div>
+                {selectedOrder.payment_method === 'cod' && !selectedOrder.cod_reconciled && selectedOrder.status === 'COMPLETED' && (
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={() => handleReconcileCod(selectedOrder.id, selectedOrder.total)}
+                    className="w-full mt-2 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Xác nhận đã thu COD ({formatVND(selectedOrder.total)})</span>
+                  </button>
+                )}
               </div>
+
+              {/* Chuyển đơn sang chi nhánh khác (Chỉ SUPER_ADMIN khi đơn PENDING) */}
+              {currentUser?.role === 'SUPER_ADMIN' && selectedOrder.status === 'PENDING' && (
+                <div className="p-4 rounded-xl bg-slate-900 border border-indigo-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-300">
+                      <ArrowRightLeft className="w-3.5 h-3.5" />
+                      <span>Chuyển đơn sang chi nhánh khác</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Tự động kiểm tra tồn kho chi nhánh đích, nhả giữ chỗ kho cũ và chuyển giữ chỗ kho mới
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={transferTargetStore}
+                      onChange={(e) => setTransferTargetStore(e.target.value)}
+                      className="bg-slate-950 border border-slate-700 text-xs text-white rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                    >
+                      <option value="">-- Chọn chi nhánh đích --</option>
+                      {storeList
+                        .filter((s) => s.code !== selectedOrder.store_code)
+                        .map((s) => (
+                          <option key={s.code} value={s.code}>
+                            {s.name} ({s.code})
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={!transferTargetStore || isTransferringOrder}
+                      onClick={() => handleTransferOrderStore(selectedOrder.id, transferTargetStore)}
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white shadow-md shadow-indigo-950/40 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      {isTransferringOrder ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <ArrowRightLeft className="w-3.5 h-3.5" />
+                      )}
+                      <span>Chuyển kho</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Status Update Quick Action */}
               <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
@@ -2215,9 +5061,9 @@ export default function AdminPage() {
                   <select
                     value={selectedOrder.status}
                     onChange={(e) =>
-                      handleUpdateOrderStatus(selectedOrder.id, e.target.value as Order['status'])
+                      handleRequestStatusChange(selectedOrder, e.target.value as Order['status'])
                     }
-                    className="bg-slate-950 border border-slate-700 text-xs font-semibold text-white rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"
+                    className="bg-slate-950 border border-slate-700 text-xs font-semibold text-white rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500 cursor-pointer"
                   >
                     <option value="PENDING">Chờ xử lý</option>
                     <option value="CONFIRMED">Đã xác nhận</option>
@@ -2313,6 +5159,985 @@ export default function AdminPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: XÁC NHẬN ĐỔI TRẠNG THÁI ĐƠN HÀNG */}
+      {/* ======================================================== */}
+      {pendingStatusChange && (
+        <div className="fixed inset-0 z-[1005] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <AlertCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Xác nhận đổi trạng thái</h3>
+                  <p className="text-[11px] text-slate-400">Đơn hàng #{pendingStatusChange.orderCode}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingStatusChange(null)}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Bạn có chắc chắn muốn chuyển trạng thái đơn hàng của khách hàng{' '}
+                <span className="font-bold text-white">{pendingStatusChange.customerName}</span>?
+              </p>
+
+              {/* Status Comparison */}
+              <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 flex items-center justify-between gap-3">
+                <div className="flex-1 text-center">
+                  <span className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Hiện tại</span>
+                  {(() => {
+                    const cur = statusMap[pendingStatusChange.currentStatus] || statusMap['PENDING'];
+                    return (
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border ${cur.bg}`}>
+                        {cur.label}
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                <div className="text-slate-500 font-bold text-sm">➔</div>
+
+                <div className="flex-1 text-center">
+                  <span className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Chuyển sang</span>
+                  {(() => {
+                    const next = statusMap[pendingStatusChange.newStatus] || statusMap['PENDING'];
+                    return (
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border ${next.bg}`}>
+                        {next.label}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {['CONFIRMED', 'PROCESSING', 'SHIPPING', 'COMPLETED'].includes(pendingStatusChange.newStatus) && (
+                <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+                  <p className="font-bold flex items-center gap-1.5 text-amber-400">
+                    <PackageCheck className="w-4 h-4" />
+                    <span>Lưu ý xuất kho chi nhánh:</span>
+                  </p>
+                  <p className="mt-1 text-slate-300 leading-relaxed">
+                    Khi chuyển sang trạng thái <strong>{statusMap[pendingStatusChange.newStatus]?.label}</strong>, hệ thống sẽ tự động trừ hàng hoá thực tế từ kho cửa hàng xử lý đơn này (nếu chưa trừ) theo đúng số lượng chai vật lý.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer với 2 button: Hủy & Xác nhận */}
+            <div className="px-6 py-4 border-t border-slate-800 bg-slate-900/30 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => setPendingStatusChange(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={async () => {
+                  if (!pendingStatusChange) return;
+                  const { orderId, newStatus } = pendingStatusChange;
+                  await handleUpdateOrderStatus(orderId, newStatus);
+                  setPendingStatusChange(null);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-md shadow-emerald-950/40 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 active:scale-95"
+              >
+                {actionLoading ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Đang lưu...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Xác nhận</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: TẠO / SỬA TÀI KHOẢN ADMIN (SUPER ADMIN) */}
+      {/* ======================================================== */}
+      {isUserModalOpen && (
+        <div className="fixed inset-0 z-[1001] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                  <UserPlus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white">
+                    {userModalMode === 'create' ? 'Tạo Tài Khoản Quản Trị Mới' : 'Chỉnh Sửa Tài Khoản Quản Trị'}
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    {userModalMode === 'create'
+                      ? 'Cấp quyền quản lý hệ thống cho nhân sự hoặc chi nhánh'
+                      : `Cập nhật thông tin tài khoản: ${userFormData.username}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsUserModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSaveUser} className="p-6 space-y-4">
+              {/* Tên đăng nhập */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Tên đăng nhập (Username) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  disabled={userModalMode === 'edit'}
+                  value={userFormData.username}
+                  onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
+                  placeholder="VD: NH, TCH, quanly_ch..."
+                  className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono ${
+                    userModalMode === 'edit' ? 'opacity-60 border-slate-800 cursor-not-allowed' : 'border-slate-700'
+                  }`}
+                />
+                {userModalMode === 'edit' && (
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">Không thể đổi username sau khi đã khởi tạo</span>
+                )}
+              </div>
+
+              {/* Họ và tên hiển thị */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Họ và tên hiển thị *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={userFormData.fullName}
+                  onChange={(e) => setUserFormData({ ...userFormData, fullName: e.target.value })}
+                  placeholder="VD: Quản lý Cửa Hàng Vườn Lài (Tân Phú)"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Email đăng nhập / liên hệ *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={userFormData.email}
+                  onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                  placeholder="VD: nh@thaisonfoods.vn"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Mật khẩu */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {userModalMode === 'create' ? 'Mật khẩu khởi tạo *' : 'Đổi mật khẩu mới (Bỏ trống nếu giữ nguyên)'}
+                </label>
+                <input
+                  type="password"
+                  required={userModalMode === 'create'}
+                  minLength={6}
+                  value={userFormData.password}
+                  onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                  placeholder={userModalMode === 'create' ? 'Tối thiểu 6 ký tự' : 'Nhập mật khẩu mới nếu muốn đổi...'}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Vai trò */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Phân quyền vai trò (Role) *
+                </label>
+                <select
+                  value={userFormData.role}
+                  onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value as any })}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
+                >
+                  <option value="ADMIN">Quản trị viên Cửa hàng (ADMIN - Quản lý tồn kho &amp; đơn hàng)</option>
+                  <option value="SUPER_ADMIN">Quản trị viên cấp cao (SUPER ADMIN - Toàn quyền hệ thống)</option>
+                </select>
+              </div>
+
+              {/* Trạng thái hoạt động */}
+              {userModalMode === 'edit' && (
+                <div className="pt-2">
+                  <label className="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={userFormData.isActive}
+                      onChange={(e) => setUserFormData({ ...userFormData, isActive: e.target.checked })}
+                      className="accent-indigo-600 rounded w-4 h-4 cursor-pointer"
+                    />
+                    <span className="font-semibold">Cho phép tài khoản này đăng nhập hệ thống (Kích hoạt)</span>
+                  </label>
+                </div>
+              )}
+
+              {/* Modal Actions */}
+              <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsUserModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-950/40 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                >
+                  {actionLoading ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>{userModalMode === 'create' ? 'Tạo Tài Khoản' : 'Lưu Thay Đổi'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* POP-UP: CẬP NHẬT SỐ LƯỢNG CHAI CHO MẶT HÀNG */}
+      {/* ======================================================== */}
+      {stockModalItem && (
+        <div className="fixed inset-0 z-[1002] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Pop-up Header */}
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                  <PackageCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white">Cập Nhật Số Lượng Chai</h2>
+                  <p className="text-xs text-slate-400">
+                    Chi nhánh: <span className="text-amber-400 font-semibold">{storeList.find((s) => s.code === selectedStoreCode)?.name || selectedStoreCode}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStockModalItem(null)}
+                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Pop-up Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleConfirmStockUpdate();
+              }}
+              className="p-6 space-y-4"
+            >
+              {/* Product preview */}
+              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center gap-3">
+                <div className="w-14 h-14 rounded-xl bg-slate-900 border border-slate-800 relative overflow-hidden shrink-0 flex items-center justify-center p-1">
+                  <Image
+                    src={stockModalItem.thumbnail}
+                    alt={stockModalItem.product_name}
+                    fill
+                    className="object-contain p-0.5"
+                    unoptimized
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-white text-xs leading-snug line-clamp-2">
+                    {stockModalItem.product_name}
+                  </p>
+                  <p className="text-[11px] font-mono text-slate-400 mt-1">
+                    SKU: <span className="text-amber-400 font-semibold">{stockModalItem.sku}</span> • {stockModalItem.unit}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Số lượng hiện tại: <strong className="text-emerald-400 font-mono">{stockModalItem.current_stock} chai</strong>
+                  </p>
+                  {stockModalItem.updated_at ? (
+                    <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1 font-mono">
+                      <Clock className="w-3 h-3 text-slate-500 shrink-0" />
+                      <span>
+                        Cập nhật lần cuối:{' '}
+                        <strong className="text-slate-200">
+                          {new Date(stockModalItem.updated_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}{' '}
+                          {new Date(stockModalItem.updated_at).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        </strong>
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 italic mt-0.5">
+                      Chưa cập nhật lần nào
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Number of bottles input */}
+              <div>
+                <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                  Nhập số chai tồn kho mới *
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    required
+                    autoFocus
+                    value={stockModalItem.new_stock}
+                    onChange={(e) =>
+                      setStockModalItem({
+                        ...stockModalItem,
+                        new_stock: Math.max(0, parseInt(e.target.value, 10) || 0),
+                      })
+                    }
+                    placeholder="Nhập số chai..."
+                    className="w-full bg-slate-950 border border-amber-500/50 rounded-xl px-4 py-3 text-xl font-bold text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-400/40 font-mono shadow-inner"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 uppercase">
+                    chai
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick adjustment buttons */}
+              <div>
+                <span className="text-[11px] text-slate-400 block mb-1.5 font-medium">Tăng / Giảm nhanh:</span>
+                <div className="grid grid-cols-5 gap-2">
+                  {[-10, -5, +5, +10, +50].map((delta) => (
+                    <button
+                      key={delta}
+                      type="button"
+                      onClick={() =>
+                        setStockModalItem({
+                          ...stockModalItem,
+                          new_stock: Math.max(0, stockModalItem.new_stock + delta),
+                        })
+                      }
+                      className="py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer active:scale-95 transition-all text-center"
+                    >
+                      {delta > 0 ? `+${delta}` : delta}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action buttons: Hủy & Xác nhận */}
+              <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => setStockModalItem(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 shadow-md shadow-amber-950/40 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                >
+                  {actionLoading ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Xác nhận</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: CẬP NHẬT THÔNG TIN & ĐỊA CHỈ CỬA HÀNG */}
+      {/* ======================================================== */}
+      {isStoreAddressModalOpen && (
+        <div className="fixed inset-0 z-[1003] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                  <Store className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white">Cập Nhật Địa Chỉ Cửa Hàng</h2>
+                  <p className="text-xs text-slate-400 font-mono">Mã chi nhánh: {storeAddressForm.code}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsStoreAddressModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSaveStoreAddress} className="p-6 space-y-4">
+              {/* Tên hiển thị chi nhánh */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Tên hiển thị cửa hàng / chi nhánh *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={storeAddressForm.name}
+                  onChange={(e) => setStoreAddressForm({ ...storeAddressForm, name: e.target.value })}
+                  placeholder="VD: Chi nhánh 1 (Tân Phú)"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              {/* Địa chỉ chi tiết */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Địa chỉ chi tiết (Số nhà, tên đường, phường/xã, quận, TP) *
+                </label>
+                <textarea
+                  required
+                  rows={2}
+                  value={storeAddressForm.address}
+                  onChange={(e) => setStoreAddressForm({ ...storeAddressForm, address: e.target.value })}
+                  placeholder="VD: 472 - 474 Lê Trọng Tấn, P. Tây Thạnh, Q. Tân Phú, TP. HCM"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 resize-none leading-relaxed"
+                />
+              </div>
+
+              {/* Hotline và Quận huyện */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Số điện thoại Hotline *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={storeAddressForm.phone}
+                    onChange={(e) => setStoreAddressForm({ ...storeAddressForm, phone: e.target.value })}
+                    placeholder="02871000472"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Quận / Huyện *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={storeAddressForm.district}
+                    onChange={(e) => setStoreAddressForm({ ...storeAddressForm, district: e.target.value })}
+                    placeholder="Tân Phú"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Tỉnh thành và Google Maps */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Tỉnh / Thành phố
+                  </label>
+                  <input
+                    type="text"
+                    value={storeAddressForm.province}
+                    onChange={(e) => setStoreAddressForm({ ...storeAddressForm, province: e.target.value })}
+                    placeholder="Hồ Chí Minh"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Link Google Maps (Tùy chọn)
+                  </label>
+                  <input
+                    type="url"
+                    value={storeAddressForm.map_url}
+                    onChange={(e) => setStoreAddressForm({ ...storeAddressForm, map_url: e.target.value })}
+                    placeholder="https://maps.google.com/?q=..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => setIsStoreAddressModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 shadow-md shadow-amber-950/40 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                >
+                  {actionLoading ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Lưu Địa Chỉ Cửa Hàng</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: CHI TIẾT KHÁCH HÀNG THÀNH VIÊN (CUSTOMER 360) */}
+      {/* ======================================================== */}
+      {isMemberDetailModalOpen && selectedMember && (
+        <div className="fixed inset-0 z-[1002] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 border border-emerald-400/30 flex items-center justify-center font-bold text-white text-sm shadow-md">
+                  {selectedMember.full_name ? selectedMember.full_name.slice(0, 2).toUpperCase() : 'KH'}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-white">
+                      {selectedMember.full_name || 'Khách hàng thành viên'}
+                    </h2>
+                    {selectedMember.is_active ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        Hoạt động
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                        Tạm khóa
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 font-mono">
+                    Mã TV: {selectedMember.id} &bull; Đăng ký ngày {new Date(selectedMember.created_at).toLocaleDateString('vi-VN')}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMemberDetailModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
+              {/* Grid 2 Cột: Thông tin cá nhân & Thống kê đơn */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Khối 1: Thông tin liên hệ & Địa chỉ */}
+                <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                    <UserCheck className="w-4 h-4" />
+                    <span>Hồ Sơ Thành Viên</span>
+                  </h3>
+
+                  <div className="space-y-2 text-slate-300">
+                    <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">Email:</span>
+                      <span className="font-semibold text-white truncate max-w-[200px]">{selectedMember.email}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">Điện thoại:</span>
+                      <span className="font-mono text-emerald-400 font-semibold">{selectedMember.phone || 'Chưa cung cấp'}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">Phương thức đăng ký:</span>
+                      <span className="font-semibold capitalize text-slate-200">
+                        {selectedMember.provider === 'google' ? 'Google OAuth' : selectedMember.provider === 'facebook' ? 'Facebook' : 'Email & Mật khẩu'}
+                      </span>
+                    </div>
+
+                    <div className="py-1">
+                      <span className="text-slate-400 block mb-1">Địa chỉ giao hàng mặc định:</span>
+                      <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200">
+                        {selectedMember.address ? (
+                          <>
+                            <p className="font-medium">{selectedMember.address}</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              {[selectedMember.ward, selectedMember.district, selectedMember.province].filter(Boolean).join(', ')}
+                            </p>
+                          </>
+                        ) : (
+                          <span className="text-slate-500 italic">Khách hàng chưa lưu sổ địa chỉ giao hàng</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Khối 2: Thống kê chi tiêu */}
+                <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      <DollarSign className="w-4 h-4" />
+                      <span>Tổng Quan Chi Tiêu</span>
+                    </h3>
+
+                    <div className="grid grid-cols-2 gap-2 mt-3">
+                      <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 text-center">
+                        <span className="text-[10px] text-slate-400 block">Tổng số đơn</span>
+                        <span className="text-lg font-bold text-white mt-0.5 block">{selectedMember.total_orders || 0}</span>
+                      </div>
+                      <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 text-center">
+                        <span className="text-[10px] text-slate-400 block">Tổng tích lũy</span>
+                        <span className="text-lg font-bold text-emerald-400 mt-0.5 block">{formatVND(selectedMember.total_spent || 0)}</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 p-3 rounded-lg bg-slate-900/40 border border-slate-800/80 text-slate-400 text-[11px] space-y-1">
+                      <p>
+                        Giá trị trung bình/đơn:{' '}
+                        <strong className="text-white">
+                          {selectedMember.total_orders > 0
+                            ? formatVND(Math.round(selectedMember.total_spent / selectedMember.total_orders))
+                            : '0 ₫'}
+                        </strong>
+                      </p>
+                      {selectedMember.last_order_date && (
+                        <p>
+                          Đơn gần nhất:{' '}
+                          <strong className="text-slate-300">
+                            {new Date(selectedMember.last_order_date).toLocaleDateString('vi-VN')}
+                          </strong>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Nút hành động trạng thái tài khoản */}
+                  <div className="pt-3 border-t border-slate-800 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleMemberStatus(selectedMember)}
+                      className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        selectedMember.is_active
+                          ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      }`}
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>{selectedMember.is_active ? 'Tạm khóa tài khoản' : 'Kích hoạt lại tài khoản'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Khối 3: Danh sách các đơn hàng đã đặt */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <ShoppingCart className="w-4 h-4 text-blue-400" />
+                    <span>Lịch Sử Đơn Hàng ({memberOrders.length})</span>
+                  </h3>
+                  <span className="text-[11px] text-slate-400">Tự động đồng bộ theo ID thành viên</span>
+                </div>
+
+                {memberDetailLoading ? (
+                  <div className="p-8 text-center text-slate-400 flex items-center justify-center gap-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
+                    <span>Đang nạp lịch sử đơn hàng...</span>
+                  </div>
+                ) : memberOrders.length === 0 ? (
+                  <div className="p-6 rounded-xl bg-slate-950/40 border border-slate-800 text-center text-slate-400">
+                    <p className="font-medium text-slate-300">Khách hàng chưa có đơn hàng nào</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Các đơn hàng phát sinh sau khi đăng nhập sẽ hiển thị tại đây</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {memberOrders.map((ord: any) => {
+                      const st = statusMap[ord.status] || statusMap['PENDING'];
+                      return (
+                        <div
+                          key={ord.id}
+                          className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/80 hover:border-slate-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400">
+                              <PackageCheck className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-white">#{ord.order_code}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${st.bg}`}>
+                                  {st.label}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-0.5">
+                                Ngày đặt: {new Date(ord.created_at).toLocaleString('vi-VN')} &bull; Thanh toán:{' '}
+                                <span className="uppercase font-semibold text-slate-300">{ord.payment_method || 'COD'}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                            <div className="text-right">
+                              <span className="text-[10px] text-slate-500 block">Tổng tiền</span>
+                              <span className="font-extrabold text-emerald-400 text-sm">{formatVND(ord.total)}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsMemberDetailModalOpen(false);
+                                setActiveTab('orders');
+                                setOrderSearch(ord.order_code);
+                              }}
+                              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold transition-colors cursor-pointer"
+                            >
+                              Xem đơn
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-slate-800 bg-slate-900/40 flex items-center justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsMemberDetailModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: LỊCH SỬ BIẾN ĐỘNG TỒN KHO */}
+      {/* ======================================================== */}
+      {isLogModalOpen && (
+        <div className="fixed inset-0 z-[1001] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <History className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>Lịch Sử Biến Động Tồn Kho</span>
+                    <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-slate-800 text-amber-400 border border-slate-700">
+                      {selectedStoreCode}
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Ghi nhận từng giao dịch nhập kho, giữ chỗ khi đặt đơn, trừ kho thật khi duyệt và nhả chỗ khi hủy/chuyển đơn
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fetchInventoryLogs(selectedStoreCode)}
+                  disabled={logsLoading}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                  title="Tải lại dữ liệu"
+                >
+                  <RefreshCw className={`w-4 h-4 text-amber-400 ${logsLoading ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLogModalOpen(false)}
+                  className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content Table */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {logsLoading ? (
+                <div className="p-12 text-center text-slate-500">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto text-amber-400 mb-2" />
+                  <span>Đang tải lịch sử biến động kho...</span>
+                </div>
+              ) : inventoryLogs.length === 0 ? (
+                <div className="p-12 rounded-xl bg-slate-950/40 border border-slate-800 text-center text-slate-400">
+                  <Package className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p className="font-medium text-slate-300">Chưa có lịch sử biến động nào cho chi nhánh này</p>
+                  <p className="text-xs text-slate-500 mt-1">Các lượt cập nhật kho hoặc đơn hàng mới sẽ tự động lưu vết tại đây</p>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-slate-800 overflow-hidden bg-slate-950/60">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
+                        <tr>
+                          <th className="py-3 px-3.5">Thời gian</th>
+                          <th className="py-3 px-3.5">Mặt hàng</th>
+                          <th className="py-3 px-3.5">Hành động</th>
+                          <th className="py-3 px-3.5 text-center">Tồn thực tế</th>
+                          <th className="py-3 px-3.5 text-center">Đang giữ</th>
+                          <th className="py-3 px-3.5">Người thực hiện / Đơn</th>
+                          <th className="py-3 px-3.5">Ghi chú</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {inventoryLogs.map((log) => {
+                          const actionConfig: Record<string, { label: string; bg: string; text: string }> = {
+                            manual_update: { label: 'Chỉnh sửa kho', bg: 'bg-blue-500/10 border-blue-500/30', text: 'text-blue-400' },
+                            order_reserved: { label: 'Đặt đơn giữ chỗ', bg: 'bg-amber-500/10 border-amber-500/30', text: 'text-amber-400' },
+                            order_confirmed: { label: 'Xác nhận trừ kho', bg: 'bg-emerald-500/10 border-emerald-500/30', text: 'text-emerald-400' },
+                            order_cancelled: { label: 'Hủy đơn nhả kho', bg: 'bg-purple-500/10 border-purple-500/30', text: 'text-purple-400' },
+                            order_transferred_out: { label: 'Chuyển đi kho khác', bg: 'bg-rose-500/10 border-rose-500/30', text: 'text-rose-400' },
+                            order_transferred_in: { label: 'Nhận chuyển từ kho khác', bg: 'bg-cyan-500/10 border-cyan-500/30', text: 'text-cyan-400' },
+                            reservation_expired: { label: 'Quá hạn nhả chỗ', bg: 'bg-rose-500/10 border-rose-500/30', text: 'text-rose-400' },
+                          };
+                          const act = actionConfig[log.change_type] || {
+                            label: log.change_type,
+                            bg: 'bg-slate-800 border-slate-700',
+                            text: 'text-slate-300',
+                          };
+
+                          return (
+                            <tr key={log.id} className="hover:bg-slate-900/60 transition-colors">
+                              <td className="py-3 px-3.5 whitespace-nowrap text-slate-400 font-mono text-[11px]">
+                                {new Date(log.created_at).toLocaleString('vi-VN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                })}
+                              </td>
+                              <td className="py-3 px-3.5">
+                                <div className="font-semibold text-slate-100 max-w-[180px] truncate" title={log.product_name}>
+                                  {log.product_name || log.product_id}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                  {log.unit || '1 chai'}
+                                </div>
+                              </td>
+                              <td className="py-3 px-3.5 whitespace-nowrap">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${act.bg} ${act.text}`}>
+                                  {act.label}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3.5 text-center font-mono whitespace-nowrap">
+                                <span className="text-slate-400">{log.old_stock}</span>
+                                <span className="text-slate-600 mx-1">→</span>
+                                <span className={`font-bold ${log.new_stock > log.old_stock ? 'text-emerald-400' : log.new_stock < log.old_stock ? 'text-rose-400' : 'text-slate-200'}`}>
+                                  {log.new_stock}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3.5 text-center font-mono whitespace-nowrap">
+                                <span className="text-slate-400">{log.old_reserved}</span>
+                                <span className="text-slate-600 mx-1">→</span>
+                                <span className={`font-bold ${log.new_reserved > log.old_reserved ? 'text-amber-400' : log.new_reserved < log.old_reserved ? 'text-purple-400' : 'text-slate-400'}`}>
+                                  {log.new_reserved}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3.5 text-[11px]">
+                                <p className="font-medium text-slate-200">{log.actor || 'Hệ thống'}</p>
+                                {log.order_id && (
+                                  <p className="text-[10px] font-mono text-emerald-400 truncate max-w-[120px]" title={log.order_id}>
+                                    Đơn #{log.order_id.slice(0, 8)}
+                                  </p>
+                                )}
+                              </td>
+                              <td className="py-3 px-3.5 text-[11px] text-slate-400 max-w-[200px] truncate" title={log.note || ''}>
+                                {log.note || '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-800 bg-slate-900/40 flex items-center justify-between shrink-0">
+              <span className="text-xs text-slate-400">
+                Hiển thị {inventoryLogs.length} bản ghi gần nhất
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsLogModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}

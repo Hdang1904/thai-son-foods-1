@@ -1,15 +1,16 @@
 'use client';
 
-import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight, CheckCircle2, User, Phone, MapPin } from 'lucide-react';
+import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MapPin, AlertTriangle } from 'lucide-react';
 import { useCartStore } from '@/store/cart';
-import OrderSuccessModal from '@/components/product/OrderSuccessModal';
 import { formatPrice } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLanguage } from '@/context/LanguageContext';
+import { useCartInventory } from '@/hooks/useCartInventory';
 
 export default function CartDrawer() {
+  const { language } = useLanguage();
   const {
     items,
     isOpen,
@@ -20,17 +21,6 @@ export default function CartDrawer() {
     getTotalPrice,
   } = useCartStore();
 
-  const [isCheckoutFormOpen, setIsCheckoutFormOpen] = useState(false);
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerAddress, setCustomerAddress] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [completedOrder, setCompletedOrder] = useState<{
-    orderId: string;
-    customerName: string;
-    total: number;
-  } | null>(null);
-
   const totalPrice = getTotalPrice();
   const totalQuantity = items.reduce((total, item) => total + item.quantity, 0);
 
@@ -38,54 +28,14 @@ export default function CartDrawer() {
   const progress = Math.min((totalPrice / freeShippingThreshold) * 100, 100);
   const remainingForFreeShipping = freeShippingThreshold - totalPrice;
 
-  const handleQuickCheckout = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customerName || !customerPhone || !customerAddress) {
-      alert('Vui lòng điền đầy đủ thông tin giao hàng!');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerName,
-          customerPhone,
-          shippingAddress: customerAddress,
-          items: items.map(i => ({
-            productId: i.productId,
-            productName: i.name,
-            quantity: i.quantity,
-            price: i.price,
-            subtotal: i.price * i.quantity,
-          })),
-          totalAmount: totalPrice,
-          shippingFee: totalPrice >= freeShippingThreshold ? 0 : 25000,
-          paymentMethod: 'cod',
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        const orderId = data.orderId || `TSF-${Date.now().toString().slice(-6)}`;
-        clearCart();
-        setIsCheckoutFormOpen(false);
-        setCompletedOrder({
-          orderId,
-          customerName,
-          total: totalPrice + (totalPrice >= freeShippingThreshold ? 0 : 25000),
-        });
-      } else {
-        alert(data.error || 'Có lỗi xảy ra khi tạo đơn hàng');
-      }
-    } catch (err) {
-      alert('Lỗi kết nối máy chủ');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const {
+    isAvailable,
+    insufficientItems,
+    alternativeStores,
+    selectedBranch,
+    setSelectedBranch,
+    openBranchModal,
+  } = useCartInventory();
 
   return (
     <AnimatePresence>
@@ -114,16 +64,33 @@ export default function CartDrawer() {
               <div className="flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-green-primary" />
                 <h2 className="text-lg font-bold text-text-dark font-heading">
-                  Giỏ hàng ({totalQuantity})
+                  {language === 'en' ? 'Shopping Cart' : 'Giỏ hàng'} ({totalQuantity})
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={closeCart}
                 className="p-1.5 rounded-lg text-text-muted hover:text-text-dark hover:bg-ivory transition-colors cursor-pointer"
-                aria-label="Đóng giỏ hàng"
+                aria-label={language === 'en' ? 'Close cart' : 'Đóng giỏ hàng'}
               >
                 <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Chi nhánh đang chọn */}
+            <div className="px-4 py-2.5 bg-emerald-50/50 border-b border-emerald-100 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5 text-emerald-900 truncate">
+                <MapPin className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                <span className="truncate">
+                  Kho: <strong className="font-semibold">{selectedBranch?.name || 'Chi nhánh'}</strong>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={openBranchModal}
+                className="text-emerald-700 hover:text-emerald-900 font-bold underline shrink-0 ml-2 cursor-pointer"
+              >
+                Đổi
               </button>
             </div>
 
@@ -133,15 +100,15 @@ export default function CartDrawer() {
                 <span>
                   {remainingForFreeShipping <= 0 ? (
                     <span className="font-semibold text-green-primary">
-                      🎉 Bạn được MIỄN PHÍ VẬN CHUYỂN!
+                      {language === 'en' ? '🎉 You have unlocked FREE SHIPPING!' : '🎉 Bạn được MIỄN PHÍ VẬN CHUYỂN!'}
                     </span>
                   ) : (
                     <>
-                      Mua thêm{' '}
+                      {language === 'en' ? 'Add ' : 'Mua thêm '}
                       <span className="font-bold text-green-primary">
                         {formatPrice(remainingForFreeShipping)}đ
                       </span>{' '}
-                      để được freeship
+                      {language === 'en' ? 'more for free shipping' : 'để được freeship'}
                     </>
                   )}
                 </span>
@@ -166,24 +133,30 @@ export default function CartDrawer() {
                   <ShoppingBag className="w-10 h-10 text-text-muted" />
                 </div>
                 <h3 className="text-lg font-bold text-text-dark font-heading mb-1">
-                  Giỏ hàng của bạn đang trống
+                  {language === 'en' ? 'Your cart is empty' : 'Giỏ hàng của bạn đang trống'}
                 </h3>
                 <p className="text-sm text-text-muted mb-6">
-                  Hãy chọn những sản phẩm thơm ngon từ Thái Sơn Foods nhé!
+                  {language === 'en' ? 'Discover delicious fresh healthy drinks from Thai Son Foods!' : 'Hãy chọn những sản phẩm thơm ngon từ Thái Sơn Foods nhé!'}
                 </p>
                 <button
                   type="button"
                   onClick={closeCart}
                   className="inline-flex items-center gap-2 px-6 py-2.5 bg-green-primary text-white font-medium rounded-xl hover:bg-green-dark transition-colors text-sm cursor-pointer"
                 >
-                  Khám phá sản phẩm
+                  {language === 'en' ? 'Explore Products' : 'Khám phá sản phẩm'}
                 </button>
               </div>
             ) : (
               <div className="flex-1 overflow-y-auto p-4 space-y-3 divide-y divide-border-light">
+                <AnimatePresence initial={false}>
                 {items.map((item) => (
-                  <div
+                  <motion.div
                     key={`${item.productId}-${item.variantId || 'default'}`}
+                    layout
+                    initial={{ opacity: 0, y: -16, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9, x: 20 }}
+                    transition={{ duration: 0.22, ease: 'easeOut' }}
                     className="pt-3 first:pt-0 flex gap-3"
                   >
                     {/* Thumbnail */}
@@ -199,7 +172,7 @@ export default function CartDrawer() {
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-semibold text-text-dark truncate">
+                      <h4 className="text-sm font-semibold text-text-dark leading-snug break-words">
                         {item.name}
                       </h4>
                       {item.variantName && (
@@ -224,7 +197,7 @@ export default function CartDrawer() {
                               )
                             }
                             className="p-1 text-text-muted hover:text-text-dark hover:bg-ivory transition-colors cursor-pointer"
-                            aria-label="Giảm số lượng"
+                            aria-label={language === 'en' ? 'Decrease quantity' : 'Giảm số lượng'}
                           >
                             <Minus className="w-3.5 h-3.5" />
                           </button>
@@ -241,7 +214,7 @@ export default function CartDrawer() {
                               )
                             }
                             className="p-1 text-text-muted hover:text-text-dark hover:bg-ivory transition-colors cursor-pointer"
-                            aria-label="Tăng số lượng"
+                            aria-label={language === 'en' ? 'Increase quantity' : 'Tăng số lượng'}
                           >
                             <Plus className="w-3.5 h-3.5" />
                           </button>
@@ -251,14 +224,15 @@ export default function CartDrawer() {
                           type="button"
                           onClick={() => removeItem(item.productId, item.variantId)}
                           className="p-1 text-text-muted hover:text-sale transition-colors cursor-pointer"
-                          aria-label="Xóa sản phẩm"
+                          aria-label={language === 'en' ? 'Remove item' : 'Xóa sản phẩm'}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
+                </AnimatePresence>
               </div>
             )}
 
@@ -267,112 +241,103 @@ export default function CartDrawer() {
               <div className="p-4 border-t border-border-light bg-ivory/30 space-y-3">
                 {/* Total */}
                 <div className="flex items-center justify-between text-base">
-                  <span className="text-text-muted">Tạm tính:</span>
+                  <span className="text-text-muted">{language === 'en' ? 'Subtotal:' : 'Tạm tính:'}</span>
                   <span className="font-bold text-green-primary text-lg">
                     {formatPrice(totalPrice)}đ
                   </span>
                 </div>
 
-                {isCheckoutFormOpen ? (
-                  <form onSubmit={handleQuickCheckout} className="space-y-3 pt-2">
-                    <div className="relative">
-                      <User className="w-4 h-4 text-text-muted absolute left-3 top-3" />
-                      <input
-                        type="text"
-                        placeholder="Họ và tên của bạn *"
-                        required
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 bg-white border border-border rounded-xl text-xs sm:text-sm focus:outline-none focus:border-green-primary"
-                      />
+                {/* Cảnh báo thiếu hàng nếu có */}
+                {!isAvailable && (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1.5">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Chi nhánh hiện chưa đủ số lượng</span>
                     </div>
-                    <div className="relative">
-                      <Phone className="w-4 h-4 text-text-muted absolute left-3 top-3" />
-                      <input
-                        type="tel"
-                        placeholder="Số điện thoại *"
-                        required
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 bg-white border border-border rounded-xl text-xs sm:text-sm focus:outline-none focus:border-green-primary"
-                      />
-                    </div>
-                    <div className="relative">
-                      <MapPin className="w-4 h-4 text-text-muted absolute left-3 top-3" />
-                      <input
-                        type="text"
-                        placeholder="Địa chỉ giao hàng chi tiết *"
-                        required
-                        value={customerAddress}
-                        onChange={(e) => setCustomerAddress(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 bg-white border border-border rounded-xl text-xs sm:text-sm focus:outline-none focus:border-green-primary"
-                      />
-                    </div>
-
-                    <div className="flex gap-2 pt-1">
+                    <p className="text-[11px] text-amber-800 leading-snug">
+                      Chúng tôi đang nỗ lực điều phối để bổ sung sớm nhất. Quý khách vui lòng đổi chi nhánh còn hàng để được phục vụ ngay.
+                    </p>
+                    <ul className="list-disc pl-4 space-y-0.5 text-[11px]">
+                      {insufficientItems.map((it) => (
+                        <li key={it.productId}>
+                          <strong>{it.productName.slice(0, 30)}...</strong>: cần {it.requested}, kho còn {it.available}
+                        </li>
+                      ))}
+                    </ul>
+                    {alternativeStores.length > 0 ? (
+                      <div className="pt-1 border-t border-amber-200/70 flex items-center justify-between gap-1">
+                        <span className="text-[11px] text-gray-700">
+                          Kho <strong>{alternativeStores[0].name.slice(0, 16)}</strong> đủ hàng
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBranch(alternativeStores[0] as any)}
+                          className="text-[11px] font-bold text-emerald-800 underline hover:text-emerald-900 cursor-pointer"
+                        >
+                          Đổi kho này
+                        </button>
+                      </div>
+                    ) : (
                       <button
                         type="button"
-                        onClick={() => setIsCheckoutFormOpen(false)}
-                        className="w-1/3 py-2.5 border border-border rounded-xl text-xs font-semibold text-text-dark hover:bg-ivory transition-colors"
+                        onClick={openBranchModal}
+                        className="text-[11px] font-bold text-emerald-800 underline cursor-pointer block text-left"
                       >
-                        Quay lại
+                        Chọn chi nhánh khác còn hàng
                       </button>
-                      <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-2/3 py-2.5 bg-green-primary text-white rounded-xl text-xs sm:text-sm font-semibold hover:bg-green-dark transition-colors flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
-                      >
-                        {isSubmitting ? 'Đang gửi...' : 'Xác nhận đặt hàng'}
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setIsCheckoutFormOpen(true)}
-                      className="w-full py-3 bg-green-primary text-white font-bold rounded-xl hover:bg-green-dark transition-all text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-98"
-                    >
-                      <span>Đặt hàng nhanh (COD)</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                    
-                    <div className="flex gap-2">
-                      <Link
-                        href="/gio-hang"
-                        onClick={closeCart}
-                        className="w-full py-2 bg-white border border-border text-text-dark font-medium rounded-xl hover:bg-ivory transition-all text-xs text-center flex items-center justify-center"
-                      >
-                        Xem chi tiết giỏ hàng
-                      </Link>
-                    </div>
-                  </>
+                    )}
+                  </div>
                 )}
 
+                <div className="space-y-2 pt-1">
+                  {/* Nút đặt hàng - chỉ cho phép bấm khi kho đủ hàng */}
+                  {isAvailable ? (
+                    <Link
+                      href="/thanh-toan"
+                      onClick={closeCart}
+                      className="w-full py-3 bg-green-primary text-white font-bold rounded-xl hover:bg-green-dark transition-all text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-98"
+                    >
+                      <span>{language === 'en' ? 'Place Order' : 'Đặt hàng'}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full py-2.5 px-2 bg-amber-50/90 text-amber-950 font-semibold rounded-xl text-xs flex flex-col items-center justify-center cursor-not-allowed border border-amber-300 text-center leading-tight gap-0.5 shadow-xs"
+                    >
+                      <span className="font-bold text-amber-950 text-xs">
+                        {language === 'en' ? 'Branch currently out of stock' : 'Chi nhánh tạm chưa đủ hàng'}
+                      </span>
+                      <span className="text-[10.5px] text-amber-800 font-normal">
+                        {language === 'en' ? 'We are restocking • Please switch branch' : 'Đang nỗ lực điều phối • Vui lòng đổi chi nhánh'}
+                      </span>
+                    </button>
+                  )}
+                  
+                  <Link
+                    href="/gio-hang"
+                    onClick={closeCart}
+                    className="w-full py-2 bg-white border border-border text-text-dark font-medium rounded-xl hover:bg-ivory transition-all text-xs text-center flex items-center justify-center block"
+                  >
+                    {language === 'en' ? 'View Full Cart' : 'Xem chi tiết giỏ hàng'}
+                  </Link>
+                </div>
+
                 <div className="flex items-center justify-between text-xs text-text-muted pt-1">
-                  <span>Thanh toán khi nhận hàng (COD)</span>
+                  <span>{language === 'en' ? 'Cash on Delivery (COD)' : 'Thanh toán khi nhận hàng (COD)'}</span>
                   <button
                     type="button"
                     onClick={clearCart}
                     className="text-text-muted hover:text-sale transition-colors cursor-pointer"
                   >
-                    Xóa tất cả
+                    {language === 'en' ? 'Clear all' : 'Xóa tất cả'}
                   </button>
                 </div>
               </div>
             )}
           </motion.div>
         </>
-      )}
-
-      {/* Order Success Modal */}
-      {completedOrder && (
-        <OrderSuccessModal
-          orderId={completedOrder.orderId}
-          customerName={completedOrder.customerName}
-          total={completedOrder.total}
-          onClose={() => setCompletedOrder(null)}
-        />
       )}
     </AnimatePresence>
   );

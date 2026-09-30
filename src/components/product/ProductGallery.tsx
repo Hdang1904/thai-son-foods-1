@@ -6,7 +6,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Product, ProductImage } from '@/types';
 import { cn, formatPrice } from '@/lib/utils';
-import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Share2, ZoomIn, X, Check, PlayCircle } from 'lucide-react';
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Share2, ZoomIn, X, Check, PlayCircle, Copy, QrCode, Smartphone } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface ProductGalleryProps {
   images: ProductImage[];
@@ -23,13 +24,20 @@ export default function ProductGallery({
   currentProductId,
   categoryProducts,
 }: ProductGalleryProps) {
+  const { language } = useLanguage();
   const [activeIndex, setActiveIndex] = useState(0);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [showQrCode, setShowQrCode] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
 
   useEffect(() => {
     setMounted(true);
+    if (typeof window !== 'undefined') {
+      setShareUrl(window.location.href);
+    }
   }, []);
 
   // Keyboard navigation for lightbox
@@ -44,29 +52,105 @@ export default function ProductGallery({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isZoomOpen, images.length]);
 
-  // Guarantee at least one valid image
-  const displayImages = images.length > 0 ? images : [
-    { id: 'default', url: '/images/products/sua-bap-nep.jpg', alt: productName, sortOrder: 1 }
-  ];
+  // Ràng buộc: tối đa 5 hình ảnh mô tả (Đảm bảo vị trí thumbnail thứ 3 luôn là Bảng Icon tiêu chuẩn chất lượng)
+  const displayImages = (() => {
+    const list: ProductImage[] = images.length > 0 ? [...images] : [
+      { id: 'default', url: '/images/products/1200x900-sb1.jpg', alt: productName, sortOrder: 1 }
+    ];
+
+    const hasCertIcon = list.some(
+      (img) => img.url.includes('bang-icon') || img.url.includes('sua-bap-nep-3')
+    );
+
+    if (!hasCertIcon) {
+      const certItem: ProductImage = {
+        id: `${currentProductId || 'cert'}-icon-badge`,
+        url: '/images/products/bang-icon.png',
+        alt: language === 'en' ? 'Quality Standards & Certifications' : 'Tiêu chuẩn chất lượng & Chứng nhận',
+        sortOrder: 3,
+      };
+      if (list.length >= 2) {
+        list.splice(2, 0, certItem);
+      } else {
+        list.push(certItem);
+      }
+    }
+
+    return list.slice(0, 5);
+  })();
 
   const activeImage = displayImages[activeIndex] || displayImages[0];
 
-  const handleShare = async () => {
-    if (navigator.share) {
+  const copyToClipboard = async () => {
+    const url = shareUrl || (typeof window !== 'undefined' ? window.location.href : '');
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Fallback
+    }
+  };
+
+  const handleShareFacebook = () => {
+    const url = shareUrl || (typeof window !== 'undefined' ? window.location.href : '');
+    window.open(
+      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+      '_blank',
+      'noopener,noreferrer,width=620,height=580'
+    );
+  };
+
+  const handleShareZalo = () => {
+    const url = shareUrl || (typeof window !== 'undefined' ? window.location.href : '');
+    window.open(
+      `https://sp.zalo.me/plugins/share?url=${encodeURIComponent(url)}&title=${encodeURIComponent(productName)}`,
+      '_blank',
+      'noopener,noreferrer,width=620,height=580'
+    );
+  };
+
+  const handleShareMessenger = () => {
+    const url = shareUrl || (typeof window !== 'undefined' ? window.location.href : '');
+    window.open(
+      `https://www.facebook.com/dialog/send?link=${encodeURIComponent(url)}&app_id=291494419107518&redirect_uri=${encodeURIComponent(url)}`,
+      '_blank',
+      'noopener,noreferrer,width=620,height=580'
+    );
+  };
+
+  const handleNativeShare = async () => {
+    const url = shareUrl || (typeof window !== 'undefined' ? window.location.href : '');
+    if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
           title: productName,
-          url: window.location.href,
+          text: `Cùng xem sản phẩm ${productName} tại Thái Sơn Foods nhé:`,
+          url: url,
         });
       } catch {
-        // Fallback to clipboard
+        // Người dùng huỷ bỏ chia sẻ
       }
     } else {
-      navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setIsShareModalOpen(true);
     }
   };
+
+  const currentProduct = categoryProducts?.find(
+    (p) => p.id === currentProductId || p.slug === currentProductId || p.sku === currentProductId
+  );
+  const currentPrice = currentProduct?.price;
 
   const isLandscape =
     activeImage.url.includes('600X400') ||
@@ -81,12 +165,14 @@ export default function ProductGallery({
   const aspectClass = isLandscape
     ? 'aspect-[3/2]'
     : is2x3
-    ? 'aspect-[2/3]'
-    : is3x4
-    ? 'aspect-[3/4]'
-    : 'aspect-[4/5]';
+      ? 'aspect-[2/3]'
+      : is3x4
+        ? 'aspect-[3/4]'
+        : 'aspect-[4/5]';
 
+  const isChart = activeImage.url.includes('bang-icon') || activeImage.url.includes('bang-thong-tin');
   const isPoster =
+    isChart ||
     (!activeImage.url.endsWith('.png') && (
       activeImage.url.includes('620x930') ||
       activeImage.url.includes('800x1200') ||
@@ -99,144 +185,280 @@ export default function ProductGallery({
       activeImage.url.endsWith('.jpeg') ||
       activeImage.url.endsWith('.webp')
     )) || (imageFit === 'cover' && !activeImage.url.endsWith('.png'));
-  const isBottle = !isPoster || activeImage.url.endsWith('.png');
+  const isBottle = !isChart && (!isPoster || activeImage.url.endsWith('.png'));
+  const isVideo = activeImage.url.endsWith('.mp4');
 
   return (
     <div className="w-full flex flex-col items-center select-none">
-      {/* Main Image Card — Chuẩn tỷ lệ 4:3 (tương đương 1200x900px) */}
-      <div
-        className={`relative w-full aspect-[4/3] max-w-[640px] ${isBottle ? 'bg-[#FAF8F5]' : 'bg-white'} rounded-2xl border border-gray-200/80 overflow-hidden group shadow-sm transition-all`}
-        style={{ maxWidth: '640px' }}
-      >
-        {/* Floating Prev Button (<) */}
+      {/* Gallery Layout: Thumbnails Left (desktop) + Main Image Right */}
+      <div className="w-full max-w-[700px] flex flex-row items-stretch gap-3">
+        {/* Vertical Thumbnails Column — desktop only */}
         {displayImages.length > 1 && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
-            }}
-            className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/85 hover:bg-white text-gray-800 shadow-md border border-gray-100 flex items-center justify-center transition-all opacity-85 group-hover:opacity-100 hover:scale-105 cursor-pointer"
-            aria-label="Ảnh trước"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
+          <div className="hidden sm:flex flex-col gap-2 w-[76px] shrink-0 max-h-[480px] overflow-y-auto scrollbar-hide py-0.5">
+            {displayImages.map((image, index) => (
+              <button
+                key={image.id || index}
+                onClick={() => setActiveIndex(index)}
+                className={cn(
+                  'relative w-full aspect-[4/3] rounded-lg overflow-hidden border-2 transition-all shrink-0 bg-[#FAF8F5] p-0.5 flex items-center justify-center cursor-pointer',
+                  activeIndex === index
+                    ? 'border-[#1B5E3B] shadow-[0_0_0_1px_#1B5E3B]'
+                    : 'border-gray-200 hover:border-gray-400 opacity-70 hover:opacity-100'
+                )}
+                aria-label={`Xem ảnh ${index + 1}`}
+              >
+                <div className="relative w-full h-full rounded overflow-hidden">
+                  {image.url.endsWith('.mp4') ? (
+                    <div className="w-full h-full bg-slate-900 flex items-center justify-center relative">
+                      <video
+                        src={image.url}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                      />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center pointer-events-none">
+                        <PlayCircle className="w-6 h-6 text-white drop-shadow-md" />
+                      </div>
+                    </div>
+                  ) : (
+                    <Image
+                      src={image.url}
+                      alt={image.alt || productName}
+                      fill
+                      className="object-contain"
+                      sizes="80px"
+                    />
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
         )}
 
-        {/* Floating Next Button (>) */}
-        {displayImages.length > 1 && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveIndex((prev) => (prev + 1) % displayImages.length);
-            }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/85 hover:bg-white text-gray-800 shadow-md border border-gray-100 flex items-center justify-center transition-all opacity-85 group-hover:opacity-100 hover:scale-105 cursor-pointer"
-            aria-label="Ảnh tiếp theo"
+        {/* Main Image Card */}
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div
+            className={`relative w-full aspect-[4/3] ${isBottle ? 'bg-[#FAF8F5]' : 'bg-white'} rounded-2xl border border-gray-200/80 overflow-hidden group shadow-sm transition-all`}
           >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        )}
+            {/* Floating Prev Button (<) */}
+            {displayImages.length > 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
+                }}
+                className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/85 hover:bg-white text-gray-800 shadow-md border border-gray-100 flex items-center justify-center transition-all opacity-85 group-hover:opacity-100 hover:scale-105 cursor-pointer"
+                aria-label="Ảnh trước"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
 
-        {/* Share Button (Top-Right) */}
-        <button
-          onClick={handleShare}
-          className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-white/85 hover:bg-white shadow-sm border border-gray-200/80 flex items-center justify-center text-gray-600 hover:text-gray-900 transition-all cursor-pointer"
-          title="Chia sẻ sản phẩm"
-          aria-label="Chia sẻ sản phẩm"
-        >
-          {copied ? (
-            <Check className="w-4 h-4 text-green-600" />
-          ) : (
-            <Share2 className="w-4 h-4" />
+            {/* Floating Next Button (>) */}
+            {displayImages.length > 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveIndex((prev) => (prev + 1) % displayImages.length);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/85 hover:bg-white text-gray-800 shadow-md border border-gray-100 flex items-center justify-center transition-all opacity-85 group-hover:opacity-100 hover:scale-105 cursor-pointer"
+                aria-label="Ảnh tiếp theo"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            )}
+
+
+
+            {/* Bottom-Right Counter Badge */}
+            <div className="absolute bottom-3.5 right-3.5 z-10 bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium tracking-wider pointer-events-none">
+              {activeIndex + 1}/{displayImages.length}
+            </div>
+
+            {/* Main Product Media with zoom on click */}
+            <div
+              data-product-main-image="true"
+              onClick={() => !isVideo && setIsZoomOpen(true)}
+              className={cn(
+                "relative w-full h-full",
+                !isVideo && "cursor-zoom-in transition-transform duration-300 group-hover:scale-[1.02]"
+              )}
+            >
+              {isVideo ? (
+                <video
+                  key={activeImage.url}
+                  src={activeImage.url}
+                  controls
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="absolute inset-0 w-full h-full object-contain bg-black/5"
+                />
+              ) : (
+                <Image
+                  src={activeImage.url}
+                  alt={activeImage.alt || productName}
+                  fill
+                  className={`${isBottle ? 'object-contain p-4 sm:p-6 md:p-8' : 'object-cover object-center'
+                    } transition-transform duration-300 group-hover:scale-[1.02]`}
+                  sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 640px"
+                  priority
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Mobile Thumbnails Row — only visible on small screens */}
+          {displayImages.length > 1 && (
+            <div className="sm:hidden w-full flex items-center gap-2.5 overflow-x-auto py-3 px-0.5">
+              {displayImages.map((image, index) => (
+                <button
+                  key={image.id || index}
+                  onClick={() => setActiveIndex(index)}
+                  className={cn(
+                    'relative w-16 aspect-[4/3] rounded-lg overflow-hidden border-2 transition-all shrink-0 bg-white p-0.5 flex items-center justify-center cursor-pointer',
+                    activeIndex === index
+                      ? 'border-[#1B5E3B] shadow-[0_0_0_1px_#1B5E3B]'
+                      : 'border-gray-200 hover:border-gray-400 opacity-70 hover:opacity-100'
+                  )}
+                  aria-label={`Xem ảnh ${index + 1}`}
+                >
+                  <div className="relative w-full h-full rounded overflow-hidden">
+                    {image.url.endsWith('.mp4') ? (
+                      <div className="w-full h-full bg-slate-900 flex items-center justify-center relative">
+                        <video
+                          src={image.url}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                          preload="metadata"
+                        />
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center pointer-events-none">
+                          <PlayCircle className="w-5 h-5 text-white drop-shadow-md" />
+                        </div>
+                      </div>
+                    ) : (
+                      <Image
+                        src={image.url}
+                        alt={image.alt || productName}
+                        fill
+                        className="object-contain"
+                        sizes="64px"
+                      />
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
           )}
-        </button>
-
-        {/* Bottom-Right Counter Badge (e.g. 1/5 like cailonuong) */}
-        <div className="absolute bottom-3.5 right-3.5 z-10 bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium tracking-wider pointer-events-none">
-          {activeIndex + 1}/{displayImages.length}
-        </div>
-
-        {/* Main Product Image with zoom on click */}
-        <div
-          onClick={() => setIsZoomOpen(true)}
-          className="relative w-full h-full cursor-zoom-in transition-transform duration-300 group-hover:scale-[1.02]"
-        >
-          <Image
-            src={activeImage.url}
-            alt={activeImage.alt || productName}
-            fill
-            className={`${
-              isBottle ? 'object-contain p-4 sm:p-6 md:p-8' : 'object-cover object-center'
-            } transition-transform duration-300 group-hover:scale-[1.02]`}
-            sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 640px"
-            priority
-          />
         </div>
       </div>
 
-      {/* Clean Thumbnails Row below card */}
-      {displayImages.length > 1 && (
-        <div className="w-full max-w-[640px] flex items-center gap-2.5 overflow-x-auto py-3 px-0.5">
-          {displayImages.map((image, index) => (
-            <button
-              key={image.id || index}
-              onClick={() => setActiveIndex(index)}
-              className={cn(
-                'relative w-20 aspect-[4/3] rounded-lg overflow-hidden border-2 transition-all shrink-0 bg-white p-0.5 flex items-center justify-center cursor-pointer',
-                activeIndex === index
-                  ? 'border-[#1B5E3B] shadow-[0_0_0_1px_#1B5E3B]'
-                  : 'border-gray-200 hover:border-gray-400 opacity-70 hover:opacity-100'
-              )}
-              aria-label={`Xem ảnh ${index + 1}`}
-            >
-              <div className="relative w-full h-full rounded overflow-hidden">
-                <Image
-                  src={image.url}
-                  alt={image.alt || productName}
-                  fill
-                  className="object-cover"
-                  sizes="64px"
-                />
-              </div>
-            </button>
-          ))}
+      {/* ─── DƯỚI ẢNH: PHÓNG TO & CHIA SẺ ĐẾN BẠN BÈ (ĐƠN GIẢN & HIỆU QUẢ) ─── */}
+      <div className="w-full max-w-[700px] mt-2.5 pt-2 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 px-1">
+        {/* Nút phóng to ảnh */}
+        <button
+          onClick={() => !isVideo && setIsZoomOpen(true)}
+          className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#1B5E3B] font-medium transition-colors cursor-pointer"
+        >
+          <ZoomIn className="w-3.5 h-3.5" />
+          <span>
+            {isVideo
+              ? (language === 'en' ? 'Watch full-screen video' : 'Xem video toàn màn hình')
+              : (language === 'en' ? 'Click image to zoom' : 'Nhấp vào ảnh để phóng to')}
+          </span>
+        </button>
+
+        {/* Khối chia sẻ tinh gọn */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-600 font-medium">
+            {language === 'en' ? 'Share with friends:' : 'Chia sẽ đến bạn bè của bạn:'}
+          </span>
+
+          {/* Facebook */}
+          <button
+            onClick={handleShareFacebook}
+            className="w-7 h-7 rounded-full bg-blue-50 hover:bg-blue-100 text-[#1877F2] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer shadow-2xs"
+            title={language === 'en' ? 'Share to Facebook' : 'Chia sẻ lên Facebook'}
+            aria-label={language === 'en' ? 'Share to Facebook' : 'Chia sẻ lên Facebook'}
+          >
+            <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+            </svg>
+          </button>
+
+          {/* Zalo */}
+          <button
+            onClick={handleShareZalo}
+            className="w-7 h-7 rounded-full bg-blue-50 hover:bg-blue-100 text-[#0068FF] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer shadow-2xs font-extrabold text-[10px]"
+            title={language === 'en' ? 'Share to Zalo' : 'Chia sẻ qua Zalo'}
+            aria-label={language === 'en' ? 'Share to Zalo' : 'Chia sẻ qua Zalo'}
+          >
+            Zalo
+          </button>
+
+          {/* Sao chép link */}
+          <button
+            onClick={() => copyToClipboard()}
+            className={cn(
+              "h-7 px-2.5 rounded-full border text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-2xs",
+              copied
+                ? "bg-emerald-600 border-emerald-600 text-white"
+                : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300"
+            )}
+            title={language === 'en' ? 'Copy link' : 'Sao chép đường link'}
+          >
+            {copied ? (
+              <>
+                <Check className="w-3 h-3 text-white stroke-[3]" />
+                <span>{language === 'en' ? 'Copied!' : 'Đã chép!'}</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3 h-3 text-gray-500" />
+                <span>{language === 'en' ? 'Copy link' : 'Sao chép'}</span>
+              </>
+            )}
+          </button>
         </div>
-      )}
+      </div>
 
       {/* ─── DƯỚI CHÂN ẢNH: CHỌN SẢN PHẨM CÙNG DANH MỤC (Chọn vị khác) ─── */}
       {categoryProducts && categoryProducts.length > 0 && (
-        <div className="w-full max-w-[640px] mt-3 pt-3 border-t border-gray-100">
+        <div className="w-full max-w-[700px] mt-3 pt-3 border-t border-gray-100">
           <div className="flex items-center justify-between mb-2 px-0.5">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-600 inline-block" />
               <span className="text-xs font-bold text-[#11241C]">
-                Sản phẩm cùng danh mục ({categoryProducts.length})
+                {language === 'en' ? 'Same Category' : 'Sản phẩm cùng danh mục'} ({categoryProducts.length})
               </span>
             </div>
             <span className="text-[11px] text-text-muted">
-              Chọn để xem vị khác
+              {language === 'en' ? 'Select another flavor' : 'Chọn để xem vị khác'}
             </span>
           </div>
 
           <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
             {categoryProducts.map((prod) => {
-              const isCurrent = prod.id === currentProductId;
-              const shortName = prod.name
-                .replace('Thái Sơn', '')
-                .replace('Mekong Xanh', '')
-                .replace('Yoo', '')
-                .trim();
+              const isCurrent =
+                prod.id === currentProductId ||
+                prod.slug === currentProductId ||
+                prod.sku === currentProductId;
+              const prodTitle = (language === 'en' && prod.nameEn) ? prod.nameEn : prod.name;
 
               return (
                 <Link
                   key={prod.id}
                   href={`/san-pham/${prod.slug}`}
                   className={cn(
-                    'group relative rounded-xl border p-1 sm:p-1.5 transition-all duration-200 flex flex-col items-center text-center bg-white hover:border-emerald-600',
+                    'group relative rounded-xl border p-1 sm:p-1.5 transition-all duration-200 flex flex-col justify-between bg-white hover:border-emerald-600',
                     isCurrent
                       ? 'border-emerald-700 bg-emerald-50/40 ring-1 ring-emerald-700 shadow-2xs'
                       : 'border-gray-200 hover:shadow-2xs opacity-80 hover:opacity-100'
                   )}
-                  title={prod.name}
+                  title={prodTitle}
                 >
                   {isCurrent && (
                     <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-700 text-white flex items-center justify-center shadow-xs text-[9px] z-10">
@@ -254,13 +476,15 @@ export default function ProductGallery({
                     />
                   </div>
 
-                  <span className="text-[10px] sm:text-[11px] font-bold text-text-dark truncate max-w-full leading-tight">
-                    {shortName}
-                  </span>
+                  <div className="flex-1 flex flex-col justify-between w-full">
+                    <span className="text-[10px] sm:text-[11px] font-bold text-text-dark leading-tight break-words line-clamp-5 text-left my-0.5">
+                      {prodTitle}
+                    </span>
 
-                  <span className="text-[9px] sm:text-[10px] font-semibold text-emerald-800">
-                    {formatPrice(prod.price)}đ
-                  </span>
+                    <span className="text-[9px] sm:text-[10px] font-semibold text-emerald-800 text-left mt-auto pt-1">
+                      {formatPrice(prod.price)}đ
+                    </span>
+                  </div>
                 </Link>
               );
             })}
@@ -268,14 +492,7 @@ export default function ProductGallery({
         </div>
       )}
 
-      {/* "Click to see full view" caption */}
-      <button
-        onClick={() => setIsZoomOpen(true)}
-        className="mt-3 inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#1B5E3B] font-medium transition-colors cursor-pointer"
-      >
-        <ZoomIn className="w-3.5 h-3.5" />
-        <span>Nhấp để phóng to / xem ảnh toàn màn hình</span>
-      </button>
+
 
       {/* Full View Lightbox Modal via Portal to document.body (avoids stacking context bugs) */}
       {isZoomOpen && mounted && createPortal(
@@ -321,19 +538,31 @@ export default function ProductGallery({
             </button>
           )}
 
-          {/* Image Container — Fits viewport cleanly without forcing aspect-square */}
+          {/* Media Container — Fits viewport cleanly without forcing aspect-square */}
           <div
             onClick={(e) => e.stopPropagation()}
             className="relative max-w-5xl w-full h-[80vh] flex items-center justify-center"
           >
-            <Image
-              src={activeImage.url}
-              alt={activeImage.alt || productName}
-              fill
-              className="object-contain"
-              sizes="100vw"
-              priority
-            />
+            {isVideo ? (
+              <video
+                key={activeImage.url}
+                src={activeImage.url}
+                controls
+                autoPlay
+                loop
+                playsInline
+                className="max-h-[75vh] max-w-lg object-contain rounded-xl shadow-2xl"
+              />
+            ) : (
+              <Image
+                src={activeImage.url}
+                alt={activeImage.alt || productName}
+                fill
+                className="object-contain"
+                sizes="100vw"
+                priority
+              />
+            )}
           </div>
 
           {/* Bottom Caption / Indicator */}
@@ -345,7 +574,201 @@ export default function ProductGallery({
             <span className="text-white/60">/</span>
             <span>{displayImages.length}</span>
             <span className="text-white/40">•</span>
-            <span className="truncate max-w-[280px] sm:max-w-md">{productName}</span>
+            <span>{productName}</span>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Share Modal Dialog via Portal to document.body */}
+      {isShareModalOpen && mounted && createPortal(
+        <div
+          onClick={() => setIsShareModalOpen(false)}
+          className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-fade-in-up"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#1B5E3B] flex items-center justify-center">
+                  <Share2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-base leading-tight">
+                    {language === 'en' ? 'Share Product' : 'Chia sẻ sản phẩm'}
+                  </h3>
+                  <p className="text-[11px] text-gray-500">
+                    {language === 'en' ? 'Tip: Share with your friends' : 'Gợi ý: Chia sẽ đến bạn bè của bạn'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsShareModalOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                aria-label={language === 'en' ? 'Close' : 'Đóng'}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Product Card Preview */}
+            <div className="p-4 bg-[#FAF9F5] border-b border-gray-100 flex items-center gap-3">
+              <div className="relative w-16 h-16 rounded-xl bg-white border border-gray-200/80 p-1 shrink-0 overflow-hidden flex items-center justify-center">
+                <Image
+                  src={displayImages[0]?.url || activeImage.url}
+                  alt={productName}
+                  fill
+                  className="object-contain p-0.5"
+                  sizes="64px"
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full inline-block mb-1">
+                  Thái Sơn Foods
+                </span>
+                <h4 className="font-bold text-sm text-gray-900 leading-snug">
+                  {productName}
+                </h4>
+                {currentPrice && (
+                  <p className="text-xs font-bold text-emerald-700 mt-0.5">
+                    {formatPrice(currentPrice)} ₫
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4">
+              {/* Social Channels Grid */}
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-2.5">
+                  {language === 'en' ? 'Quick share via social media:' : 'Chia sẻ nhanh qua mạng xã hội:'}
+                </label>
+                <div className="grid grid-cols-4 gap-2.5">
+                  {/* Facebook */}
+                  <button
+                    onClick={handleShareFacebook}
+                    className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all group cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-[#1877F2] text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform">
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                      </svg>
+                    </div>
+                    <span className="text-[11px] font-semibold text-gray-700">Facebook</span>
+                  </button>
+
+                  {/* Zalo */}
+                  <button
+                    onClick={handleShareZalo}
+                    className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all group cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-[#0068FF] text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform font-bold text-xs tracking-tighter">
+                      Zalo
+                    </div>
+                    <span className="text-[11px] font-semibold text-gray-700">Zalo</span>
+                  </button>
+
+                  {/* Messenger */}
+                  <button
+                    onClick={handleShareMessenger}
+                    className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl border border-gray-100 hover:border-purple-200 hover:bg-purple-50/50 transition-all group cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#00C6FF] via-[#0078FF] to-[#A800FF] text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform">
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M12 2C6.477 2 2 6.145 2 11.258c0 2.91 1.455 5.518 3.735 7.208V22l3.39-1.86c.928.257 1.916.396 2.875.396 5.523 0 10-4.145 10-9.258C22 6.145 17.523 2 12 2zm1.09 12.433l-2.766-2.95-5.398 2.95 5.938-6.302 2.836 2.95 5.328-2.95-5.938 6.302z" />
+                      </svg>
+                    </div>
+                    <span className="text-[11px] font-semibold text-gray-700">Messenger</span>
+                  </button>
+
+                  {/* Mã QR */}
+                  <button
+                    onClick={() => setShowQrCode(!showQrCode)}
+                    className={cn(
+                      "flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all group cursor-pointer",
+                      showQrCode
+                        ? "border-emerald-500 bg-emerald-50/70"
+                        : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
+                    )}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-gray-900 text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform">
+                      <QrCode className="w-5 h-5" />
+                    </div>
+                    <span className="text-[11px] font-semibold text-gray-700">Mã QR</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* QR Code Box nếu mở */}
+              {showQrCode && (
+                <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200/80 flex flex-col items-center text-center animate-fade-in-up">
+                  <div className="bg-white p-2.5 rounded-xl shadow-xs border border-gray-200 mb-2">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(shareUrl || (typeof window !== 'undefined' ? window.location.href : ''))}`}
+                      alt="QR Code sản phẩm"
+                      className="w-32 h-32 object-contain"
+                    />
+                  </div>
+                  <p className="text-xs font-semibold text-gray-800">
+                    Quét mã để xem chi tiết sản phẩm trên điện thoại
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Mở camera trên điện thoại của bạn bè để quét nhanh
+                  </p>
+                </div>
+              )}
+
+              {/* Copy Link Input */}
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1.5">
+                  Hoặc sao chép đường link liên kết:
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={shareUrl || (typeof window !== 'undefined' ? window.location.href : '')}
+                    className="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-xs text-gray-600 select-all focus:outline-none focus:ring-1 focus:ring-emerald-600 font-mono truncate"
+                  />
+                  <button
+                    onClick={() => copyToClipboard()}
+                    className={cn(
+                      "px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shrink-0 cursor-pointer shadow-xs",
+                      copied
+                        ? "bg-emerald-600 text-white"
+                        : "bg-[#1B5E3B] hover:bg-[#14482D] text-white"
+                    )}
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>Đã chép!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Sao chép</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Native share for devices */}
+              {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+                <button
+                  onClick={handleNativeShare}
+                  className="w-full py-2.5 px-4 bg-gray-100 hover:bg-gray-200/80 text-gray-800 font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Smartphone className="w-4 h-4 text-gray-600" />
+                  <span>Chia sẻ qua ứng dụng khác trên thiết bị (AirDrop, Tin nhắn...)</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>,
         document.body

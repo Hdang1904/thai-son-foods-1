@@ -5,6 +5,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { formatPrice } from '@/lib/utils';
 import { motion } from 'framer-motion';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface OrderSuccessModalProps {
   orderId: string;
@@ -19,6 +20,7 @@ export default function OrderSuccessModal({
   total,
   onClose,
 }: OrderSuccessModalProps) {
+  const { language } = useLanguage();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -40,23 +42,33 @@ export default function OrderSuccessModal({
         </div>
 
         <h3 className="text-2xl font-bold text-text-dark font-heading mb-2">
-          Đặt hàng thành công!
+          {language === 'en' ? 'Order Placed Successfully!' : 'Đặt hàng thành công!'}
         </h3>
 
         <p className="text-sm text-text-muted mb-6">
-          Cảm ơn <span className="font-semibold text-text-dark">{customerName}</span> đã tin tưởng và sử dụng sản phẩm của Thái Sơn Foods. Mình sẽ liên hệ xác nhận đơn hàng cho bạn sớm nhất.
+          {language === 'en' ? (
+            <>
+              Thank you <span className="font-semibold text-text-dark">{customerName}</span> for choosing Thai Son Foods. We will contact you shortly to confirm your order.
+            </>
+          ) : (
+            <>
+              Cảm ơn <span className="font-semibold text-text-dark">{customerName}</span> đã tin tưởng và sử dụng sản phẩm của Thái Sơn Foods. Mình sẽ liên hệ xác nhận đơn hàng cho bạn sớm nhất.
+            </>
+          )}
         </p>
 
         <div className="bg-ivory rounded-xl p-4 mb-6 text-left space-y-3 border border-border-light">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-text-muted">Mã đơn hàng</span>
+            <span className="text-xs text-text-muted">
+              {language === 'en' ? 'Order Code' : 'Mã đơn hàng'}
+            </span>
             <div className="flex items-center gap-1.5">
               <span className="font-mono text-sm font-bold text-green-primary">{orderId}</span>
               <button
                 type="button"
                 onClick={handleCopy}
                 className="text-text-muted hover:text-text-dark transition-colors"
-                title="Sao chép"
+                title={language === 'en' ? 'Copy' : 'Sao chép'}
               >
                 {copied ? <Check className="w-4 h-4 text-green-primary" /> : <Copy className="w-4 h-4" />}
               </button>
@@ -64,12 +76,18 @@ export default function OrderSuccessModal({
           </div>
 
           <div className="flex items-center justify-between border-t border-border-light pt-2">
-            <span className="text-xs text-text-muted">Phương thức thanh toán</span>
-            <span className="text-sm font-medium text-text-dark">Thanh toán khi nhận hàng (COD)</span>
+            <span className="text-xs text-text-muted">
+              {language === 'en' ? 'Payment Method' : 'Phương thức thanh toán'}
+            </span>
+            <span className="text-sm font-medium text-text-dark">
+              {language === 'en' ? 'Cash on Delivery (COD)' : 'Thanh toán khi nhận hàng (COD)'}
+            </span>
           </div>
 
           <div className="flex items-center justify-between border-t border-border-light pt-2">
-            <span className="text-xs text-text-muted">Tổng thanh toán</span>
+            <span className="text-xs text-text-muted">
+              {language === 'en' ? 'Total Payment' : 'Tổng thanh toán'}
+            </span>
             <span className="text-base font-bold text-green-primary">{formatPrice(total)}đ</span>
           </div>
         </div>
@@ -80,15 +98,15 @@ export default function OrderSuccessModal({
             onClick={onClose}
             className="flex-1 py-2.5 px-4 border border-border rounded-xl text-sm font-semibold text-text-dark hover:bg-ivory-dark transition-colors"
           >
-            Đóng
+            {language === 'en' ? 'Close' : 'Đóng'}
           </button>
           <Link
-            href="/san-pham"
+            href="/#san-pham"
             onClick={onClose}
             className="flex-1 py-2.5 px-4 bg-green-primary text-white rounded-xl text-sm font-semibold hover:bg-green-dark transition-colors flex items-center justify-center gap-2"
           >
             <ShoppingBag className="w-4 h-4" />
-            Tiếp tục mua sắm
+            {language === 'en' ? 'Continue Shopping' : 'Tiếp tục mua sắm'}
           </Link>
         </div>
       </motion.div>

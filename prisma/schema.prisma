@@ -11,32 +11,40 @@ model Category {
   id        String    @id @default(cuid())
   slug      String    @unique
   name      String
+  nameEn    String?   @map("name_en")
   products  Product[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  @@map("categories")
 }
 
 model Product {
   id               String           @id @default(cuid())
   slug             String           @unique
   name             String
+  nameEn           String?          @map("name_en")
   sku              String?
-  shortDescription String?
+  volume           String?
+  shortDescription String?          @map("short_description")
   description      String?
   price            Int
   unit             String           @default("1 chai")
   thumbnail        String
-  isFeatured       Boolean          @default(false)
-  isNew            Boolean          @default(false)
-  isBestSeller     Boolean          @default(false)
-  isActive         Boolean          @default(true)
-  categoryId       String?
+  isFeatured       Boolean          @default(false) @map("is_featured")
+  isNew            Boolean          @default(false) @map("is_new")
+  isBestSeller     Boolean          @default(false) @map("is_best_seller")
+  isActive         Boolean          @default(true) @map("is_active")
+  isVegan          Boolean          @default(true) @map("is_vegan")
+  categoryId       String?          @map("category_id")
   category         Category?        @relation(fields: [categoryId], references: [id])
   images           ProductImage[]
   variants         ProductVariant[]
   orderItems       OrderItem[]
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  @@map("products")
 }
 
 model ProductImage {
@@ -54,40 +62,174 @@ model ProductVariant {
   quantity  Int     @default(1)
   price     Int
   unit      String  @default("chai")
-  productId String
+  volume    String?
+  productId String  @map("product_id")
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_variants")
+}
+
+model Combo {
+  id            String      @id @default(cuid())
+  slug          String      @unique
+  name          String
+  nameEn        String?     @map("name_en")
+  description   String?
+  descriptionEn String?     @map("description_en")
+  originalPrice Int         @map("original_price")
+  salePrice     Int         @map("sale_price")
+  totalItems    Int         @default(10) @map("total_items")
+  discount      Int         @default(0)
+  image         String?
+  isFeatured    Boolean     @default(true) @map("is_featured")
+  isBestSeller  Boolean     @default(false) @map("is_best_seller")
+  isActive      Boolean     @default(true) @map("is_active")
+  items         ComboItem[]
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  @@map("combos")
+}
+
+model ComboItem {
+  id        String  @id @default(cuid())
+  comboId   String  @map("combo_id")
+  combo     Combo   @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  productId String  @map("product_id")
+  quantity  Int     @default(1)
+  unit      String  @default("chai")
+
+  @@map("combo_items")
 }
 
 model Order {
-  id            String      @id @default(cuid())
-  orderCode     String      @unique
-  fullName      String
-  phone         String
-  email         String?
-  province      String
-  district      String
-  ward          String
-  address       String
-  note          String?
-  paymentMethod String      @default("cod")
-  shippingFee   Int         @default(0)
-  subtotal      Int
-  total         Int
-  status        String      @default("PENDING")
-  items         OrderItem[]
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id                String      @id @default(cuid())
+  orderCode         String      @unique @map("order_code")
+  fullName          String      @map("full_name")
+  phone             String
+  email             String?
+  province          String
+  district          String
+  ward              String
+  address           String
+  note              String?
+  paymentMethod     String      @default("cod") @map("payment_method")
+  shippingFee       Int         @default(0) @map("shipping_fee")
+  subtotal          Int
+  total             Int
+  status            String      @default("PENDING")
+  userId            String?     @map("user_id")
+  storeCode         String?     @map("store_code")
+  storeAddress      String?     @map("store_address")
+  inventoryDeducted Boolean     @default(false) @map("inventory_deducted")
+  itemsResolvedCount Int        @default(0) @map("items_resolved_count")
+  itemsTotalCount   Int         @default(0) @map("items_total_count")
+  items             OrderItem[]
+  createdAt         DateTime    @default(now()) @map("created_at")
+
+  @@map("orders")
 }
 
 model OrderItem {
-  id        String   @id @default(cuid())
-  orderId   String
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String?
-  product   Product? @relation(fields: [productId], references: [id])
+  id                  String   @id @default(cuid())
+  orderId             String   @map("order_id")
+  order               Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId           String?  @map("product_id")
+  product             Product? @relation(fields: [productId], references: [id])
+  canonicalProductId  String?  @map("canonical_product_id")
+  name                String
+  price               Int
+  quantity            Int
+  unit                String   @default("1 chai")
+  thumbnail           String?
+  comboSnapshot       Json?    @map("combo_snapshot")
+  bottleMultiplier    Int      @default(1) @map("bottle_multiplier")
+  totalBottles        Int      @default(0) @map("total_bottles")
+
+  @@map("order_items")
+}
+
+model Store {
+  code      String   @id
   name      String
-  price     Int
-  quantity  Int
-  unit      String   @default("1 chai")
-  thumbnail String?
+  address   String
+  district  String?
+  province  String?  @default("Hồ Chí Minh")
+  ward      String?
+  phone     String?
+  latitude  Float?
+  longitude Float?
+  mapUrl    String?  @map("map_url")
+  isActive  Boolean  @default(true) @map("is_active")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+
+  @@map("stores")
+}
+
+model StoreInventory {
+  id            String    @id
+  storeCode     String    @map("store_code")
+  productId     String    @map("product_id")
+  stockQuantity Int       @default(100) @map("stock_quantity")
+  reserved      Int       @default(0)
+  safetyStock   Int       @default(0) @map("safety_stock")
+  updatedAt     DateTime? @updatedAt @map("updated_at")
+  updatedBy     String?   @map("updated_by")
+
+  @@unique([storeCode, productId])
+  @@map("store_inventory")
+}
+
+model StockReservation {
+  id         String    @id
+  orderId    String    @map("order_id")
+  storeCode  String    @map("store_code")
+  productId  String    @map("product_id")
+  quantity   Int
+  status     String    @default("active") // active | confirmed | released | expired
+  createdAt  DateTime  @default(now()) @map("created_at")
+  expiresAt  DateTime  @map("expires_at")
+  releasedAt DateTime? @map("released_at")
+
+  @@index([orderId])
+  @@index([storeCode, productId])
+  @@index([status, expiresAt])
+  @@map("stock_reservations")
+}
+
+model InventoryLog {
+  id          String   @id
+  storeCode   String   @map("store_code")
+  productId   String   @map("product_id")
+  oldStock    Int      @map("old_stock")
+  newStock    Int      @map("new_stock")
+  oldReserved Int      @default(0) @map("old_reserved")
+  newReserved Int      @default(0) @map("new_reserved")
+  changeType  String   @map("change_type")
+  orderId     String?  @map("order_id")
+  actor       String
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([storeCode])
+  @@index([productId])
+  @@index([createdAt])
+  @@index([orderId])
+  @@map("inventory_logs")
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  fullName     String?  @map("full_name")
+  role         String   @default("ADMIN") // SUPER_ADMIN, ADMIN, STAFF
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("admin_users")
 }

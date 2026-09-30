@@ -1,11 +1,19 @@
 import { Metadata } from 'next';
+import Image from 'next/image';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { products, getProductBySlug, categories, getProductsByCategory } from '@/data/products';
+import { query } from '@/lib/db';
+import { Product } from '@/types';
 import ProductGallery from '@/components/product/ProductGallery';
-import ProductInfo from '@/components/product/ProductInfo';
+import ProductInfo, { ProductBreadcrumb } from '@/components/product/ProductInfo';
 import ProductCombosSidebar from '@/components/product/ProductCombosSidebar';
 import ProductSection from '@/components/home/ProductSection';
+import CartStickySidebar from '@/components/cart/CartStickySidebar';
+import ScrollBannerShowcase from '@/components/product/ScrollBannerShowcase';
 import { ChevronRight } from 'lucide-react';
+
+export const dynamic = 'force-dynamic';
 
 interface ProductPageProps {
   params: Promise<{ slug: string }>;
@@ -17,11 +25,94 @@ export async function generateStaticParams() {
   }));
 }
 
+/**
+ * Lấy dữ liệu sản phẩm mới nhất từ cơ sở dữ liệu PostgreSQL (nếu có cập nhật từ Admin)
+ * kết hợp với các tài nguyên mở rộng từ products.ts (hình ảnh gallery, highlights, video)
+ */
+async function getLiveProduct(slug: string): Promise<Product | undefined> {
+  const baseProduct = getProductBySlug(slug);
+
+  try {
+    const dbRes = await query(
+      `SELECT 
+         p.*,
+         c.name AS category_name,
+         c.slug AS category_slug,
+         COALESCE(json_agg(
+           CASE WHEN pv.id IS NOT NULL 
+           THEN json_build_object('id', pv.id, 'name', pv.name, 'quantity', pv.quantity, 'price', pv.price, 'unit', pv.unit)
+           ELSE NULL END
+           ORDER BY pv.quantity ASC
+         ) FILTER (WHERE pv.id IS NOT NULL), '[]') AS variants
+       FROM products p
+       LEFT JOIN categories c ON p.category_id = c.id
+       LEFT JOIN product_variants pv ON pv.product_id = p.id
+       WHERE p.slug = $1 OR p.id = $1 OR p.sku = $1 OR p.slug LIKE $1 || '%' OR $1 LIKE p.slug || '%'
+       GROUP BY p.id, c.name, c.slug
+       LIMIT 1;`,
+      [slug]
+    );
+
+    if (dbRes.rows.length > 0) {
+      const dbProd = dbRes.rows[0];
+      const fallback = baseProduct || products.find((p) => p.sku === dbProd.sku || p.id === dbProd.id) || {
+        id: dbProd.id,
+        name: dbProd.name,
+        slug: dbProd.slug,
+        sku: dbProd.sku,
+        price: Number(dbProd.price) || 0,
+        unit: dbProd.unit || '1 chai',
+        categoryId: dbProd.category_id || 'sua-hat',
+        thumbnail: dbProd.thumbnail || '/images/products/sua-bap-nep.png',
+        images: [{ id: 'img-1', url: dbProd.thumbnail, alt: dbProd.name, sortOrder: 1 }],
+        shortDescription: dbProd.short_description || '',
+        description: dbProd.description || '',
+        isActive: dbProd.is_active ?? true,
+        isFeatured: dbProd.is_featured ?? false,
+        isBestSeller: dbProd.is_best_seller ?? false,
+        isNew: dbProd.is_new ?? false,
+        variants: [],
+      };
+
+      return {
+        ...fallback,
+        name: dbProd.name || fallback.name,
+        sku: dbProd.sku || fallback.sku,
+        price: Number(dbProd.price) || fallback.price,
+        unit: dbProd.unit || fallback.unit,
+        shortDescription: dbProd.short_description || fallback.shortDescription,
+        description: dbProd.description || fallback.description,
+        thumbnail: dbProd.thumbnail || fallback.thumbnail,
+        categoryId: (dbProd.category_id ? dbProd.category_id.replace(/^cat-/, '') : fallback.categoryId),
+        isFeatured: dbProd.is_featured !== null ? Boolean(dbProd.is_featured) : fallback.isFeatured,
+        isNew: dbProd.is_new !== null ? Boolean(dbProd.is_new) : fallback.isNew,
+        isBestSeller: dbProd.is_best_seller !== null ? Boolean(dbProd.is_best_seller) : fallback.isBestSeller,
+        isActive: dbProd.is_active !== null ? Boolean(dbProd.is_active) : fallback.isActive,
+        variants: (Array.isArray(dbProd.variants) && dbProd.variants.length > 0)
+          ? dbProd.variants.map((v: any) => ({
+              id: v.id || `var-${v.quantity}`,
+              name: v.name || `${v.quantity} chai`,
+              quantity: Number(v.quantity) || 1,
+              price: Number(v.price) || 0,
+              unit: v.unit || 'chai',
+              volume: v.volume || `${v.quantity} x ${dbProd.volume || '330ml'}`
+            }))
+          .sort((a: any, b: any) => a.quantity - b.quantity)
+          : [...(fallback.variants || [])].sort((a: any, b: any) => a.quantity - b.quantity),
+      };
+    }
+  } catch (err) {
+    console.error('Error fetching live product from DB:', err);
+  }
+
+  return baseProduct;
+}
+
 export async function generateMetadata({
   params,
 }: ProductPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getLiveProduct(slug);
 
   if (!product) {
     return { title: 'Sản phẩm không tìm thấy' };
@@ -41,14 +132,26 @@ export async function generateMetadata({
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getLiveProduct(slug);
 
   if (!product) {
     notFound();
   }
 
-  const category = categories.find((c) => c.id === product.categoryId);
-  const categoryProducts = getProductsByCategory(product.categoryId);
+  const cleanCatId = (product.categoryId || '').replace(/^cat-/, '');
+  const category = categories.find(
+    (c) => c.id === cleanCatId || c.id === product.categoryId || c.slug === cleanCatId
+  );
+
+  // Nạp danh sách sản phẩm cùng danh mục để hiển thị khu vực gợi ý dưới chân ảnh
+  let categoryProducts = getProductsByCategory(cleanCatId);
+  if (!categoryProducts || categoryProducts.length === 0) {
+    categoryProducts = getProductsByCategory(product.categoryId);
+  }
+  // Đảm bảo luôn có danh sách gợi ý cho người dùng lựa chọn vị
+  if (!categoryProducts || categoryProducts.length <= 1) {
+    categoryProducts = products.filter((p) => p.isActive).slice(0, 5);
+  }
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -71,64 +174,71 @@ export default async function ProductPage({ params }: ProductPageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      {/* Top Bar / Breadcrumb */}
-      <div className="border-b border-gray-100 bg-[#F7F8F8] py-2.5 text-xs">
-        <div className="section-container">
-          <nav aria-label="Breadcrumb">
-            <ol className="flex items-center gap-1.5 text-gray-500 flex-wrap">
-              <li>
-                <a href="/" className="hover:text-green-primary transition-colors font-medium">
-                  Trang chủ
-                </a>
-              </li>
-              <li><ChevronRight className="w-3.5 h-3.5 text-gray-400 inline" /></li>
-              <li>
-                <a href="/#san-pham" className="hover:text-green-primary transition-colors font-medium">
-                  {category ? category.name : 'Sản phẩm dinh dưỡng'}
-                </a>
-              </li>
-              <li><ChevronRight className="w-3.5 h-3.5 text-gray-400 inline" /></li>
-              <li className="text-gray-900 font-semibold truncate max-w-[240px] sm:max-w-md">
-                {product.name}
-              </li>
-            </ol>
-          </nav>
-        </div>
-      </div>
+      {/* ─── VÙNG 1: TỪ ĐẦU TRANG ĐẾN HẾT COMBO TIẾT KIỆM (Có Giỏ hàng cố định cuộn dính bên phải) ─── */}
+      <div className="flex flex-row relative w-full items-start">
+        {/* Cột nội dung chính */}
+        <div className="flex-1 min-w-0">
+          {/* Top Bar / Breadcrumb */}
+          <ProductBreadcrumb product={product} category={category} />
 
-      {/* Main Product Content Area (3-Column Layout: Combo Left + Gallery & Category Middle + Buy Box Right) */}
-      <div className="section-container py-6 lg:py-8 max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-7 items-start">
-          {/* Cột 1: Combo bên tay trái đầy đủ thông tin để chọn */}
-          <div className="order-3 lg:order-1 lg:col-span-3">
-            <div className="lg:sticky lg:top-24">
-              <ProductCombosSidebar />
+          {/* Main Product Content Area (2-Column Layout: Gallery Left + Buy Box Right) */}
+          <div className="section-container py-6 lg:py-8 max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-7 items-start">
+              {/* Cột 1: Ảnh sản phẩm chính + Dưới chân là chọn sản phẩm cùng danh mục */}
+              <div className="order-1 lg:col-span-6 flex justify-center">
+                <div className="w-full lg:sticky lg:top-24">
+                  <ProductGallery
+                    images={product.images}
+                    productName={product.name}
+                    imageFit={product.imageFit}
+                    currentProductId={product.id}
+                    categoryProducts={categoryProducts}
+                  />
+                </div>
+              </div>
+
+              {/* Cột 2: Buy Box Thông tin sản phẩm & Mua hàng */}
+              <div className="order-2 lg:col-span-6">
+                <ProductInfo product={product} />
+              </div>
             </div>
           </div>
 
-          {/* Cột 2: Ảnh sản phẩm chính + Dưới chân là chọn sản phẩm cùng danh mục */}
-          <div className="order-1 lg:order-2 lg:col-span-5 flex justify-center">
-            <div className="w-full lg:sticky lg:top-24">
-              <ProductGallery
-                images={product.images}
-                productName={product.name}
-                imageFit={product.imageFit}
-                currentProductId={product.id}
-                categoryProducts={categoryProducts}
-              />
+          {/* Các sản phẩm bạn có thể thích ở trên (Slider lướt 7 sản phẩm 1 hàng) */}
+          <div className="border-t border-gray-200 mt-12 bg-white">
+            <ProductSection
+              excludeProductId={product.id}
+              itemsPerRow={7}
+              title="Các sản phẩm bạn có thể thích"
+              showViewAll={false}
+              className="py-8 sm:py-10 md:py-12"
+            />
+          </div>
+
+          {/* Các combo nổi bật đáng cân nhắc ở dưới (Slider lướt 7 combo 1 hàng) */}
+          <div className="border-t border-gray-200 bg-white">
+            <div className="section-container max-sm:px-2.5 py-8 sm:py-10 md:py-12 max-w-7xl mx-auto px-4 sm:px-6">
+              <ProductCombosSidebar layout="horizontal" title="Các combo nổi bật đáng cân nhắc" />
             </div>
           </div>
-
-          {/* Cột 3: Buy Box Thông tin sản phẩm & Mua hàng */}
-          <div className="order-2 lg:order-3 lg:col-span-4">
-            <ProductInfo product={product} />
-          </div>
         </div>
+
+        {/* Giỏ hàng cố định: Chỉ cuộn dính trong phạm vi VÙNG 1, đến hết Combo tiết kiệm thì DỪNG LẠI */}
+        <aside
+          aria-label="Giỏ hàng cố định"
+          className="hidden min-[1440px]:flex flex-col w-[380px] shrink-0 sticky top-[114px] border-l border-border-light bg-white shadow-xl z-30 overflow-hidden"
+          style={{ height: 'calc(100vh - 114px)' }}
+        >
+          <CartStickySidebar />
+        </aside>
       </div>
 
-      {/* Related / Other Products Section */}
-      <div className="border-t border-gray-200 mt-12 bg-ivory/50">
-        <ProductSection />
+      {/* ─── VÙNG 2: PHÍA DƯỚI COMBO TIẾT KIỆM — BANNER TRẢI NGHIỆM CUỘN CHUỘT ĐIỆN ẢNH (SCROLL-DRIVEN) ───
+          - Khi lướt tới đây, ghim toàn màn hình và lướt chuột 2-3 lần để hiệu ứng animation chuyển từ Banner 1 sang Banner 2
+          - Không cần nút bấm, chuyển động mượt mà phong cách Apple / thương hiệu cao cấp
+      */}
+      <div className="w-full border-t border-gray-200">
+        <ScrollBannerShowcase />
       </div>
     </div>
   );

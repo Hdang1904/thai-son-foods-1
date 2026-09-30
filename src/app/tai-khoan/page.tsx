@@ -1,0 +1,637 @@
+'use client';
+
+import React, { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  User,
+  Package,
+  MapPin,
+  Phone,
+  Mail,
+  LogOut,
+  Calendar,
+  CheckCircle,
+  Clock,
+  Truck,
+  ArrowRight,
+  ShoppingBag,
+  AlertCircle,
+  Save,
+} from 'lucide-react';
+import { useUserAuth } from '@/context/UserAuthContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { cn, formatPrice } from '@/lib/utils';
+
+interface OrderItem {
+  id: string;
+  productId?: string;
+  name: string;
+  price: number;
+  quantity: number;
+  unit: string;
+  thumbnail?: string;
+}
+
+interface OrderRecord {
+  id: string;
+  order_code: string;
+  full_name: string;
+  phone: string;
+  email?: string;
+  address: string;
+  province: string;
+  district: string;
+  ward: string;
+  payment_method: string;
+  shipping_fee: number;
+  subtotal: number;
+  total: number;
+  status: string;
+  created_at: string;
+  items: OrderItem[];
+}
+
+function AccountContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user, isLoading, logout, updateProfile, openAuthModal } = useUserAuth();
+  const { language } = useLanguage();
+
+  const [activeTab, setActiveTab] = useState<'orders' | 'profile'>('orders');
+  const [orders, setOrders] = useState<OrderRecord[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    fullName: '',
+    phone: '',
+    address: '',
+    province: '',
+    district: '',
+    ward: '',
+  });
+  const [profileMsg, setProfileMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(
+    null
+  );
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Sync tab from query param if available
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'profile') {
+      setActiveTab('profile');
+    } else if (tabParam === 'orders') {
+      setActiveTab('orders');
+    }
+  }, [searchParams]);
+
+  // Populate profile form when user loads
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        fullName: user.fullName || '',
+        phone: user.phone || '',
+        address: user.address || '',
+        province: user.province || '',
+        district: user.district || '',
+        ward: user.ward || '',
+      });
+    }
+  }, [user]);
+
+  // Load orders when authenticated
+  useEffect(() => {
+    if (user) {
+      setIsLoadingOrders(true);
+      fetch('/api/user/orders')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && Array.isArray(data.orders)) {
+            setOrders(data.orders);
+          }
+        })
+        .catch((err) => console.error('Error fetching orders:', err))
+        .finally(() => setIsLoadingOrders(false));
+    }
+  }, [user]);
+
+  const handleProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileMsg(null);
+    setIsSavingProfile(true);
+
+    const res = await updateProfile(profileForm);
+    setIsSavingProfile(false);
+
+    if (res.success) {
+      setProfileMsg({
+        text: language === 'en' ? 'Profile updated successfully!' : 'Cập nhật thông tin thành công!',
+        type: 'success',
+      });
+    } else {
+      setProfileMsg({
+        text: res.error || (language === 'en' ? 'Failed to update' : 'Không thể lưu thông tin'),
+        type: 'error',
+      });
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/');
+  };
+
+  // Loading indicator
+  if (isLoading) {
+    return (
+      <div className="section-container py-20 text-center">
+        <div className="w-12 h-12 border-3 border-[#1B5E3B]/20 border-t-[#1B5E3B] rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-gray-500 text-sm">
+          {language === 'en' ? 'Loading account details...' : 'Đang tải thông tin tài khoản...'}
+        </p>
+      </div>
+    );
+  }
+
+  // Guest view (not logged in)
+  if (!user) {
+    return (
+      <div className="section-container py-16 md:py-24 text-center">
+        <div className="max-w-md mx-auto bg-white p-8 rounded-3xl border border-gray-200 shadow-sm">
+          <div className="w-20 h-20 bg-emerald-50 text-[#1B5E3B] rounded-full flex items-center justify-center mx-auto mb-5">
+            <User className="w-10 h-10" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 font-heading mb-2">
+            {language === 'en' ? 'Customer Account' : 'Tài Khoản Khách Hàng'}
+          </h1>
+          <p className="text-sm text-gray-600 mb-6 leading-relaxed">
+            {language === 'en'
+              ? 'Please sign in to view your orders, save delivery addresses, and enjoy faster checkout next time.'
+              : 'Vui lòng đăng nhập để xem lịch sử đơn hàng, cập nhật địa chỉ giao hàng và trải nghiệm mua sắm nhanh hơn.'}
+          </p>
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => openAuthModal('login')}
+              className="w-full py-3.5 bg-[#1B5E3B] hover:bg-[#14482D] text-white font-bold rounded-xl transition-all text-sm shadow-xs cursor-pointer active:scale-[0.98]"
+            >
+              {language === 'en' ? 'Sign In' : 'Đăng nhập ngay'}
+            </button>
+            <button
+              onClick={() => openAuthModal('register')}
+              className="w-full py-3.5 bg-emerald-50 hover:bg-emerald-100/70 text-[#1B5E3B] font-bold rounded-xl transition-all text-sm cursor-pointer"
+            >
+              {language === 'en' ? 'Register New Account' : 'Tạo tài khoản mới'}
+            </button>
+            <Link
+              href="/"
+              className="w-full py-3 text-gray-500 hover:text-gray-800 text-xs font-semibold transition-colors mt-2"
+            >
+              ← {language === 'en' ? 'Continue Shopping as Guest' : 'Tiếp tục mua hàng không cần đăng nhập'}
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Format Status Badge
+  const getStatusBadge = (status: string) => {
+    const s = status.toUpperCase();
+    if (s === 'COMPLETED' || s === 'DELIVERED') {
+      return (
+        <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold flex items-center gap-1">
+          <CheckCircle className="w-3.5 h-3.5" />
+          {language === 'en' ? 'Completed' : 'Hoàn thành'}
+        </span>
+      );
+    }
+    if (s === 'PROCESSING' || s === 'SHIPPING') {
+      return (
+        <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold flex items-center gap-1">
+          <Truck className="w-3.5 h-3.5" />
+          {language === 'en' ? 'Shipping' : 'Đang giao hàng'}
+        </span>
+      );
+    }
+    if (s === 'CANCELLED') {
+      return (
+        <span className="px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-bold flex items-center gap-1">
+          <AlertCircle className="w-3.5 h-3.5" />
+          {language === 'en' ? 'Cancelled' : 'Đã hủy'}
+        </span>
+      );
+    }
+    return (
+      <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold flex items-center gap-1">
+        <Clock className="w-3.5 h-3.5" />
+        {language === 'en' ? 'Pending' : 'Chờ xác nhận'}
+      </span>
+    );
+  };
+
+  return (
+    <div className="section-container py-6 md:py-10">
+      {/* Breadcrumb */}
+      <nav aria-label="Breadcrumb" className="mb-6">
+        <ol className="flex items-center gap-1.5 text-xs text-gray-500">
+          <li>
+            <Link href="/" className="hover:text-[#1B5E3B] transition-colors">
+              {language === 'en' ? 'Home' : 'Trang chủ'}
+            </Link>
+          </li>
+          <li>/</li>
+          <li className="text-gray-900 font-semibold">
+            {language === 'en' ? 'My Account' : 'Tài khoản của tôi'}
+          </li>
+        </ol>
+      </nav>
+
+      {/* Account Header Card */}
+      <div className="bg-white rounded-3xl p-6 md:p-8 border border-gray-100 shadow-xs mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#1B5E3B] to-[#2E7D4E] text-white flex items-center justify-center font-bold text-2xl shadow-sm">
+            {user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
+          </div>
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 font-heading">
+              {user.fullName}
+            </h1>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 mt-1">
+              <span className="flex items-center gap-1">
+                <Mail className="w-3.5 h-3.5 text-gray-400" />
+                {user.email}
+              </span>
+              {user.phone && (
+                <span className="flex items-center gap-1">
+                  <Phone className="w-3.5 h-3.5 text-gray-400" />
+                  {user.phone}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 self-end sm:self-center">
+          <Link
+            href="/#san-pham"
+            className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100/70 text-[#1B5E3B] rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+          >
+            <ShoppingBag className="w-4 h-4" />
+            <span>{language === 'en' ? 'Shop More' : 'Mua sắm'}</span>
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2.5 bg-gray-100 hover:bg-red-50 hover:text-red-700 text-gray-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>{language === 'en' ? 'Log Out' : 'Đăng xuất'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Grid: Tabs & Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        {/* Sidebar Tabs */}
+        <div className="lg:col-span-1 space-y-2">
+          <button
+            onClick={() => setActiveTab('orders')}
+            className={cn(
+              'w-full flex items-center justify-between p-4 rounded-2xl text-sm font-bold transition-all text-left cursor-pointer',
+              activeTab === 'orders'
+                ? 'bg-[#1B5E3B] text-white shadow-xs'
+                : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-100'
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <Package className="w-5 h-5" />
+              <span>{language === 'en' ? 'Order History' : 'Đơn hàng của tôi'}</span>
+            </div>
+            <span
+              className={cn(
+                'px-2 py-0.5 rounded-full text-xs font-bold',
+                activeTab === 'orders' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+              )}
+            >
+              {orders.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={cn(
+              'w-full flex items-center gap-3 p-4 rounded-2xl text-sm font-bold transition-all text-left cursor-pointer',
+              activeTab === 'profile'
+                ? 'bg-[#1B5E3B] text-white shadow-xs'
+                : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-100'
+            )}
+          >
+            <User className="w-5 h-5" />
+            <span>{language === 'en' ? 'Account Details' : 'Thông tin tài khoản'}</span>
+          </button>
+        </div>
+
+        {/* Content Pane */}
+        <div className="lg:col-span-3">
+          {activeTab === 'orders' ? (
+            /* TAB: ORDERS */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-lg font-bold text-gray-900 font-heading">
+                  {language === 'en' ? 'Your Orders' : 'Danh sách đơn hàng'}
+                </h2>
+                <span className="text-xs text-gray-500">
+                  {orders.length} {language === 'en' ? 'orders placed' : 'đơn hàng đã đặt'}
+                </span>
+              </div>
+
+              {isLoadingOrders ? (
+                <div className="bg-white p-12 rounded-3xl border border-gray-100 text-center">
+                  <div className="w-8 h-8 border-2 border-[#1B5E3B]/20 border-t-[#1B5E3B] rounded-full animate-spin mx-auto mb-2" />
+                  <p className="text-xs text-gray-500">
+                    {language === 'en' ? 'Loading orders...' : 'Đang tải danh sách đơn hàng...'}
+                  </p>
+                </div>
+              ) : orders.length === 0 ? (
+                <div className="bg-white p-12 rounded-3xl border border-gray-100 text-center">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+                    <ShoppingBag className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-base font-bold text-gray-800 mb-1">
+                    {language === 'en' ? 'No orders yet' : 'Bạn chưa có đơn hàng nào'}
+                  </h3>
+                  <p className="text-xs text-gray-500 max-w-sm mx-auto mb-6">
+                    {language === 'en'
+                      ? 'Explore our natural corn milk, lotus seed milk, and beverage combos!'
+                      : 'Khám phá ngay các dòng sữa bắp nếp, sữa hạt sen và combo đồ uống dinh dưỡng thơm ngon của Thái Sơn Foods!'}
+                  </p>
+                  <Link
+                    href="/#san-pham"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#1B5E3B] text-white font-bold text-xs rounded-xl hover:bg-[#14482D] transition-colors"
+                  >
+                    <span>{language === 'en' ? 'Shop Drinks Now' : 'Mua sắm ngay'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </div>
+              ) : (
+                orders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="bg-white rounded-3xl border border-gray-100 shadow-2xs p-5 md:p-6 transition-all hover:border-emerald-200"
+                  >
+                    {/* Order Top Bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-gray-100">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-[#1B5E3B] text-base">
+                            #{order.order_code}
+                          </span>
+                          {getStatusBadge(order.status)}
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5" />
+                          <span>
+                            {new Date(order.created_at).toLocaleString('vi-VN', {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })}
+                          </span>
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-xs text-gray-500">
+                          {language === 'en' ? 'Total Amount' : 'Tổng thanh toán'}
+                        </div>
+                        <div className="text-lg font-bold text-[#1B5E3B]">
+                          {formatPrice(order.total)} ₫
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Order Items List */}
+                    <div className="py-4 divide-y divide-gray-50">
+                      {order.items &&
+                        order.items.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between py-2 text-xs">
+                            <div className="flex items-center gap-3">
+                              {item.thumbnail ? (
+                                <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-gray-50 border border-gray-100 shrink-0">
+                                  <Image
+                                    src={item.thumbnail}
+                                    alt={item.name}
+                                    fill
+                                    className="object-contain"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-[#1B5E3B] flex items-center justify-center font-bold text-xs shrink-0">
+                                  TSF
+                                </div>
+                              )}
+                              <div>
+                                <span className="font-semibold text-gray-800 line-clamp-1">
+                                  {item.name}
+                                </span>
+                                <span className="text-gray-400 text-[11px]">
+                                  {formatPrice(item.price)} ₫ x {item.quantity} {item.unit}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="font-bold text-gray-900 shrink-0">
+                              {formatPrice(item.price * item.quantity)} ₫
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+
+                    {/* Order Footer Info */}
+                    <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 bg-gray-50/70 p-3 rounded-2xl">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="line-clamp-1">
+                          {order.address}, {order.ward}, {order.district}, {order.province}
+                        </span>
+                      </div>
+                      <div className="text-gray-600 font-medium">
+                        {order.payment_method === 'banking' ? 'Chuyển khoản' : 'COD (Tiền mặt)'}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            /* TAB: PROFILE */
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-2xs p-6 md:p-8">
+              <h2 className="text-lg font-bold text-gray-900 font-heading mb-1">
+                {language === 'en' ? 'Personal Information' : 'Thông tin cá nhân & Địa chỉ giao hàng'}
+              </h2>
+              <p className="text-xs text-gray-500 mb-6">
+                {language === 'en'
+                  ? 'Information will be automatically prefilled in your checkout form.'
+                  : 'Thông tin này sẽ được tự động điền sẵn tại trang thanh toán giúp bạn mua sắm nhanh chóng hơn.'}
+              </p>
+
+              {profileMsg && (
+                <div
+                  className={cn(
+                    'mb-6 p-4 rounded-2xl text-xs flex items-center gap-2.5',
+                    profileMsg.type === 'success'
+                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                      : 'bg-red-50 border border-red-200 text-red-700'
+                  )}
+                >
+                  {profileMsg.type === 'success' ? (
+                    <CheckCircle className="w-4 h-4 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                  )}
+                  <span>{profileMsg.text}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleProfileSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                      {language === 'en' ? 'Full Name' : 'Họ và tên'} *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={profileForm.fullName}
+                      onChange={(e) =>
+                        setProfileForm({ ...profileForm, fullName: e.target.value })
+                      }
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                      Email ({language === 'en' ? 'cannot be changed' : 'cố định'})
+                    </label>
+                    <input
+                      type="email"
+                      disabled
+                      value={user.email}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-500 text-sm cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                      {language === 'en' ? 'Phone Number' : 'Số điện thoại'}
+                    </label>
+                    <input
+                      type="tel"
+                      value={profileForm.phone}
+                      onChange={(e) =>
+                        setProfileForm({ ...profileForm, phone: e.target.value })
+                      }
+                      placeholder="0912 345 678"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                      {language === 'en' ? 'Province / City' : 'Tỉnh / Thành phố'}
+                    </label>
+                    <input
+                      type="text"
+                      value={profileForm.province}
+                      onChange={(e) =>
+                        setProfileForm({ ...profileForm, province: e.target.value })
+                      }
+                      placeholder={language === 'en' ? 'Ho Chi Minh City' : 'TP. Hồ Chí Minh'}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                      {language === 'en' ? 'District' : 'Quận / Huyện'}
+                    </label>
+                    <input
+                      type="text"
+                      value={profileForm.district}
+                      onChange={(e) =>
+                        setProfileForm({ ...profileForm, district: e.target.value })
+                      }
+                      placeholder={language === 'en' ? 'Tan Binh District' : 'Quận Tân Bình'}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                      {language === 'en' ? 'Ward' : 'Phường / Xã'}
+                    </label>
+                    <input
+                      type="text"
+                      value={profileForm.ward}
+                      onChange={(e) => setProfileForm({ ...profileForm, ward: e.target.value })}
+                      placeholder={language === 'en' ? 'Tan Son Hoa Ward' : 'Phường Tân Sơn Hòa'}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                      {language === 'en' ? 'Street Address' : 'Địa chỉ chi tiết (Số nhà, tên đường)'}
+                    </label>
+                    <input
+                      type="text"
+                      value={profileForm.address}
+                      onChange={(e) =>
+                        setProfileForm({ ...profileForm, address: e.target.value })
+                      }
+                      placeholder={language === 'en' ? '123 Le Van Sy...' : '123 Lê Văn Sỹ...'}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSavingProfile}
+                    className="px-6 py-3 bg-[#1B5E3B] hover:bg-[#14482D] text-white font-bold rounded-xl text-xs transition-all flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-60 active:scale-[0.98]"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>
+                      {isSavingProfile
+                        ? language === 'en'
+                          ? 'Saving...'
+                          : 'Đang lưu...'
+                        : language === 'en'
+                        ? 'Save Changes'
+                        : 'Lưu thay đổi'}
+                    </span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function AccountPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="section-container py-20 text-center">
+          <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-text-muted">Đang tải thông tin tài khoản...</p>
+        </div>
+      }
+    >
+      <AccountContent />
+    </Suspense>
+  );
+}

@@ -2,6 +2,7 @@
 
 import { Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface QuantitySelectorProps {
   quantity: number;
@@ -24,6 +25,8 @@ export default function QuantitySelector({
   size = 'md',
   className,
 }: QuantitySelectorProps) {
+  const { language } = useLanguage();
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value, 10);
     if (!isNaN(val) && val >= min && val <= max && onChange) {
@@ -57,7 +60,7 @@ export default function QuantitySelector({
           'flex items-center justify-center rounded-l-lg border border-border bg-white text-text-body transition-colors',
           'hover:bg-ivory-dark hover:text-text-dark disabled:opacity-40 disabled:cursor-not-allowed'
         )}
-        aria-label="Giảm số lượng"
+        aria-label={language === 'en' ? 'Decrease quantity' : 'Giảm số lượng'}
       >
         <Minus className={s.icon} />
       </button>
@@ -71,7 +74,7 @@ export default function QuantitySelector({
           s.input,
           'text-center border-y border-border bg-white text-text-dark font-medium focus:outline-none focus:ring-1 focus:ring-green-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
         )}
-        aria-label="Số lượng"
+        aria-label={language === 'en' ? 'Quantity' : 'Số lượng'}
       />
       <button
         type="button"
@@ -82,7 +85,7 @@ export default function QuantitySelector({
           'flex items-center justify-center rounded-r-lg border border-border bg-white text-text-body transition-colors',
           'hover:bg-ivory-dark hover:text-text-dark disabled:opacity-40 disabled:cursor-not-allowed'
         )}
-        aria-label="Tăng số lượng"
+        aria-label={language === 'en' ? 'Increase quantity' : 'Tăng số lượng'}
       >
         <Plus className={s.icon} />
       </button>

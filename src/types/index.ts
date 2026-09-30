@@ -2,13 +2,17 @@
 export interface Product {
   id: string;
   name: string;
+  nameEn?: string;
   slug: string;
   sku: string;
   shortDescription: string;
+  shortDescriptionEn?: string;
   description: string;
+  descriptionEn?: string;
   price: number;
   originalPrice?: number;
   unit: string;
+  unitEn?: string;
   categoryId: string;
   thumbnail: string;
   images: ProductImage[];
@@ -16,6 +20,7 @@ export interface Product {
   isNew: boolean;
   isBestSeller: boolean;
   isActive: boolean;
+  isVegan?: boolean;
   volume?: string;
   imageFit?: 'cover' | 'contain';
   variants?: ProductVariant[];
@@ -31,15 +36,18 @@ export interface ProductImage {
 export interface ProductVariant {
   id: string;
   name: string;
+  nameEn?: string;
   quantity: number;
   price: number;
   unit: string;
+  unitEn?: string;
   volume?: string;
 }
 
 export interface Category {
   id: string;
   name: string;
+  nameEn?: string;
   slug: string;
 }
 
@@ -47,8 +55,10 @@ export interface Category {
 export interface Combo {
   id: string;
   name: string;
+  nameEn?: string;
   slug: string;
   description: string;
+  descriptionEn?: string;
   image: string;
   products: ComboItem[];
   originalPrice: number;
@@ -74,6 +84,8 @@ export interface CartItem {
   quantity: number;
   variantId?: string;
   variantName?: string;
+  storeCode?: string;
+  storeAddress?: string;
 }
 
 export interface CartStore {

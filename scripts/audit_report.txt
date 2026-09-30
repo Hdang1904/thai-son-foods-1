@@ -1,0 +1,298 @@
+﻿ΓòöΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòù
+Γòæ   KIß╗éM TO├üN Tß╗ÆN KHO - PH├üT HIß╗åN Lß╗û Hß╗öNG RESOLVER       Γòæ
+Γòæ   Script read-only, kh├┤ng sß╗¡a dß╗» liß╗çu                   Γòæ
+ΓòÜΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò¥
+
+≡ƒôª Tß╗òng sß╗æ ─æ╞ín h├áng: 87
+
+≡ƒöº ─É├ú tß║úi 46 variant tß╗½ DB
+
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+                    B├üO C├üO KIß╗éM TO├üN                       
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+≡ƒôè Tß╗öNG QUAN:
+   Tß╗òng ─æ╞ín h├áng:               87
+   ─É╞ín bß╗ï lß╗ù hß╗òng resolver:     8 (9.2%)
+   Tß╗òng d├▓ng item bß╗ï bß╗Å s├│t:    10
+   Tß╗òng chai bß╗ï lß╗ìt kho:        2351
+   Doanh thu li├¬n quan:          57.577.000 Γé½
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+CHI TIß║╛T Tß╗¬NG ─É╞áN Bß╗è ß║óNH H╞»ß╗₧NG:
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+  ≡ƒö┤ ─É╞ín: TSF-976704
+     Trß║íng th├íi: SHIPPING | ─É├ú trß╗½ kho: C├ô ΓÜá∩╕Å
+     Chi nh├ính: adminCH1
+     Kh├ích: Nguyß╗àn Ho├áng QUan
+     Tß╗òng ─æ╞ín: 51.411.000 Γé½
+     Ng├áy tß║ío: Wed Sep 30 2026 14:06:30 GMT+0700 (Indochina Time)
+     D├▓ng item: 2/3 bß╗ï lß╗ìt
+     Chai lß╗ìt kho: 2055
+     Doanh thu li├¬n quan: 51.375.000 Γé½
+
+     Γö£ΓöÇ product_id: "sua-gao-lut-ohsawa-var_prod-sl-01_sl-5chai"
+     Γöé  name: "Sß╗»a Gß║ío Lß╗⌐t Ohsawa Yoo nß║Ñu tß╗½ gß║ío lß╗⌐t huyß║┐t rß╗ông rang th╞ím, thß╗⌐c uß╗æng thß╗▒c d╞░ß╗íng thanh ─æß║ím, tiß╗çn lß╗úi uß╗æng liß╗ün, chai 568ml, ─æß║ít chuß║⌐n HACCP. (5 chai)"
+     Γöé  qty: 23 ├ù hß╗ç_sß╗æ: 5 = 115 chai
+     Γöé  price: 125.000 Γé½
+     Γöé  Γ¥î KH├öNG T├îM THß║ñY TRONG DB (variant/product)
+     Γöé
+     Γö£ΓöÇ product_id: "sua-gao-lut-ohsawa-var_prod-sl-01_sl-10chai"
+     Γöé  name: "Sß╗»a Gß║ío Lß╗⌐t Ohsawa Yoo nß║Ñu tß╗½ gß║ío lß╗⌐t huyß║┐t rß╗ông rang th╞ím, thß╗⌐c uß╗æng thß╗▒c d╞░ß╗íng thanh ─æß║ím, tiß╗çn lß╗úi uß╗æng liß╗ün, chai 568ml, ─æß║ít chuß║⌐n HACCP. (10 chai)"
+     Γöé  qty: 194 ├ù hß╗ç_sß╗æ: 10 = 1940 chai
+     Γöé  price: 250.000 Γé½
+     Γöé  Γ¥î KH├öNG T├îM THß║ñY TRONG DB (variant/product)
+     Γöé
+
+  ≡ƒö┤ ─É╞ín: TSF-E2E-2531
+     Trß║íng th├íi: COMPLETED | ─É├ú trß╗½ kho: KH├öNG
+     Chi nh├ính: adminCH1
+     Kh├ích: Kh├ích H├áng Thß╗¡ Nghiß╗çm
+     Tß╗òng ─æ╞ín: 75.000 Γé½
+     Ng├áy tß║ío: Tue Sep 29 2026 09:08:22 GMT+0700 (Indochina Time)
+     D├▓ng item: 1/1 bß╗ï lß╗ìt
+     Chai lß╗ìt kho: 3
+     Doanh thu li├¬n quan: 75.000 Γé½
+
+     Γö£ΓöÇ product_id: "p-sam-la-han"
+     Γöé  name: "N╞░ß╗¢c S├óm La H├ín Hoa C├║c 330ml"
+     Γöé  qty: 3 ├ù hß╗ç_sß╗æ: 1 = 3 chai
+     Γöé  price: 25.000 Γé½
+     Γöé  Γ¥î KH├öNG T├îM THß║ñY TRONG DB (variant/product)
+     Γöé
+
+  ≡ƒö┤ ─É╞ín: TSF-833523
+     Trß║íng th├íi: PENDING | ─É├ú trß╗½ kho: KH├öNG
+     Chi nh├ính: adminCH1
+     Kh├ích: Nguyeenx Hoang quan
+     Tß╗òng ─æ╞ín: 1.009.000 Γé½
+     Ng├áy tß║ío: Tue Sep 29 2026 09:03:02 GMT+0700 (Indochina Time)
+     D├▓ng item: 1/2 bß╗ï lß╗ìt
+     Chai lß╗ìt kho: 48
+     Doanh thu li├¬n quan: 864.000 Γé½
+
+     Γö£ΓöÇ product_id: "sam-la-han-hoa-cuc-lh-24chai"
+     Γöé  name: "Th├íi S╞ín Foods N╞░ß╗¢c S├óm La H├ín Hoa C├║c, Chiß║┐t Xuß║Ñt Tß╗½ La H├ín Quß║ú, Hoa C├║c V├á Nh├ón S├óm, Thß╗⌐c Uß╗æng Tiß╗çn Lß╗úi, 330ml, Lß╗æc 10 Chai (24 chai)"
+     Γöé  qty: 2 ├ù hß╗ç_sß╗æ: 24 = 48 chai
+     Γöé  price: 432.000 Γé½
+     Γöé  Γ¥î KH├öNG T├îM THß║ñY TRONG DB (variant/product)
+     Γöé
+
+  ≡ƒö┤ ─É╞ín: TSF-293180
+     Trß║íng th├íi: COMPLETED | ─É├ú trß╗½ kho: KH├öNG
+     Chi nh├ính: N/A
+     Kh├ích: Nguyß╗àn Ho├áng Quan
+     Tß╗òng ─æ╞ín: 2.875.000 Γé½
+     Ng├áy tß║ío: Sun Sep 27 2026 10:11:09 GMT+0700 (Indochina Time)
+     D├▓ng item: 1/1 bß╗ï lß╗ìt
+     Chai lß╗ìt kho: 115
+     Doanh thu li├¬n quan: 2.875.000 Γé½
+
+     Γö£ΓöÇ product_id: "sua-hat-sen-lotus-ss-5chai"
+     Γöé  name: "Sß╗»a Hß║ít Sen Lotus Yoo nß║Ñu tß╗½ hß║ít sen t╞░╞íi, thß╗⌐c uß╗æng dinh d╞░ß╗íng th╞ím b├╣i thanh m├ít, tiß╗çn lß╗úi uß╗æng liß╗ün, chai 568ml, ─æß║ít chuß║⌐n HACCP. (5 chai)"
+     Γöé  qty: 23 ├ù hß╗ç_sß╗æ: 5 = 115 chai
+     Γöé  price: 125.000 Γé½
+     Γöé  Γ¥î KH├öNG T├îM THß║ñY TRONG DB (variant/product)
+     Γöé
+
+  ≡ƒö┤ ─É╞ín: TSF-399572
+     Trß║íng th├íi: PENDING | ─É├ú trß╗½ kho: KH├öNG
+     Chi nh├ính: N/A
+     Kh├ích: Trß║ºn V─ân Mua H├áng
+     Tß╗òng ─æ╞ín: 180.000 Γé½
+     Ng├áy tß║ío: Sun Sep 27 2026 07:33:48 GMT+0700 (Indochina Time)
+     D├▓ng item: 1/1 bß╗ï lß╗ìt
+     Chai lß╗ìt kho: 10
+     Doanh thu li├¬n quan: 180.000 Γé½
+
+     Γö£ΓöÇ product_id: "prod_1"
+     Γöé  name: "Sß╗»a Bß║»p Nß║┐p Th├íi S╞ín"
+     Γöé  qty: 10 ├ù hß╗ç_sß╗æ: 1 = 10 chai
+     Γöé  price: 18.000 Γé½
+     Γöé  Γ¥î KH├öNG T├îM THß║ñY TRONG DB (variant/product)
+     Γöé
+
+  ≡ƒö┤ ─É╞ín: TSF-801716
+     Trß║íng th├íi: COMPLETED | ─É├ú trß╗½ kho: KH├öNG
+     Chi nh├ính: N/A
+     Kh├ích: qyhahn 7
+     Tß╗òng ─æ╞ín: 912.000 Γé½
+     Ng├áy tß║ío: Sun Sep 20 2026 15:42:54 GMT+0700 (Indochina Time)
+     D├▓ng item: 2/2 bß╗ï lß╗ìt
+     Chai lß╗ìt kho: 48
+     Doanh thu li├¬n quan: 912.000 Γé½
+
+     Γö£ΓöÇ product_id: "sua-bap-nep-sb-24chai"
+     Γöé  name: "Sß╗»a Bß║»p Nß║┐p Th├íi S╞ín (24 chai (Th├╣ng))"
+     Γöé  qty: 1 ├ù hß╗ç_sß╗æ: 24 = 24 chai
+     Γöé  price: 432.000 Γé½
+     Γöé  Γ¥î KH├öNG T├îM THß║ñY TRONG DB (variant/product)
+     Γöé
+     Γö£ΓöÇ product_id: "tra-sua-ciao-tsa-24chai"
+     Γöé  name: "Tr├á Sß╗»a Ciao (24 chai (Th├╣ng))"
+     Γöé  qty: 1 ├ù hß╗ç_sß╗æ: 24 = 24 chai
+     Γöé  price: 480.000 Γé½
+     Γöé  Γ¥î KH├öNG T├îM THß║ñY TRONG DB (variant/product)
+     Γöé
+
+  ≡ƒö┤ ─É╞ín: TSF-247825
+     Trß║íng th├íi: COMPLETED | ─É├ú trß╗½ kho: KH├öNG
+     Chi nh├ính: N/A
+     Kh├ích: Nguyeenx Hoang quan
+     Tß╗òng ─æ╞ín: 1.026.000 Γé½
+     Ng├áy tß║ío: Sun Sep 20 2026 15:39:46 GMT+0700 (Indochina Time)
+     D├▓ng item: 1/3 bß╗ï lß╗ìt
+     Chai lß╗ìt kho: 48
+     Doanh thu li├¬n quan: 864.000 Γé½
+
+     Γö£ΓöÇ product_id: "tao-do-hat-chia-td-24chai"
+     Γöé  name: "T├ío ─Éß╗Å Hß║ít Chia Th├íi S╞ín (24 chai (Th├╣ng))"
+     Γöé  qty: 2 ├ù hß╗ç_sß╗æ: 24 = 48 chai
+     Γöé  price: 432.000 Γé½
+     Γöé  Γ¥î KH├öNG T├îM THß║ñY TRONG DB (variant/product)
+     Γöé
+
+  ≡ƒö┤ ─É╞ín: TSF-987449
+     Trß║íng th├íi: COMPLETED | ─É├ú trß╗½ kho: KH├öNG
+     Chi nh├ính: N/A
+     Kh├ích: Nguyß╗àn Ho├áng QUan
+     Tß╗òng ─æ╞ín: 432.000 Γé½
+     Ng├áy tß║ío: Sun Sep 20 2026 11:21:29 GMT+0700 (Indochina Time)
+     D├▓ng item: 1/1 bß╗ï lß╗ìt
+     Chai lß╗ìt kho: 24
+     Doanh thu li├¬n quan: 432.000 Γé½
+
+     Γö£ΓöÇ product_id: "tra-xanh-go-txg-24chai"
+     Γöé  name: "Tr├á Xanh GO (24 chai (Th├╣ng))"
+     Γöé  qty: 1 ├ù hß╗ç_sß╗æ: 24 = 24 chai
+     Γöé  price: 432.000 Γé½
+     Γöé  Γ¥î KH├öNG T├îM THß║ñY TRONG DB (variant/product)
+     Γöé
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+PH├éN LOß║áI Mß╗¿C ─Éß╗ÿ NGHI├èM TRß╗îNG:
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+  ≡ƒö┤ NGHI├èM TRß╗îNG (─É├ú trß╗½ kho + ─Éang xß╗¡ l├╜/Giao/─É├ú giao): 1 ─æ╞ín
+     - TSF-976704: SHIPPING, 2055 chai lß╗ìt, 51.375.000 Γé½
+  ≡ƒƒí Cß║óNH B├üO (─É├ú trß╗½ kho + ─Éang chß╗¥): 0 ─æ╞ín
+  ≡ƒƒó TH├öNG TIN (Ch╞░a trß╗½ kho): 7 ─æ╞ín
+     - TSF-E2E-2531: COMPLETED, 3 chai lß╗ìt (ch╞░a trß╗½ kho)
+     - TSF-833523: PENDING, 48 chai lß╗ìt (ch╞░a trß╗½ kho)
+     - TSF-293180: COMPLETED, 115 chai lß╗ìt (ch╞░a trß╗½ kho)
+     - TSF-399572: PENDING, 10 chai lß╗ìt (ch╞░a trß╗½ kho)
+     - TSF-801716: COMPLETED, 48 chai lß╗ìt (ch╞░a trß╗½ kho)
+     - TSF-247825: COMPLETED, 48 chai lß╗ìt (ch╞░a trß╗½ kho)
+     - TSF-987449: COMPLETED, 24 chai lß╗ìt (ch╞░a trß╗½ kho)
+  ΓÜ¬ ─É├â Hß╗ªY: 0 ─æ╞ín
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+KIß╗éM TRA RESERVATION vs THß╗░C Tß║╛:
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+  ≡ƒôï ─É╞ín TSF-976704:
+     Reservations trong DB: 1
+       - prod-sgl-01: 2 chai (confirmed)
+     Inventory logs: 2
+       - prod-sgl-01: stock 100ΓåÆ100, reserved 0ΓåÆ2 (order_reserved)
+       - prod-sgl-01: stock 100ΓåÆ98, reserved 2ΓåÆ0 (order_confirmed)
+     ΓÜá∩╕Å Sß║ún phß║⌐m Bß╗è Lß╗îT (kh├┤ng c├│ reservation): sua-gao-lut-ohsawa-var_prod-sl-01_sl-5chai, sua-gao-lut-ohsawa-var_prod-sl-01_sl-10chai
+
+  ≡ƒôï ─É╞ín TSF-E2E-2531:
+     Reservations trong DB: 0
+     Inventory logs: 0
+     ΓÜá∩╕Å Sß║ún phß║⌐m Bß╗è Lß╗îT (kh├┤ng c├│ reservation): p-sam-la-han
+
+  ≡ƒôï ─É╞ín TSF-833523:
+     Reservations trong DB: 0
+     Inventory logs: 0
+     ΓÜá∩╕Å Sß║ún phß║⌐m Bß╗è Lß╗îT (kh├┤ng c├│ reservation): sam-la-han-hoa-cuc-lh-24chai
+
+  ≡ƒôï ─É╞ín TSF-293180:
+     Reservations trong DB: 0
+     Inventory logs: 0
+     ΓÜá∩╕Å Sß║ún phß║⌐m Bß╗è Lß╗îT (kh├┤ng c├│ reservation): sua-hat-sen-lotus-ss-5chai
+
+  ≡ƒôï ─É╞ín TSF-399572:
+     Reservations trong DB: 0
+     Inventory logs: 0
+     ΓÜá∩╕Å Sß║ún phß║⌐m Bß╗è Lß╗îT (kh├┤ng c├│ reservation): prod_1
+
+  ≡ƒôï ─É╞ín TSF-801716:
+     Reservations trong DB: 0
+     Inventory logs: 0
+     ΓÜá∩╕Å Sß║ún phß║⌐m Bß╗è Lß╗îT (kh├┤ng c├│ reservation): sua-bap-nep-sb-24chai, tra-sua-ciao-tsa-24chai
+
+  ≡ƒôï ─É╞ín TSF-247825:
+     Reservations trong DB: 0
+     Inventory logs: 0
+     ΓÜá∩╕Å Sß║ún phß║⌐m Bß╗è Lß╗îT (kh├┤ng c├│ reservation): tao-do-hat-chia-td-24chai
+
+  ≡ƒôï ─É╞ín TSF-987449:
+     Reservations trong DB: 0
+     Inventory logs: 0
+     ΓÜá∩╕Å Sß║ún phß║⌐m Bß╗è Lß╗îT (kh├┤ng c├│ reservation): tra-xanh-go-txg-24chai
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+─É╞áN H├ÇNG KH├öNG C├ô Bß║ñT Kß╗▓ RESERVATION N├ÇO:
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  ΓÜá∩╕Å 53 ─æ╞ín kh├┤ng c├│ reservation n├áo:
+     - TSF-159888: PENDING, 1 items, deducted=false, Nguyß╗àn Ho├áng Quan
+     - TSF-E2E-2531: COMPLETED, 1 items, deducted=false, Kh├ích H├áng Thß╗¡ Nghiß╗çm
+     - TSF-833523: PENDING, 2 items, deducted=false, Nguyeenx Hoang quan
+     - TSF0571976: PENDING, 1 items, deducted=false, Nguyß╗àn V─ân An
+     - TSF0571390: PENDING, 1 items, deducted=false, Nguyß╗àn V─ân An
+     - TSF0572067: CONFIRMED, 2 items, deducted=false, Trß║ºn Thß╗ï Mai
+     - TSF0571561: CONFIRMED, 2 items, deducted=false, Trß║ºn Thß╗ï Mai
+     - TSF-293180: COMPLETED, 1 items, deducted=false, Nguyß╗àn Ho├áng Quan
+     - TSF-613651: PENDING, 1 items, deducted=false, Kh├ích V├úng Lai Kh├┤ng Cß║ºn T├ái Khoß║ún
+     - TSF-399572: PENDING, 1 items, deducted=false, Trß║ºn V─ân Mua H├áng
+     - TSF0571592: SHIPPING, 3 items, deducted=false, L├¬ Ho├áng Long
+     - TSF0571643: COMPLETED, 1 items, deducted=false, Phß║ím Hß╗ông Nhung
+     - TSF0571764: COMPLETED, 2 items, deducted=false, V┼⌐ ─Éß╗⌐c Minh
+     - TSF0571825: COMPLETED, 3 items, deducted=false, ─Éß╗ù Th├╣y Linh
+     - TSF2107320: COMPLETED, 1 items, deducted=false, Nguyß╗àn V─ân An
+     - TSF-438538: COMPLETED, 5 items, deducted=false, quan
+     - TSF1836157: COMPLETED, 2 items, deducted=false, Trß║ºn Thß╗ï Mai
+     - TSF1793447: COMPLETED, 2 items, deducted=false, Trß║ºn Thß╗ï Mai
+     - TSF1707147: COMPLETED, 2 items, deducted=false, Trß║ºn Thß╗ï Mai
+     - TSF2167657: COMPLETED, 2 items, deducted=false, Trß║ºn Thß╗ï Mai
+     - TSF2107707: COMPLETED, 2 items, deducted=false, Trß║ºn Thß╗ï Mai
+     - TSF1835921: COMPLETED, 2 items, deducted=false, Trß║ºn Thß╗ï Mai
+     - TSF1793161: COMPLETED, 2 items, deducted=false, Trß║ºn Thß╗ï Mai
+     - TSF1706531: COMPLETED, 2 items, deducted=false, Trß║ºn Thß╗ï Mai
+     - TSF2167371: COMPLETED, 2 items, deducted=false, Trß║ºn Thß╗ï Mai
+     - TSF2107421: COMPLETED, 2 items, deducted=false, Trß║ºn Thß╗ï Mai
+     - TSF-726239: COMPLETED, 1 items, deducted=false, Nguyß╗àn Ho├áng Quan 
+     - TSF-801716: COMPLETED, 2 items, deducted=false, qyhahn 7
+     - TSF-247825: COMPLETED, 3 items, deducted=false, Nguyeenx Hoang quan
+     - TSF1835952: COMPLETED, 3 items, deducted=false, L├¬ Ho├áng Long
+     - TSF1793212: COMPLETED, 3 items, deducted=false, L├¬ Ho├áng Long
+     - TSF1706652: COMPLETED, 3 items, deducted=false, L├¬ Ho├áng Long
+     - TSF2167432: COMPLETED, 3 items, deducted=false, L├¬ Ho├áng Long
+     - TSF2107452: COMPLETED, 3 items, deducted=false, L├¬ Ho├áng Long
+     - TSF-987449: COMPLETED, 1 items, deducted=false, Nguyß╗àn Ho├áng QUan
+     - TSF-348610: COMPLETED, 1 items, deducted=false, Gam2 CT
+     - TSF1836013: COMPLETED, 1 items, deducted=false, Phß║ím Hß╗ông Nhung
+     - TSF1793263: COMPLETED, 1 items, deducted=false, Phß║ím Hß╗ông Nhung
+     - TSF1706803: COMPLETED, 1 items, deducted=false, Phß║ím Hß╗ông Nhung
+     - TSF2167483: COMPLETED, 1 items, deducted=false, Phß║ím Hß╗ông Nhung
+     - TSF2107523: COMPLETED, 1 items, deducted=false, Phß║ím Hß╗ông Nhung
+     - TSF-TEST-LAN-01: COMPLETED, 1 items, deducted=false, Tester LAN
+     - TSF1836034: COMPLETED, 2 items, deducted=false, V┼⌐ ─Éß╗⌐c Minh
+     - TSF1793284: COMPLETED, 2 items, deducted=false, V┼⌐ ─Éß╗⌐c Minh
+     - TSF1706834: COMPLETED, 2 items, deducted=false, V┼⌐ ─Éß╗⌐c Minh
+     - TSF2167504: COMPLETED, 2 items, deducted=false, V┼⌐ ─Éß╗⌐c Minh
+     - TSF2107554: COMPLETED, 2 items, deducted=false, V┼⌐ ─Éß╗⌐c Minh
+     - TSF-TEST-888888: COMPLETED, 1 items, deducted=false, Kh├ích H├áng Th├íi S╞ín
+     - TSF1836075: COMPLETED, 3 items, deducted=false, ─Éß╗ù Th├╣y Linh
+     - TSF1793345: COMPLETED, 3 items, deducted=false, ─Éß╗ù Th├╣y Linh
+     - TSF1706955: COMPLETED, 3 items, deducted=false, ─Éß╗ù Th├╣y Linh
+     - TSF2167535: COMPLETED, 3 items, deducted=false, ─Éß╗ù Th├╣y Linh
+     - TSF2107605: COMPLETED, 3 items, deducted=false, ─Éß╗ù Th├╣y Linh
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+                KIß╗éM TO├üN HO├ÇN Tß║ñT                          
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ

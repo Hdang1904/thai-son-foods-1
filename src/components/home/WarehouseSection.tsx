@@ -2,50 +2,62 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Phone, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface TabItem {
   id: string;
   num: string;
-  subTitle: string;
+  subTitle?: string;
+  subTitleEn?: string;
   title: string;
+  titleEn: string;
+  description: string;
+  descriptionEn: string;
   image: string;
 }
 
 const warehouseTabs: TabItem[] = [
   {
-    id: 'diem-ban',
+    id: 'ho-tro-khach-hang',
     num: '01',
-    subTitle: 'Liên tục',
-    title: 'Độ phủ rộng khắp',
+    title: 'Hỗ Trợ Khách Hàng',
+    titleEn: 'Customer Support',
+    description:
+      'Tiếp nhận và xử lý kịp thời các phản hồi, thắc mắc phát sinh qua các kênh liên hệ, đồng thời hướng dẫn sử dụng và áp dụng phương án xử lý phù hợp cho từng trường hợp cụ thể.',
+    descriptionEn:
+      'Promptly receive and address customer inquiries, guiding optimal usage and providing tailored support solutions.',
     image: '/images/warehouse/1920x850-6.png',
   },
   {
-    id: 'kho-lanh',
+    id: 'khach-hang-than-thiet',
     num: '02',
-    subTitle: 'Bảo quản',
-    title: 'Kho tổng & Xe lạnh',
+    title: 'Xây Dựng Khách Hàng Thân Thiết',
+    titleEn: 'Customer Loyalty & Partnerships',
+    description:
+      'Triển khai các chính sách ưu đãi, chương trình thành viên và giải pháp đặt hàng định kỳ nhằm gia tăng gắn kết cũng như hỗ trợ nhu cầu của khách hàng.',
+    descriptionEn:
+      'Offering exclusive discounts, membership rewards, and flexible recurring order schedules for wholesale and retail partners.',
     image: '/images/warehouse/1920x850-3.png',
   },
   {
-    id: 'chinh-sach-si',
+    id: 'thong-tin-minh-bach',
     num: '03',
-    subTitle: 'Đồng hành',
-    title: 'Chính sách sỉ hấp dẫn',
+    title: 'Thông Tin Minh Bạch',
+    titleEn: 'Transparent Product Standards',
+    description:
+      'Cung cấp đầy đủ, rõ ràng các quy định về hạn sử dụng, đặc tính tự nhiên của sản phẩm và các điều khoản liên quan đến chính sách bán hàng',
+    descriptionEn:
+      'Transparent disclosure of ingredients, natural product shelf life, certifications, and reliable wholesale distribution policies.',
     image: '/images/warehouse/1920x850-2.png',
-  },
-  {
-    id: 'phap-ly',
-    num: '04',
-    subTitle: 'Pháp lý & Chất lượng',
-    title: 'Chứng nhận Quốc tế HACCP',
-    image: '/images/warehouse/1920x850-4.png',
   },
 ];
 
 export default function WarehouseSection() {
+  const { language } = useLanguage();
   const [activeIndex, setActiveIndex] = useState(0);
   const currentTab = warehouseTabs[activeIndex];
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -141,13 +153,19 @@ export default function WarehouseSection() {
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.45, ease: 'easeOut' }}
                 >
-                  <h3 className="text-sm md:text-base font-semibold text-[#001A36] mb-1.5 font-sans">
-                    {currentTab.subTitle}
-                  </h3>
+                  {currentTab.subTitle && (
+                    <h3 className="text-sm font-semibold text-[#1B5E3B] mb-1.5 font-sans">
+                      {currentTab.subTitle}
+                    </h3>
+                  )}
 
-                  <h4 className="text-2xl sm:text-3xl lg:text-[34px] font-bold text-[#001A36] leading-[1.2] font-serif tracking-tight mb-6">
-                    {currentTab.title}
+                  <h4 className="text-2xl sm:text-[28px] lg:text-[32px] font-bold text-[#001A36] leading-[1.25] font-serif tracking-tight mb-3">
+                    {language === 'en' ? currentTab.titleEn : currentTab.title}
                   </h4>
+
+                  <p className="text-xs sm:text-sm text-[#001A36]/80 leading-relaxed font-sans mb-6">
+                    {language === 'en' ? currentTab.descriptionEn : currentTab.description}
+                  </p>
                 </motion.div>
               </AnimatePresence>
 
@@ -158,16 +176,16 @@ export default function WarehouseSection() {
                   className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#1B5E3B] hover:text-[#14482D] transition-colors"
                 >
                   <Phone className="w-4 h-4" />
-                  <span>Hotline sỉ: 1900 6725</span>
+                  <span>{language === 'en' ? 'Wholesale Hotline: 1900 6725' : 'Hotline sỉ: 1900 6725'}</span>
                 </a>
 
-                <a
-                  href="/san-pham"
+                <Link
+                  href="/#san-pham"
                   className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-[#001A36] hover:text-[#1B5E3B] transition-colors"
                 >
-                  <span>Xem sản phẩm</span>
+                  <span>{language === 'en' ? 'Explore products' : 'Xem sản phẩm'}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
-                </a>
+                </Link>
               </div>
 
               {/* 
@@ -266,7 +284,7 @@ export default function WarehouseSection() {
               textShadow: '0 2px 12px rgba(0, 0, 0, 0.95), 0 4px 28px rgba(0, 0, 0, 0.9), 0 1px 4px rgba(0, 0, 0, 1)',
             }}
           >
-            VÌ SAO THÁI SƠN FOODS ĐƯỢC TIN CHỌN?
+            {language === 'en' ? 'WHY CHOOSE THAI SON FOODS?' : 'VÌ SAO THÁI SƠN FOODS ĐƯỢC TIN CHỌN?'}
           </h2>
         </motion.div>
 

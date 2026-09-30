@@ -63,7 +63,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi" className={`${firaSans.variable} ${roboto.variable} ${playfair.variable}`}>
+    <html lang="vi" data-scroll-behavior="smooth" className={`${firaSans.variable} ${roboto.variable} ${playfair.variable}`}>
       <body
         className="font-body antialiased bg-ivory text-text-dark"
         style={{ fontFamily: 'var(--font-roboto), sans-serif' }}

@@ -4,47 +4,71 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, Pagination, Navigation } from 'swiper/modules';
 import Image from 'next/image';
 import Link from 'next/link';
-import { banners } from '@/data/banners';
+import { banners as defaultBanners } from '@/data/banners';
+import { Banner } from '@/types';
 import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 import 'swiper/css';
 import 'swiper/css/pagination';
 import 'swiper/css/navigation';
 
-export default function HeroSlider() {
-  if (!banners || banners.length === 0) return null;
+interface HeroSliderProps {
+  banners?: Banner[];
+  fullWidth?: boolean;
+  aspectRatioClass?: string;
+  className?: string;
+}
 
-  if (banners.length === 1) {
-    const banner = banners[0];
+export default function HeroSlider({
+  banners: customBanners,
+  fullWidth = false,
+  aspectRatioClass,
+  className,
+}: HeroSliderProps = {}) {
+  const bannerList = customBanners || defaultBanners;
+
+  if (!bannerList || bannerList.length === 0) return null;
+
+  const aspect = aspectRatioClass || (fullWidth ? 'aspect-[1920/850] max-sm:aspect-[16/9]' : 'aspect-[3/1] md:aspect-[3/1] max-sm:aspect-[16/9]');
+
+  if (bannerList.length === 1) {
+    const banner = bannerList[0];
     return (
-      <section className="section-container pt-2 pb-6 md:pt-3 md:pb-8" aria-label="Banner quảng cáo">
+      <section
+        className={cn(
+          fullWidth ? 'w-full' : 'section-container pt-2 pb-2 md:pt-3 md:pb-3',
+          className
+        )}
+        aria-label="Banner quảng cáo"
+      >
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: 'easeOut' }}
-          className="relative rounded-2xl md:rounded-[22px] overflow-hidden shadow-sm"
+          className={cn('relative overflow-hidden', fullWidth ? 'w-full' : 'rounded-2xl md:rounded-[22px] shadow-sm')}
         >
           {banner.link ? (
             <Link href={banner.link} className="block group">
-              <div className="relative w-full aspect-[3/1] md:aspect-[3/1] max-sm:aspect-[16/9]">
+              <div className={cn('relative w-full', aspect)}>
                 <Image
                   src={banner.image}
                   alt={banner.alt}
                   fill
                   className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 1290px"
+                  sizes={fullWidth ? '100vw' : '(max-width: 768px) 100vw, 1290px'}
                   priority
                 />
               </div>
             </Link>
           ) : (
-            <div className="relative w-full aspect-[3/1] md:aspect-[3/1] max-sm:aspect-[16/9]">
+            <div className={cn('relative w-full', aspect)}>
               <Image
                 src={banner.image}
                 alt={banner.alt}
                 fill
                 className="object-cover"
-                sizes="(max-width: 768px) 100vw, 1290px"
+                sizes={fullWidth ? '100vw' : '(max-width: 768px) 100vw, 1290px'}
                 priority
               />
             </div>
@@ -55,8 +79,14 @@ export default function HeroSlider() {
   }
 
   return (
-    <section className="section-container pt-2 pb-6 md:pt-3 md:pb-8" aria-label="Banner quảng cáo">
-      <div className="relative rounded-2xl md:rounded-[22px] overflow-hidden">
+    <section
+      className={cn(
+        fullWidth ? 'w-full' : 'section-container pt-2 pb-2 md:pt-3 md:pb-3',
+        className
+      )}
+      aria-label="Banner quảng cáo"
+    >
+      <div className={cn('relative overflow-hidden', fullWidth ? 'w-full' : 'rounded-2xl md:rounded-[22px]')}>
         <Swiper
           modules={[Autoplay, Pagination, Navigation]}
           autoplay={{
@@ -73,30 +103,30 @@ export default function HeroSlider() {
           speed={600}
           className="hero-swiper"
         >
-          {banners.map((banner, index) => (
+          {bannerList.map((banner, index) => (
             <SwiperSlide key={banner.id}>
               {banner.link ? (
                 <Link href={banner.link} className="block">
-                  <div className="relative w-full aspect-[3/1] md:aspect-[3/1] max-sm:aspect-[4/3]">
+                  <div className={cn('relative w-full', aspect)}>
                     <Image
                       src={banner.image}
                       alt={banner.alt}
                       fill
                       className="object-cover"
-                      sizes="(max-width: 768px) 100vw, 1290px"
+                      sizes={fullWidth ? '100vw' : '(max-width: 768px) 100vw, 1290px'}
                       priority={index === 0}
                       loading={index === 0 ? 'eager' : 'lazy'}
                     />
                   </div>
                 </Link>
               ) : (
-                <div className="relative w-full aspect-[3/1] md:aspect-[3/1] max-sm:aspect-[4/3]">
+                <div className={cn('relative w-full', aspect)}>
                   <Image
                     src={banner.image}
                     alt={banner.alt}
                     fill
                     className="object-cover"
-                    sizes="(max-width: 768px) 100vw, 1290px"
+                    sizes={fullWidth ? '100vw' : '(max-width: 768px) 100vw, 1290px'}
                     priority={index === 0}
                     loading={index === 0 ? 'eager' : 'lazy'}
                   />

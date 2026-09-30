@@ -1,29 +1,9 @@
+'use client';
+
 import Link from 'next/link';
 import Image from 'next/image';
-import { Phone, Mail, MapPin, Clock, ShieldCheck, Truck, Headphones } from 'lucide-react';
-
-const trustBadges = [
-  {
-    icon: ShieldCheck,
-    title: '100% Tự Nhiên',
-    desc: 'Không chất bảo quản độc hại',
-  },
-  {
-    icon: Truck,
-    title: 'Giao Hàng Nhanh Chóng',
-    desc: 'Bảo quản mát trong 24h',
-  },
-  {
-    icon: Clock,
-    title: 'Tươi Mới Mỗi Ngày',
-    desc: 'Quy trình sản xuất khép kín',
-  },
-  {
-    icon: Headphones,
-    title: 'Hỗ Trợ Tận Tâm',
-    desc: 'Hotline 1900 6725 tư vấn 24/7',
-  },
-];
+import { Phone, Mail, MapPin } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 function FacebookIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
@@ -50,46 +30,12 @@ function InstagramIcon({ className = 'w-5 h-5' }: { className?: string }) {
 }
 
 export default function Footer() {
+  const { language } = useLanguage();
+
   return (
-    <footer className="bg-green-primary text-white pt-10 border-t border-green-dark">
-      {/* 1. Trust Badges Strip */}
-      <div className="section-container pb-10 border-b border-white/10 mb-8 sm:mb-10">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          {trustBadges.map((badge, index) => {
-            const Icon = badge.icon;
-            return (
-              <div key={index} className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0 text-[#F4C542] border border-white/5 shadow-inner">
-                  <Icon className="w-6 h-6" />
-                </div>
-                <div>
-                  <h4 className="text-sm md:text-base font-bold text-white leading-tight">
-                    {badge.title}
-                  </h4>
-                  <p className="text-xs text-white/70 mt-1">
-                    {badge.desc}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[480px_1fr] xl:grid-cols-[520px_1fr] 2xl:grid-cols-[540px_1fr] items-stretch">
-        {/* Left — Brand Banner */}
-        <div className="relative w-full max-w-sm sm:max-w-md lg:max-w-none mx-auto lg:mx-0 aspect-square lg:aspect-auto lg:h-full lg:min-h-[450px] overflow-hidden rounded-t-[32px] lg:rounded-t-none lg:rounded-tr-[52px] shadow-inner">
-          <Image
-            src="/images/banners/footer-banner.jpg"
-            alt="Thái Sơn Foods - Uống một bữa ăn ngon lành"
-            fill
-            className="object-cover object-center"
-            sizes="(max-width: 1024px) 100vw, 540px"
-            priority
-          />
-        </div>
-
-        {/* Right — Info */}
+    <footer className="bg-green-primary text-white">
+      <div>
+        {/* Info */}
         <div className="p-8 md:p-10 lg:p-14">
           {/* Logo */}
           <div className="flex items-center gap-3.5 mb-8">
@@ -115,12 +61,12 @@ export default function Footer() {
                 className="text-base font-bold uppercase tracking-wider text-[#F4C542] font-sans mb-4"
                 style={{ color: '#F4C542' }}
               >
-                Công ty
+                {language === 'en' ? 'Company' : 'Công ty'}
               </h3>
               <div className="space-y-3.5 text-[15px] sm:text-base text-white/90">
                 <div className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 mt-0.5 shrink-0 text-[#F4C542]" />
-                  <p className="leading-snug">2C Phổ Quang, Phường Tân Sơn Hòa, TP. Hồ Chí Minh</p>
+                  <p className="leading-snug">{language === 'en' ? '2C Pho Quang, Tan Son Hoa Ward, Ho Chi Minh City' : '2C Phổ Quang, Phường Tân Sơn Hòa, TP. Hồ Chí Minh'}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <Phone className="w-5 h-5 shrink-0 text-[#F4C542]" />
@@ -146,22 +92,22 @@ export default function Footer() {
                 className="text-base font-bold uppercase tracking-wider text-[#F4C542] font-sans mb-4"
                 style={{ color: '#F4C542' }}
               >
-                Sản phẩm
+                {language === 'en' ? 'Products' : 'Sản phẩm'}
               </h3>
               <ul className="space-y-3 text-[15px] sm:text-base text-white/90">
                 <li>
-                  <Link href="/san-pham" className="hover:text-[#F4C542] transition-colors font-medium hover:underline">
-                    Sữa hạt
+                  <Link href="/#san-pham" className="hover:text-[#F4C542] transition-colors font-medium hover:underline">
+                    {language === 'en' ? 'Nut Milk' : 'Sữa hạt'}
                   </Link>
                 </li>
                 <li>
-                  <Link href="/san-pham" className="hover:text-[#F4C542] transition-colors font-medium hover:underline">
-                    Nước giải khát
+                  <Link href="/#san-pham" className="hover:text-[#F4C542] transition-colors font-medium hover:underline">
+                    {language === 'en' ? 'Refreshments' : 'Nước giải khát'}
                   </Link>
                 </li>
                 <li>
-                  <Link href="/san-pham" className="hover:text-[#F4C542] transition-colors font-medium hover:underline">
-                    Trà sữa
+                  <Link href="/#san-pham" className="hover:text-[#F4C542] transition-colors font-medium hover:underline">
+                    {language === 'en' ? 'Milk Tea' : 'Trà sữa'}
                   </Link>
                 </li>
               </ul>
@@ -173,17 +119,17 @@ export default function Footer() {
                 className="text-base font-bold uppercase tracking-wider text-[#F4C542] font-sans mb-4"
                 style={{ color: '#F4C542' }}
               >
-                Hỗ trợ
+                {language === 'en' ? 'Support' : 'Hỗ trợ'}
               </h3>
               <ul className="space-y-3 text-[15px] sm:text-base text-white/90 mb-6">
                 <li>
                   <Link href="/#" className="hover:text-[#F4C542] transition-colors font-medium hover:underline">
-                    Chính sách giao hàng
+                    {language === 'en' ? 'Shipping Policy' : 'Chính sách giao hàng'}
                   </Link>
                 </li>
                 <li>
                   <Link href="/#" className="hover:text-[#F4C542] transition-colors font-medium hover:underline">
-                    Liên hệ
+                    {language === 'en' ? 'Contact' : 'Liên hệ'}
                   </Link>
                 </li>
               </ul>
@@ -193,7 +139,7 @@ export default function Footer() {
                 className="text-base font-bold uppercase tracking-wider text-[#F4C542] font-sans mb-3.5"
                 style={{ color: '#F4C542' }}
               >
-                Kết nối
+                {language === 'en' ? 'Follow Us' : 'Kết nối'}
               </h3>
               <div className="flex items-center gap-3.5">
                 <a
@@ -231,13 +177,16 @@ export default function Footer() {
           <div className="mt-8 p-4 sm:p-5 bg-white/10 rounded-xl text-[15px] sm:text-base text-white/95 flex items-center gap-3 border border-white/10">
             <span className="text-xl shrink-0">🚚</span>
             <span className="font-medium">
-              Miễn phí vận chuyển trong khu vực HCM, Biên Hòa, Long Thành cho đơn hàng từ <span className="font-bold text-[#F4C542]">200.000đ</span>
+              {language === 'en'
+                ? 'Free shipping in HCMC, Bien Hoa, Long Thanh on orders from '
+                : 'Miễn phí vận chuyển trong khu vực HCM, Biên Hòa, Long Thành cho đơn hàng từ '}
+              <span className="font-bold text-[#F4C542]">200.000đ</span>
             </span>
           </div>
 
           {/* Copyright */}
           <div className="mt-8 pt-6 border-t border-white/10 text-sm text-white/70">
-            © 2026 Thái Sơn Foods. All rights reserved.
+            © 2026 Thái Sơn Foods. {language === 'en' ? 'All rights reserved.' : 'Tất cả các quyền được bảo lưu.'}
           </div>
         </div>
       </div>

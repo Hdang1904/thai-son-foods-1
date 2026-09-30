@@ -96,6 +96,18 @@ async function main() {
       unit VARCHAR(50) DEFAULT '1 chai',
       thumbnail VARCHAR(500)
     );
+
+    CREATE TABLE IF NOT EXISTS admin_users (
+      id VARCHAR(50) PRIMARY KEY,
+      username VARCHAR(100) UNIQUE NOT NULL,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      full_name VARCHAR(255),
+      role VARCHAR(50) DEFAULT 'ADMIN',
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
   `);
   console.log('Tables created / verified in WebTSF successfully!');
 

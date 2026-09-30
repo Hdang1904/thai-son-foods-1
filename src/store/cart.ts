@@ -7,6 +7,8 @@ import { CartItem } from '@/types';
 interface CartState {
   items: CartItem[];
   isOpen: boolean;
+  lastAddedItem: CartItem | null;
+  clearLastAddedItem: () => void;
   openCart: () => void;
   closeCart: () => void;
   toggleCart: () => void;
@@ -27,7 +29,9 @@ export const useCartStore = create<CartState>()(
     (set, get) => ({
       items: [],
       isOpen: false,
+      lastAddedItem: null,
 
+      clearLastAddedItem: () => set({ lastAddedItem: null }),
       openCart: () => set({ isOpen: true }),
       closeCart: () => set({ isOpen: false }),
       toggleCart: () => set((state) => ({ isOpen: !state.isOpen })),
@@ -38,6 +42,8 @@ export const useCartStore = create<CartState>()(
             (item) => item.productId === product.productId
           );
 
+          const addedItem: CartItem = { ...product, quantity };
+
           if (existingItem) {
             return {
               items: state.items.map((item) =>
@@ -45,13 +51,13 @@ export const useCartStore = create<CartState>()(
                   ? { ...item, quantity: item.quantity + quantity }
                   : item
               ),
-              isOpen: true,
+              lastAddedItem: addedItem,
             };
           }
 
           return {
-            items: [...state.items, { ...product, quantity }],
-            isOpen: true,
+            items: [...state.items, addedItem],
+            lastAddedItem: addedItem,
           };
         });
       },
