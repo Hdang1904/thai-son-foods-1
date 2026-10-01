@@ -40,6 +40,7 @@ export default async function HomePage() {
   const heroBanners = await getHeroBanners();
   return (
     <>
+      <h1 className="sr-only">Thái Sơn Foods — Thức uống tự nhiên từ nguyên liệu chọn lọc</h1>
       {/* 
         Khối hiển thị kết hợp Sidebar hai bên:
         - Bên trái: CategorySidebar (Danh mục sản phẩm).

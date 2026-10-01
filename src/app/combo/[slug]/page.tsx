@@ -110,14 +110,14 @@ export async function generateMetadata({
   const combo = await getLiveCombo(slug);
 
   if (!combo) {
-    return { title: 'Combo không tìm thấy | Thái Sơn Foods' };
+    return { title: 'Combo không tìm thấy' };
   }
 
   return {
-    title: `${combo.name} | Thái Sơn Foods`,
+    title: combo.name,
     description: combo.description,
     openGraph: {
-      title: `${combo.name} | Thái Sơn Foods`,
+      title: combo.name,
       description: combo.description,
       images: [{ url: combo.image }],
       type: 'website',

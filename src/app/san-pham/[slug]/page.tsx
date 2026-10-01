@@ -137,7 +137,7 @@ export async function generateMetadata({
   }
 
   return {
-    title: `${product.name} | Thái Sơn Foods`,
+    title: product.name,
     description: product.shortDescription,
     openGraph: {
       title: product.name,
