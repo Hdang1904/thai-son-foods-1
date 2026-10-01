@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { query, initDatabase, pool } from '@/lib/db';
 import { getUserSession } from '@/lib/auth';
@@ -22,10 +23,11 @@ export async function POST(request: Request) {
     }
 
     // 1. Chuẩn hóa mã đơn hàng
-    const orderCode =
+    const initialOrderCode =
       body.orderCode ||
       body.order_code ||
-      `TSF-${Math.floor(100000 + Math.random() * 900000)}`;
+      `TSF-${Date.now().toString().slice(-4)}${crypto.randomInt(1000, 9999)}`;
+    let orderCode = initialOrderCode;
 
     // 2. Chuẩn hóa thông tin người nhận
     const customerObj = body.customer || {};
@@ -161,8 +163,6 @@ export async function POST(request: Request) {
 
     const client = await pool.connect();
     try {
-      await client.query('BEGIN;');
-
       // 1. Tự động dọn dẹp các reservation đã quá hạn trước khi kiểm tra tồn
       const {
         cleanupExpiredReservations,
@@ -285,7 +285,6 @@ export async function POST(request: Request) {
       }
       const shippingCalc = calculateShippingFee(serverCalculatedSubtotal, customerDistanceKm);
       if (shippingCalc.isBeyondRadius && INVENTORY_CONFIG.SHIPPING.DISTANCE_BASED.ENABLED) {
-        await client.query('ROLLBACK;');
         return NextResponse.json(
           {
             success: false,
@@ -299,7 +298,6 @@ export async function POST(request: Request) {
 
       // 5. BÓC TÁCH COMBO VÀ CHUẨN BỊ ĐƠN HÀNG
       const { expandedBottles, comboSnapshots } = await expandComboItems(revalidatedItems, client);
-      const orderId = `ord_${Date.now()}`;
 
       let finalEmail = email;
       if ((!finalEmail || !finalEmail.includes('@')) && userId) {
@@ -313,122 +311,143 @@ export async function POST(request: Request) {
         }
       }
 
-      // 6. TẠO ĐƠN HÀNG VÀ DÒNG CHI TIẾT TRONG TRANSACTION
-      await client.query(
-        `INSERT INTO orders (id, order_code, full_name, phone, email, province, district, ward, address, note, payment_method, shipping_fee, subtotal, total, status, user_id, store_code, store_address, items_total_count, items_resolved_count)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
-        [
-          orderId,
-          orderCode,
-          fullName,
-          phone,
-          finalEmail,
-          province,
-          district,
-          ward,
-          address,
-          note,
-          paymentMethod,
-          serverShippingFee,
-          serverCalculatedSubtotal,
-          serverTotal,
-          'PENDING',
-          userId,
-          targetStoreCode,
-          targetStoreAddress,
-          revalidatedItems.length,
-          revalidatedItems.length, // Tất cả items đều resolved (fail-fast đã chặn trước đó)
-        ]
-      );
+      // 6. TẠO ĐƠN HÀNG VÀ DÒNG CHI TIẾT TRONG TRANSACTION (RETRY TỐI ĐA 3 LẦN NẾU TRÙNG KHÓA 23505)
+      const MAX_ORDER_RETRIES = 3;
+      let attempt = 0;
+      let orderId = '';
 
-      for (let i = 0; i < revalidatedItems.length; i++) {
-        const item = revalidatedItems[i];
-        const itemId = `item_${Date.now()}_${i}`;
-        const snapshotJson = comboSnapshots[i] ? JSON.stringify(comboSnapshots[i]) : null;
+      while (attempt < MAX_ORDER_RETRIES) {
+        attempt++;
+        orderId = `ord_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+        orderCode = attempt === 1
+          ? initialOrderCode
+          : `TSF-${Date.now().toString().slice(-4)}${crypto.randomInt(1000, 9999)}`;
 
-        // Resolve canonical product ID và tính bottle tracking
-        const rawPId = (item.productId || '').trim();
-        let canonicalProductId: string | null = null;
-        let bottleMultiplier = 1;
-        let totalBottlesVal = item.quantity || 1;
+        try {
+          await client.query('BEGIN;');
 
-        let itemCostPriceSnapshot: number | null = null;
-
-        if (rawPId && !rawPId.startsWith('combo-')) {
-          const resolved = await resolveProductCanonical(rawPId, item.name, client);
-          if (resolved) {
-            canonicalProductId = resolved.id;
-            const extractMult = (id: string, unit?: string, name?: string) => {
-              const combined = `${id} ${unit || ''} ${name || ''}`.toLowerCase();
-              const m1 = combined.match(/(\d+)\s*(chai|bottle)/);
-              if (m1) { const n = parseInt(m1[1], 10); if (!isNaN(n) && n > 0) return n; }
-              const m2 = combined.match(/[-_](\d+)chai/);
-              if (m2) { const n = parseInt(m2[1], 10); if (!isNaN(n) && n > 0) return n; }
-              return 1;
-            };
-            bottleMultiplier = extractMult(rawPId, item.unit, item.name);
-            totalBottlesVal = bottleMultiplier * (item.quantity || 1);
-
-            // Snapshot giá vốn sản phẩm nhân với hệ số quy cách
-            const prodCostRes = await client.query('SELECT cost_price FROM products WHERE id = $1 LIMIT 1;', [resolved.id]);
-            if (prodCostRes.rows.length > 0 && prodCostRes.rows[0].cost_price !== null && prodCostRes.rows[0].cost_price !== undefined) {
-              itemCostPriceSnapshot = (Number(prodCostRes.rows[0].cost_price) || 0) * bottleMultiplier;
-            }
-          }
-        } else if (rawPId && (rawPId.startsWith('combo-') || rawPId.includes('combo'))) {
-          // Snapshot giá vốn combo
-          const comboCostRes = await client.query('SELECT cost_price FROM combos WHERE id = $1 OR slug = $1 LIMIT 1;', [rawPId]);
-          if (comboCostRes.rows.length > 0 && comboCostRes.rows[0].cost_price !== null && comboCostRes.rows[0].cost_price !== undefined) {
-            itemCostPriceSnapshot = Number(comboCostRes.rows[0].cost_price) || 0;
-          }
-        }
-
-        await client.query(
-          `INSERT INTO order_items (id, order_id, product_id, name, price, quantity, unit, thumbnail, combo_snapshot, canonical_product_id, bottle_multiplier, total_bottles, cost_price)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-          [
-            itemId,
-            orderId,
-            item.productId,
-            item.name,
-            item.price,
-            item.quantity,
-            item.unit,
-            item.thumbnail,
-            snapshotJson,
-            canonicalProductId,
-            bottleMultiplier,
-            totalBottlesVal,
-            itemCostPriceSnapshot,
-          ]
-        );
-      }
-
-      // 7. KIỂM TRA TỒN KHO VÀ GIỮ CHỖ DƯỚI KHÓA SELECT ... FOR UPDATE (ROLLBACK TOÀN BỘ NẾU THIẾU HÀNG)
-      try {
-        await reserveStock(
-          targetStoreCode,
-          orderId,
-          expandedBottles,
-          client,
-          INVENTORY_CONFIG.RESERVATION_EXPIRY_HOURS
-        );
-      } catch (err: any) {
-        if (err instanceof InsufficientStockError || err.name === 'InsufficientStockError') {
-          await client.query('ROLLBACK;');
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'Một số sản phẩm không đủ tồn kho khả dụng tại chi nhánh đã chọn',
-              insufficientItems: err.insufficientItems,
-            },
-            { status: 409 }
+          await client.query(
+            `INSERT INTO orders (id, order_code, full_name, phone, email, province, district, ward, address, note, payment_method, shipping_fee, subtotal, total, status, user_id, store_code, store_address, items_total_count, items_resolved_count)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+            [
+              orderId,
+              orderCode,
+              fullName,
+              phone,
+              finalEmail,
+              province,
+              district,
+              ward,
+              address,
+              note,
+              paymentMethod,
+              serverShippingFee,
+              serverCalculatedSubtotal,
+              serverTotal,
+              'PENDING',
+              userId,
+              targetStoreCode,
+              targetStoreAddress,
+              revalidatedItems.length,
+              revalidatedItems.length,
+            ]
           );
-        }
-        throw err;
-      }
 
-      await client.query('COMMIT;');
+          for (let i = 0; i < revalidatedItems.length; i++) {
+            const item = revalidatedItems[i];
+            const itemId = `item_${Date.now()}_${crypto.randomBytes(3).toString('hex')}_${i}`;
+            const snapshotJson = comboSnapshots[i] ? JSON.stringify(comboSnapshots[i]) : null;
+
+            // Resolve canonical product ID và tính bottle tracking
+            const rawPId = (item.productId || '').trim();
+            let canonicalProductId: string | null = null;
+            let bottleMultiplier = 1;
+            let totalBottlesVal = item.quantity || 1;
+            let itemCostPriceSnapshot: number | null = null;
+
+            if (rawPId && !rawPId.startsWith('combo-')) {
+              const resolved = await resolveProductCanonical(rawPId, item.name, client);
+              if (resolved) {
+                canonicalProductId = resolved.id;
+                const extractMult = (id: string, unit?: string, name?: string) => {
+                  const combined = `${id} ${unit || ''} ${name || ''}`.toLowerCase();
+                  const m1 = combined.match(/(\d+)\s*(chai|bottle)/);
+                  if (m1) { const n = parseInt(m1[1], 10); if (!isNaN(n) && n > 0) return n; }
+                  const m2 = combined.match(/[-_](\d+)chai/);
+                  if (m2) { const n = parseInt(m2[1], 10); if (!isNaN(n) && n > 0) return n; }
+                  return 1;
+                };
+                bottleMultiplier = extractMult(rawPId, item.unit, item.name);
+                totalBottlesVal = bottleMultiplier * (item.quantity || 1);
+
+                const prodCostRes = await client.query('SELECT cost_price FROM products WHERE id = $1 LIMIT 1;', [resolved.id]);
+                if (prodCostRes.rows.length > 0 && prodCostRes.rows[0].cost_price !== null && prodCostRes.rows[0].cost_price !== undefined) {
+                  itemCostPriceSnapshot = (Number(prodCostRes.rows[0].cost_price) || 0) * bottleMultiplier;
+                }
+              }
+            } else if (rawPId && (rawPId.startsWith('combo-') || rawPId.includes('combo'))) {
+              const comboCostRes = await client.query('SELECT cost_price FROM combos WHERE id = $1 OR slug = $1 LIMIT 1;', [rawPId]);
+              if (comboCostRes.rows.length > 0 && comboCostRes.rows[0].cost_price !== null && comboCostRes.rows[0].cost_price !== undefined) {
+                itemCostPriceSnapshot = Number(comboCostRes.rows[0].cost_price) || 0;
+              }
+            }
+
+            await client.query(
+              `INSERT INTO order_items (id, order_id, product_id, name, price, quantity, unit, thumbnail, combo_snapshot, canonical_product_id, bottle_multiplier, total_bottles, cost_price)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+              [
+                itemId,
+                orderId,
+                item.productId,
+                item.name,
+                item.price,
+                item.quantity,
+                item.unit,
+                item.thumbnail,
+                snapshotJson,
+                canonicalProductId,
+                bottleMultiplier,
+                totalBottlesVal,
+                itemCostPriceSnapshot,
+              ]
+            );
+          }
+
+          // 7. KIỂM TRA TỒN KHO VÀ GIỮ CHỖ DƯỚI KHÓA SELECT ... FOR UPDATE (ROLLBACK TOÀN BỘ NẾU THIẾU HÀNG)
+          await reserveStock(
+            targetStoreCode,
+            orderId,
+            expandedBottles,
+            client,
+            INVENTORY_CONFIG.RESERVATION_EXPIRY_HOURS
+          );
+
+          await client.query('COMMIT;');
+          break; // Đặt hàng thành công! Thoát khỏi vòng lặp retry
+        } catch (err: any) {
+          try {
+            await client.query('ROLLBACK;');
+          } catch (_) {}
+
+          if (err instanceof InsufficientStockError || err.name === 'InsufficientStockError') {
+            return NextResponse.json(
+              {
+                success: false,
+                error: 'Một số sản phẩm không đủ tồn kho khả dụng tại chi nhánh đã chọn',
+                insufficientItems: err.insufficientItems,
+              },
+              { status: 409 }
+            );
+          }
+
+          if (err.code === '23505' && attempt < MAX_ORDER_RETRIES) {
+            console.warn(`[Orders] Postgres unique collision (23505) on attempt ${attempt}. Retrying with new order ID/code...`);
+            continue;
+          }
+
+          throw err;
+        }
+      }
 
       // Kích hoạt gửi email xác nhận đặt hàng cho khách (Non-blocking async)
       if (finalEmail && finalEmail.includes('@')) {
@@ -470,7 +489,9 @@ export async function POST(request: Request) {
         },
       });
     } catch (dbError: any) {
-      await client.query('ROLLBACK;');
+      try {
+        await client.query('ROLLBACK;');
+      } catch (_) {}
       console.error('PostgreSQL order insert error:', dbError);
       return NextResponse.json(
         {
