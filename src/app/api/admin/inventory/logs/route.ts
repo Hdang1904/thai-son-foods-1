@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getAdminSession } from '@/lib/auth';
+import { getStoreScope } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,8 +18,9 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
 
     // Phân quyền: Store Admin chỉ được xem log của kho mình
-    if (session.role !== 'SUPER_ADMIN') {
-      storeCode = session.username;
+    const storeScope = getStoreScope(session);
+    if (storeScope) {
+      storeCode = storeScope;
     }
 
     let sql = `

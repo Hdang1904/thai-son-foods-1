@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getAdminSession, hashPassword } from '@/lib/auth';
+import { hasPermission } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   try {
     const session = await getAdminSession();
-    if (!session || session.role !== 'SUPER_ADMIN') {
+    if (!hasPermission(session, 'users.manage')) {
       return NextResponse.json(
         { success: false, error: 'Chỉ Quản trị viên cấp cao (Super Admin) mới có quyền xem danh sách tài khoản' },
         { status: 403 }
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
     }
 
     const res = await query(
-      `SELECT id, username, email, full_name, role, is_active, created_at, updated_at
+      `SELECT id, username, email, full_name, role, store_code, is_active, created_at, updated_at
        FROM admin_users
        ORDER BY created_at ASC;`
     );
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getAdminSession();
-    if (!session || session.role !== 'SUPER_ADMIN') {
+    if (!hasPermission(session, 'users.manage')) {
       return NextResponse.json(
         { success: false, error: 'Chỉ Quản trị viên cấp cao (Super Admin) mới có quyền tạo tài khoản quản trị' },
         { status: 403 }
@@ -124,7 +125,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const session = await getAdminSession();
-    if (!session || session.role !== 'SUPER_ADMIN') {
+    if (!session || !hasPermission(session, 'users.manage')) {
       return NextResponse.json(
         { success: false, error: 'Chỉ Quản trị viên cấp cao (Super Admin) mới có quyền chỉnh sửa tài khoản' },
         { status: 403 }
@@ -198,7 +199,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getAdminSession();
-    if (!session || session.role !== 'SUPER_ADMIN') {
+    if (!session || !hasPermission(session, 'users.manage')) {
       return NextResponse.json(
         { success: false, error: 'Chỉ Quản trị viên cấp cao (Super Admin) mới có quyền xóa tài khoản' },
         { status: 403 }

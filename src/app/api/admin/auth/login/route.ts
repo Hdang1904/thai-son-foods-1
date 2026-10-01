@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { verifyPassword, signAdminToken, ADMIN_COOKIE_NAME, TOKEN_EXPIRY_DAYS } from '@/lib/auth';
+import { verifyPassword, signAdminToken, ADMIN_COOKIE_NAME, ADMIN_TOKEN_MAX_AGE_SECONDS } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Search by username or email
     const res = await query(
-      `SELECT id, username, email, password_hash, full_name, role, is_active
+      `SELECT id, username, email, password_hash, full_name, role, store_code, is_active, must_change_password
        FROM admin_users
        WHERE LOWER(username) = $1 OR LOWER(email) = $1
        LIMIT 1;`,
@@ -60,13 +60,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Sign JWT
+    // Update last_login_at in background
+    query('UPDATE admin_users SET last_login_at = NOW() WHERE id = $1', [user.id]).catch(err => {
+      console.error('Failed to update last_login_at:', err);
+    });
+
+    // 4. Sign JWT (24-hour expiration)
     const payload = {
       id: user.id,
       username: user.username,
       email: user.email,
       fullName: user.full_name,
       role: user.role,
+      storeCode: user.store_code || null,
+      mustChangePassword: Boolean(user.must_change_password),
     };
     const token = await signAdminToken(payload);
 
@@ -77,8 +84,6 @@ export async function POST(req: NextRequest) {
       user: payload,
     });
 
-    const maxAgeSeconds = TOKEN_EXPIRY_DAYS * 24 * 60 * 60;
-
     response.cookies.set({
       name: ADMIN_COOKIE_NAME,
       value: token,
@@ -86,7 +91,7 @@ export async function POST(req: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: maxAgeSeconds,
+      maxAge: ADMIN_TOKEN_MAX_AGE_SECONDS,
     });
 
     return response;

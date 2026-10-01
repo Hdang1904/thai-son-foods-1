@@ -286,6 +286,120 @@ export async function initDatabase() {
       ALTER TABLE stores ADD COLUMN IF NOT EXISTS notes TEXT;
     `);
 
+    // Create image management tables (product_images, combo_images, banners, brand_slides)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS product_images (
+        id VARCHAR(50) PRIMARY KEY,
+        product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        url VARCHAR(500) NOT NULL,
+        alt VARCHAR(255),
+        sort_order INTEGER DEFAULT 0,
+        image_type VARCHAR(50) DEFAULT 'gallery',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_product_images_prod ON product_images(product_id);
+      CREATE INDEX IF NOT EXISTS idx_product_images_sort ON product_images(product_id, sort_order ASC);
+
+      CREATE TABLE IF NOT EXISTS combo_images (
+        id VARCHAR(50) PRIMARY KEY,
+        combo_id VARCHAR(50) NOT NULL REFERENCES combos(id) ON DELETE CASCADE,
+        url VARCHAR(500) NOT NULL,
+        alt VARCHAR(255),
+        sort_order INTEGER DEFAULT 0,
+        image_type VARCHAR(50) DEFAULT 'gallery',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_combo_images_combo ON combo_images(combo_id);
+      CREATE INDEX IF NOT EXISTS idx_combo_images_sort ON combo_images(combo_id, sort_order ASC);
+
+      CREATE TABLE IF NOT EXISTS banners (
+        id VARCHAR(50) PRIMARY KEY,
+        slug VARCHAR(100) UNIQUE NOT NULL,
+        title VARCHAR(255),
+        subtitle TEXT,
+        tag VARCHAR(100),
+        image VARCHAR(500) NOT NULL,
+        mobile_image VARCHAR(500),
+        alt VARCHAR(255),
+        link VARCHAR(255),
+        placement VARCHAR(50) DEFAULT 'hero',
+        sort_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_banners_placement ON banners(placement, sort_order ASC);
+
+      CREATE TABLE IF NOT EXISTS brand_slides (
+        id VARCHAR(50) PRIMARY KEY,
+        tag VARCHAR(100) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        image VARCHAR(500) NOT NULL,
+        cta_text VARCHAR(100) DEFAULT 'Khám phá Thái Sơn',
+        cta_link VARCHAR(255) DEFAULT '/#san-pham',
+        sort_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_brand_slides_sort ON brand_slides(sort_order ASC);
+    `);
+
+    // RBAC & Audit logs schema
+    await client.query(`
+      ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS store_code VARCHAR(50);
+      ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT false;
+      ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'fk_admin_users_store_code'
+        ) THEN
+          ALTER TABLE admin_users
+            ADD CONSTRAINT fk_admin_users_store_code
+            FOREIGN KEY (store_code) REFERENCES stores(code)
+            ON DELETE SET NULL;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'chk_admin_users_role'
+        ) THEN
+          ALTER TABLE admin_users
+            ADD CONSTRAINT chk_admin_users_role
+            CHECK (role IN ('SUPER_ADMIN', 'MARKETING', 'STORE_STAFF'));
+        END IF;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id VARCHAR(50) PRIMARY KEY,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        admin_id VARCHAR(50),
+        admin_username VARCHAR(100),
+        role VARCHAR(50),
+        action VARCHAR(100) NOT NULL,
+        entity_type VARCHAR(100) NOT NULL,
+        entity_id VARCHAR(100),
+        store_code VARCHAR(50),
+        before_json JSONB,
+        after_json JSONB,
+        ip VARCHAR(100),
+        user_agent TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_admin_username ON audit_logs(admin_username);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_store_code ON audit_logs(store_code);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+    `);
+
     console.log('Database tables verified/created successfully!');
   } finally {
     client.release();

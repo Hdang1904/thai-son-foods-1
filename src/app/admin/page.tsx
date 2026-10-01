@@ -49,8 +49,16 @@ import {
   SlidersHorizontal,
   Key,
   History,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Upload,
+  Image as ImageIcon,
+  ArrowUp,
+  ArrowDown,
+  Star,
+  EyeOff,
+  GripVertical
 } from 'lucide-react';
+import { hasPermission } from '@/lib/rbac';
 
 // ==================== INTERFACES ====================
 export interface AdminUser {
@@ -58,7 +66,9 @@ export interface AdminUser {
   username: string;
   email: string;
   full_name?: string | null;
-  role: 'ADMIN' | 'SUPER_ADMIN';
+  role: 'SUPER_ADMIN' | 'MARKETING' | 'STORE_STAFF' | 'ADMIN';
+  store_code?: string | null;
+  must_change_password?: boolean;
   is_active: boolean;
   created_at: string;
   updated_at?: string;
@@ -153,6 +163,7 @@ interface Product {
   is_best_seller: boolean;
   is_active: boolean;
   variants?: ProductVariant[];
+  images?: { id?: string; url: string; alt?: string; sortOrder?: number; imageType?: string; isActive?: boolean }[];
   created_at?: string;
 }
 
@@ -221,6 +232,36 @@ interface Combo {
   is_best_seller: boolean;
   is_active: boolean;
   items?: ComboItem[];
+  images?: { id?: string; url: string; alt?: string; sortOrder?: number; imageType?: string; isActive?: boolean }[];
+  created_at?: string;
+}
+
+export interface AdminBanner {
+  id: string;
+  slug: string;
+  title: string | null;
+  subtitle: string | null;
+  tag: string | null;
+  image: string;
+  mobile_image: string | null;
+  alt: string | null;
+  link: string | null;
+  placement: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at?: string;
+}
+
+export interface AdminBrandSlide {
+  id: string;
+  tag: string;
+  title: string;
+  description: string;
+  image: string;
+  cta_text: string;
+  cta_link: string;
+  sort_order: number;
+  is_active: boolean;
   created_at?: string;
 }
 
@@ -270,7 +311,8 @@ export type AdminTab =
   | 'analytics'
   | 'database'
   | 'users'
-  | 'members';
+  | 'members'
+  | 'banners';
 
 export default function AdminPage() {
   // Navigation tabs: 'overview' | 'inventory' | 'products' | 'combos' | 'orders' | 'categories' | 'analytics' | 'database' | 'users' | 'members'
@@ -287,6 +329,21 @@ export default function AdminPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Image & Gallery Management
+  const [productImages, setProductImages] = useState<any[]>([]);
+  const [comboImages, setComboImages] = useState<any[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [newImageUrl, setNewImageUrl] = useState('');
+
+  // Banners & Brand Showcase Management
+  const [bannersList, setBannersList] = useState<AdminBanner[]>([]);
+  const [brandSlidesList, setBrandSlidesList] = useState<AdminBrandSlide[]>([]);
+  const [bannersLoading, setBannersLoading] = useState(false);
+  const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
+  const [editingBanner, setEditingBanner] = useState<Partial<AdminBanner> | null>(null);
+  const [isSlideModalOpen, setIsSlideModalOpen] = useState(false);
+  const [editingSlide, setEditingSlide] = useState<Partial<AdminBrandSlide> | null>(null);
 
   // Authenticated Admin User
   const [currentUser, setCurrentUser] = useState<{
@@ -308,7 +365,7 @@ export default function AdminPage() {
     email: '',
     fullName: '',
     password: '',
-    role: 'ADMIN' as 'ADMIN' | 'SUPER_ADMIN',
+    role: 'STORE_STAFF' as 'SUPER_ADMIN' | 'MARKETING' | 'STORE_STAFF' | 'ADMIN',
     isActive: true,
   });
   const [userSearch, setUserSearch] = useState('');
@@ -594,14 +651,319 @@ export default function AdminPage() {
     }
   };
 
-  // Đồng bộ nạp dữ liệu khi chuyển tab sang Users hoặc Inventory
+  // Đồng bộ nạp dữ liệu khi chuyển tab sang Users, Inventory, hoặc Banners
   useEffect(() => {
-    if (activeTab === 'users' && currentUser?.role === 'SUPER_ADMIN') {
+    if (activeTab === 'users' && hasPermission(currentUser, 'users.manage')) {
       fetchAdminUsers();
     } else if (activeTab === 'inventory') {
       fetchInventory(selectedStoreCode);
+    } else if (activeTab === 'banners') {
+      fetchBannersAndSlides();
     }
   }, [activeTab]);
+
+  // Fetch Banners and Brand Slides
+  const fetchBannersAndSlides = async () => {
+    setBannersLoading(true);
+    try {
+      const [banRes, sliRes] = await Promise.all([
+        fetch('/api/admin/banners', { cache: 'no-store' }),
+        fetch('/api/admin/brand-slides', { cache: 'no-store' }),
+      ]);
+      const banData = await banRes.json();
+      const sliData = await sliRes.json();
+      if (banData.success) setBannersList(banData.data || []);
+      if (sliData.success) setBrandSlidesList(sliData.data || []);
+    } catch (err) {
+      console.error('Error fetching banners/slides:', err);
+    } finally {
+      setBannersLoading(false);
+    }
+  };
+
+  // Helper tải ảnh lên máy chủ qua /api/admin/upload
+  const handleUploadImageFile = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    type: 'products' | 'combos' | 'banners' | 'slides'
+  ) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const formData = new FormData();
+    formData.append('folder', type === 'slides' ? 'banners' : type);
+    for (let i = 0; i < files.length; i++) {
+      formData.append('files', files[i]);
+    }
+
+    setUploadingImage(true);
+    try {
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!data.success) {
+        showToast(data.error || 'Tải ảnh lên thất bại', 'error');
+        return;
+      }
+
+      const uploadedUrls: string[] = data.urls || [data.url];
+
+      if (type === 'products') {
+        const newImgs = uploadedUrls.map((url, idx) => ({
+          id: `new_${Date.now()}_${idx}`,
+          url,
+          alt: editingProduct?.name || 'Sản phẩm Thái Sơn',
+          sortOrder: productImages.length + idx + 1,
+          is_active: true,
+          imageType: 'gallery',
+        }));
+        setProductImages((prev) => [...prev, ...newImgs]);
+        if (!editingProduct?.thumbnail && uploadedUrls.length > 0) {
+          setEditingProduct((prev: any) => ({ ...prev, thumbnail: uploadedUrls[0] }));
+        }
+        showToast(`Đã tải lên ${uploadedUrls.length} ảnh sản phẩm thành công!`);
+      } else if (type === 'combos') {
+        const newImgs = uploadedUrls.map((url, idx) => ({
+          id: `new_${Date.now()}_${idx}`,
+          url,
+          alt: editingCombo?.name || 'Combo Thái Sơn',
+          sortOrder: comboImages.length + idx + 1,
+          is_active: true,
+          imageType: 'gallery',
+        }));
+        setComboImages((prev) => [...prev, ...newImgs]);
+        if (!editingCombo?.image && uploadedUrls.length > 0) {
+          setEditingCombo((prev: any) => ({ ...prev, image: uploadedUrls[0] }));
+        }
+        showToast(`Đã tải lên ${uploadedUrls.length} ảnh combo thành công!`);
+      } else if (type === 'banners') {
+        if (uploadedUrls.length > 0) {
+          setEditingBanner((prev: any) => ({ ...prev, image: uploadedUrls[0] }));
+          showToast('Đã tải ảnh banner lên thành công!');
+        }
+      } else if (type === 'slides') {
+        if (uploadedUrls.length > 0) {
+          setEditingSlide((prev: any) => ({ ...prev, image: uploadedUrls[0] }));
+          showToast('Đã tải ảnh slide lên thành công!');
+        }
+      }
+    } catch (err: any) {
+      showToast('Lỗi khi tải ảnh: ' + err.message, 'error');
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleAddImageUrl = (type: 'products' | 'combos') => {
+    if (!newImageUrl.trim()) return;
+    const url = newImageUrl.trim();
+    if (type === 'products') {
+      const newImg = {
+        id: `url_${Date.now()}`,
+        url,
+        alt: editingProduct?.name || 'Sản phẩm',
+        sortOrder: productImages.length + 1,
+        is_active: true,
+        imageType: 'gallery',
+      };
+      setProductImages((prev) => [...prev, newImg]);
+      if (!editingProduct?.thumbnail) {
+        setEditingProduct((prev: any) => ({ ...prev, thumbnail: url }));
+      }
+    } else {
+      const newImg = {
+        id: `url_${Date.now()}`,
+        url,
+        alt: editingCombo?.name || 'Combo',
+        sortOrder: comboImages.length + 1,
+        is_active: true,
+        imageType: 'gallery',
+      };
+      setComboImages((prev) => [...prev, newImg]);
+      if (!editingCombo?.image) {
+        setEditingCombo((prev: any) => ({ ...prev, image: url }));
+      }
+    }
+    setNewImageUrl('');
+    showToast('Đã thêm ảnh vào danh sách');
+  };
+
+  const handleMoveProductImage = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= productImages.length) return;
+    const newList = [...productImages];
+    const temp = newList[index];
+    newList[index] = newList[targetIndex];
+    newList[targetIndex] = temp;
+    newList.forEach((img, i) => {
+      img.sortOrder = i + 1;
+    });
+    setProductImages(newList);
+  };
+
+  const handleDeleteProductImage = (index: number) => {
+    const imgToDelete = productImages[index];
+    const newList = productImages.filter((_, i) => i !== index);
+    newList.forEach((img, i) => {
+      img.sortOrder = i + 1;
+    });
+    setProductImages(newList);
+    if (editingProduct?.thumbnail === imgToDelete.url) {
+      setEditingProduct((prev: any) => ({ ...prev, thumbnail: newList[0]?.url || '' }));
+    }
+  };
+
+  const handleMoveComboImage = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= comboImages.length) return;
+    const newList = [...comboImages];
+    const temp = newList[index];
+    newList[index] = newList[targetIndex];
+    newList[targetIndex] = temp;
+    newList.forEach((img, i) => {
+      img.sortOrder = i + 1;
+    });
+    setComboImages(newList);
+  };
+
+  const handleDeleteComboImage = (index: number) => {
+    const imgToDelete = comboImages[index];
+    const newList = comboImages.filter((_, i) => i !== index);
+    newList.forEach((img, i) => {
+      img.sortOrder = i + 1;
+    });
+    setComboImages(newList);
+    if (editingCombo?.image === imgToDelete.url) {
+      setEditingCombo((prev: any) => ({ ...prev, image: newList[0]?.url || '' }));
+    }
+  };
+
+  // Banner CRUD handlers
+  const handleOpenCreateBanner = () => {
+    setEditingBanner({
+      title: '',
+      subtitle: '',
+      tag: '',
+      image: '',
+      link: '/#san-pham',
+      placement: 'hero',
+      sort_order: bannersList.length + 1,
+      is_active: true,
+    });
+    setIsBannerModalOpen(true);
+  };
+
+  const handleOpenEditBanner = (ban: AdminBanner) => {
+    setEditingBanner({ ...ban });
+    setIsBannerModalOpen(true);
+  };
+
+  const handleSaveBanner = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBanner?.image) {
+      showToast('Vui lòng chọn hoặc nhập hình ảnh banner', 'error');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const isUpdating = Boolean(editingBanner.id);
+      const url = '/api/admin/banners';
+      const method = isUpdating ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingBanner),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(isUpdating ? 'Đã cập nhật banner thành công!' : 'Đã tạo banner mới thành công!');
+        setIsBannerModalOpen(false);
+        fetchBannersAndSlides();
+      } else {
+        showToast(data.error || 'Lỗi khi lưu banner', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteBanner = async (id: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa banner này?')) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/banners?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Đã xóa banner thành công');
+        fetchBannersAndSlides();
+      } else {
+        showToast(data.error || 'Không thể xóa banner', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleToggleBannerActive = async (ban: AdminBanner) => {
+    try {
+      const res = await fetch('/api/admin/banners', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: ban.id, is_active: !ban.is_active }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`Đã ${!ban.is_active ? 'bật' : 'tắt'} hiển thị banner`);
+        fetchBannersAndSlides();
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    }
+  };
+
+  // Brand Slide CRUD Handlers
+  const handleOpenEditSlide = (slide: AdminBrandSlide) => {
+    setEditingSlide({ ...slide });
+    setIsSlideModalOpen(true);
+  };
+
+  const handleSaveSlide = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSlide?.title || !editingSlide?.image) {
+      showToast('Vui lòng nhập tiêu đề và hình ảnh slide', 'error');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const isUpdating = Boolean(editingSlide.id);
+      const url = '/api/admin/brand-slides';
+      const method = isUpdating ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingSlide),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Đã cập nhật slide thành công!');
+        setIsSlideModalOpen(false);
+        fetchBannersAndSlides();
+      } else {
+        showToast(data.error || 'Lỗi khi lưu slide', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
 
   // Handler mở modal tạo tài khoản admin mới
   const handleOpenCreateUser = () => {
@@ -1053,7 +1415,7 @@ export default function AdminPage() {
       category_id: categories.length > 0 ? categories[0].id : '',
       price: 18000,
       unit: '1 chai',
-      thumbnail: '/images/products/sua-bap-nep.png',
+      thumbnail: '',
       short_description: '',
       description: '',
       is_featured: false,
@@ -1065,12 +1427,22 @@ export default function AdminPage() {
       { name: '1 chai', quantity: 1, price: 18000, unit: 'chai' },
       { name: 'Lốc 6 chai', quantity: 6, price: 108000, unit: 'lốc' },
     ]);
+    setProductImages([]);
+    setNewImageUrl('');
     setIsProductModalOpen(true);
   };
 
   const handleOpenEditProduct = (prod: Product) => {
     setEditingProduct({ ...prod });
     setProductFormVariants(prod.variants && prod.variants.length > 0 ? [...prod.variants] : []);
+    const initialImages =
+      Array.isArray((prod as any).images) && (prod as any).images.length > 0
+        ? [...(prod as any).images]
+        : prod.thumbnail
+        ? [{ id: 'thumb-1', url: prod.thumbnail, alt: prod.name, sortOrder: 1, is_active: true }]
+        : [];
+    setProductImages(initialImages);
+    setNewImageUrl('');
     setIsProductModalOpen(true);
   };
 
@@ -1087,9 +1459,13 @@ export default function AdminPage() {
       const url = '/api/admin/products';
       const method = isUpdating ? 'PUT' : 'POST';
 
+      const resolvedThumbnail = editingProduct?.thumbnail || (productImages[0]?.url || '');
+
       const payload = {
         ...editingProduct,
+        thumbnail: resolvedThumbnail,
         variants: productFormVariants,
+        images: productImages,
       };
 
       const res = await fetch(url, {
@@ -1364,16 +1740,26 @@ export default function AdminPage() {
       sale_price: 160000,
       total_items: 10,
       discount: 11,
-      image: '/images/combos/combo-1.jpg',
+      image: '',
       is_featured: true,
       is_best_seller: false,
       is_active: true,
     });
+    setComboImages([]);
+    setNewImageUrl('');
     setIsComboModalOpen(true);
   };
 
   const handleOpenEditCombo = (c: Combo) => {
     setEditingCombo({ ...c });
+    const initialImages =
+      Array.isArray((c as any).images) && (c as any).images.length > 0
+        ? [...(c as any).images]
+        : c.image
+        ? [{ id: 'cthumb-1', url: c.image, alt: c.name, sortOrder: 1, is_active: true }]
+        : [];
+    setComboImages(initialImages);
+    setNewImageUrl('');
     setIsComboModalOpen(true);
   };
 
@@ -1390,10 +1776,18 @@ export default function AdminPage() {
       const url = '/api/admin/combos';
       const method = isUpdating ? 'PUT' : 'POST';
 
+      const resolvedImage = editingCombo?.image || (comboImages[0]?.url || '');
+
+      const payload = {
+        ...editingCombo,
+        image: resolvedImage,
+        images: comboImages,
+      };
+
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingCombo),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (data.success) {
@@ -1583,7 +1977,7 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="fixed inset-0 z-[999] bg-[#0b1120] text-slate-100 flex flex-col font-sans overflow-hidden">
+    <div className="fixed inset-0 z-[999] bg-[#0b1120] text-slate-100 flex flex-col font-sans overflow-hidden [&_h1]:text-white [&_h2]:text-white [&_h3]:text-white [&_h4]:text-white">
       {/* ==================== TOAST NOTIFICATION ==================== */}
       {toast && (
         <div className="fixed top-5 right-5 z-[1000] animate-in fade-in slide-in-from-top-4 duration-300">
@@ -1851,6 +2245,26 @@ export default function AdminPage() {
 
               <button
                 onClick={() => {
+                  setActiveTab('banners');
+                  setSidebarOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  activeTab === 'banners'
+                    ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
+                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <ImageIcon className="w-4 h-4 text-amber-400" />
+                  <span>Banner & Slider</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-amber-300 border border-slate-700">
+                  {bannersList.length + brandSlidesList.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
                   setActiveTab('analytics');
                   setSidebarOpen(false);
                 }}
@@ -1885,7 +2299,7 @@ export default function AdminPage() {
               </button>
 
               {/* CHỨC NĂNG DÀNH CHO SUPER ADMIN: QUẢN LÝ & TẠO TÀI KHOẢN ADMIN */}
-              {currentUser?.role === 'SUPER_ADMIN' && (
+              {hasPermission(currentUser, 'users.manage') && (
                 <button
                   onClick={() => {
                     setActiveTab('users');
@@ -1944,7 +2358,7 @@ export default function AdminPage() {
                       {currentUser?.fullName || currentUser?.username || 'Admin Quản Lý'}
                     </p>
                     <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase">
-                      {currentUser?.role === 'SUPER_ADMIN' ? 'Super' : 'Admin'}
+                      {currentUser?.role === 'SUPER_ADMIN' ? 'Super' : currentUser?.role === 'MARKETING' ? 'Marketing' : 'Cửa hàng'}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400 truncate">
@@ -2975,6 +3389,230 @@ export default function AdminPage() {
           )}
 
           {/* ======================================================== */}
+          {/* TAB: BANNER & BRAND SLIDER MANAGEMENT */}
+          {/* ======================================================== */}
+          {activeTab === 'banners' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
+                    <span>Quản Lý Banner & Thương Hiệu</span>
+                    <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-slate-800 text-amber-400 border border-slate-700">
+                      {bannersList.length} banner • {brandSlidesList.length} slide
+                    </span>
+                  </h1>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Cập nhật hình ảnh Hero banner trang chủ, Scroll showcase banner, và các slide Giới thiệu thương hiệu mà không cần sửa code
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={fetchBannersAndSlides}
+                    disabled={bannersLoading}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${bannersLoading ? 'animate-spin' : ''}`} />
+                    <span>Làm mới</span>
+                  </button>
+                  <button
+                    onClick={handleOpenCreateBanner}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/30 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Thêm Banner Mới</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* SECTION 1: HERO & SCROLL BANNERS */}
+              <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div>
+                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4 text-emerald-400" />
+                      <span>Banner Trang Chủ & Banner Cuộn (Hero & Scroll Showcase)</span>
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Hiển thị tại đầu trang chủ (Hero) và phân đoạn hiệu ứng cuộn (Scroll Showcase)
+                    </p>
+                  </div>
+                </div>
+
+                {bannersLoading ? (
+                  <div className="p-8 text-center text-slate-400 text-xs">Đang tải danh sách banner...</div>
+                ) : bannersList.length === 0 ? (
+                  <div className="p-8 text-center border-2 border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
+                    Chưa có banner nào trong cơ sở dữ liệu. Bấm &quot;Thêm Banner Mới&quot; để tạo.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {bannersList.map((ban) => (
+                      <div
+                        key={ban.id}
+                        className="rounded-xl bg-slate-950/80 border border-slate-800 overflow-hidden flex flex-col justify-between hover:border-slate-700 transition-all"
+                      >
+                        <div className="relative aspect-[16/9] w-full bg-slate-900 overflow-hidden">
+                          {ban.image ? (
+                            <Image
+                              src={ban.image}
+                              alt={ban.alt || 'Banner'}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs">
+                              Chưa có ảnh
+                            </div>
+                          )}
+                          <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-900/90 text-amber-300 border border-slate-700">
+                              {ban.placement === 'hero' ? 'Hero Banner' : ban.placement === 'scroll' ? 'Scroll Showcase' : ban.placement}
+                            </span>
+                          </div>
+                          <div className="absolute top-2 right-2">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                ban.is_active
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                  : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                              }`}
+                            >
+                              {ban.is_active ? 'Đang bật' : 'Tạm ẩn'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
+                          <div>
+                            {ban.tag && (
+                              <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">
+                                {ban.tag}
+                              </span>
+                            )}
+                            <h3 className="text-xs font-bold text-white line-clamp-1 mt-0.5">
+                              {ban.title || 'Không có tiêu đề'}
+                            </h3>
+                            {ban.subtitle && (
+                              <p className="text-[11px] text-slate-400 line-clamp-2 mt-1">
+                                {ban.subtitle}
+                              </p>
+                            )}
+                            {ban.link && (
+                              <p className="text-[10px] font-mono text-slate-500 truncate mt-1">
+                                Link: {ban.link}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+                            <button
+                              onClick={() => handleToggleBannerActive(ban)}
+                              className={`text-[10px] font-semibold px-2 py-1 rounded transition-colors cursor-pointer ${
+                                ban.is_active
+                                  ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                  : 'bg-emerald-950/60 text-emerald-300 hover:bg-emerald-900/60'
+                              }`}
+                            >
+                              {ban.is_active ? 'Ẩn banner' : 'Bật hiển thị'}
+                            </button>
+
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleOpenEditBanner(ban)}
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors cursor-pointer"
+                                title="Chỉnh sửa banner"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteBanner(ban.id)}
+                                className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white transition-colors cursor-pointer"
+                                title="Xóa banner"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 2: BRAND SHOWCASE SLIDES */}
+              <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div>
+                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      <span>Slide Giới Thiệu Thương Hiệu (Brand Showcase — &quot;Về Chúng Tôi&quot;)</span>
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      4 khối nội dung và hình ảnh thể hiện câu chuyện thương hiệu Thái Sơn Foods
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {brandSlidesList.map((slide) => (
+                    <div
+                      key={slide.id}
+                      className="rounded-xl bg-slate-950/80 border border-slate-800 overflow-hidden flex flex-col justify-between hover:border-slate-700 transition-all"
+                    >
+                      <div className="relative aspect-[3/4] w-full bg-slate-900 overflow-hidden">
+                        {slide.image ? (
+                          <Image
+                            src={slide.image}
+                            alt={slide.title}
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs">
+                            Chưa có ảnh
+                          </div>
+                        )}
+                        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-900/90 text-amber-300 border border-slate-700">
+                          {slide.tag}
+                        </span>
+                      </div>
+
+                      <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
+                        <div>
+                          <h3 className="text-xs font-bold text-white whitespace-pre-line line-clamp-2">
+                            {slide.title}
+                          </h3>
+                          <p className="text-[11px] text-slate-400 line-clamp-3 mt-1.5">
+                            {slide.description}
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            Nút: {slide.cta_text}
+                          </span>
+                          <button
+                            onClick={() => handleOpenEditSlide(slide)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 transition-colors cursor-pointer"
+                          >
+                            <Edit className="w-3 h-3" />
+                            <span>Sửa</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
           {/* TAB 5: ANALYTICS & REPORTS */}
           {/* ======================================================== */}
           {activeTab === 'analytics' && (
@@ -3279,7 +3917,7 @@ export default function AdminPage() {
                   </h1>
 
                   {/* Chi nhánh / Cửa hàng đang chọn */}
-                  {currentUser?.role === 'SUPER_ADMIN' ? (
+                  {hasPermission(currentUser, 'inventory.view_all') ? (
                     <div className="flex flex-wrap items-center gap-2 mt-2">
                       <span className="text-xs text-slate-400">Chọn chi nhánh cửa hàng:</span>
                       <select
@@ -3353,7 +3991,7 @@ export default function AdminPage() {
                         <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-slate-300 pt-0.5">
                           <span className="flex items-center gap-1.5 text-red-400 font-semibold">
                             <Phone className="w-3.5 h-3.5" />
-                            <span>Hotline: {currentStore?.phone || '02871000472'}</span>
+                            <span>Hotline: {currentStore?.phone || '028 6291 5024'}</span>
                           </span>
                           <span className="text-slate-500">•</span>
                           <span>
@@ -3646,7 +4284,7 @@ export default function AdminPage() {
           {/* ======================================================== */}
           {/* TAB 9: QUẢN LÝ & TẠO TÀI KHOẢN ADMIN (SUPER ADMIN ONLY) */}
           {/* ======================================================== */}
-          {activeTab === 'users' && currentUser?.role === 'SUPER_ADMIN' && (
+          {activeTab === 'users' && hasPermission(currentUser, 'users.manage') && (
             <div className="space-y-6">
               {/* Page header */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -4346,33 +4984,165 @@ export default function AdminPage() {
                   />
                 </div>
 
-                {/* Đường dẫn ảnh thumbnail */}
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Đường dẫn ảnh đại diện (Thumbnail)
-                  </label>
+                {/* Quản lý Thư viện Hình ảnh Sản phẩm */}
+                <div className="sm:col-span-2 p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800/80 pb-3">
+                    <div>
+                      <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                        <ImageIcon className="w-4 h-4 text-emerald-400" />
+                        <span>Quản Lý Hình Ảnh & Thư Viện Sản Phẩm</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-emerald-400 border border-slate-700">
+                          {productImages.length} ảnh
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Tải ảnh mới từ máy tính hoặc dán URL. Admin có thể kéo/chọn ảnh đại diện, sắp xếp thứ tự và sửa Alt text.
+                      </p>
+                    </div>
+
+                    {/* Upload button */}
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer transition-all shadow-sm">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{uploadingImage ? 'Đang tải lên...' : 'Tải ảnh từ máy'}</span>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*,video/mp4"
+                          disabled={uploadingImage}
+                          onChange={(e) => handleUploadImageFile(e, 'products')}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Thêm từ URL nhanh */}
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      value={editingProduct.thumbnail || ''}
-                      onChange={(e) =>
-                        setEditingProduct({ ...editingProduct, thumbnail: e.target.value })
-                      }
-                      placeholder="/images/products/sua-bap-nep.png"
-                      className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                      value={newImageUrl}
+                      onChange={(e) => setNewImageUrl(e.target.value)}
+                      placeholder="Dán đường dẫn ảnh: /images/products/... hoặc https://..."
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 font-mono"
                     />
-                    {editingProduct.thumbnail && (
-                      <div className="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 relative overflow-hidden shrink-0">
-                        <Image
-                          src={editingProduct.thumbnail}
-                          alt="preview"
-                          fill
-                          className="object-contain p-1"
-                          unoptimized
-                        />
-                      </div>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleAddImageUrl('products')}
+                      className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer"
+                    >
+                      Thêm URL
+                    </button>
                   </div>
+
+                  {/* Danh sách ảnh trong Gallery */}
+                  {productImages.length === 0 ? (
+                    <div className="p-6 text-center border-2 border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
+                      Chưa có hình ảnh nào trong thư viện. Bấm &quot;Tải ảnh từ máy&quot; để thêm ảnh cho sản phẩm.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {productImages.map((img, idx) => {
+                        const isThumb = editingProduct.thumbnail === img.url;
+                        return (
+                          <div
+                            key={img.id || img.url || idx}
+                            className={`p-2.5 rounded-xl bg-slate-900 border transition-all flex flex-col gap-2 ${
+                              isThumb
+                                ? 'border-emerald-500/80 shadow-md shadow-emerald-950/40 bg-emerald-950/10'
+                                : 'border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="relative aspect-[4/3] w-full rounded-lg bg-slate-950 border border-slate-800/80 overflow-hidden flex items-center justify-center">
+                              {img.url && img.url.endsWith('.mp4') ? (
+                                <video src={img.url} className="w-full h-full object-cover" muted loop autoPlay playsInline />
+                              ) : img.url ? (
+                                <Image
+                                  src={img.url}
+                                  alt={img.alt || 'Ảnh sản phẩm'}
+                                  fill
+                                  className="object-contain p-1"
+                                  unoptimized
+                                />
+                              ) : null}
+
+                              {/* Badge Đại diện */}
+                              {isThumb && (
+                                <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white shadow-sm flex items-center gap-1">
+                                  <Star className="w-2.5 h-2.5 fill-white" />
+                                  <span>Đại diện</span>
+                                </span>
+                              )}
+
+                              {/* Thứ tự */}
+                              <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-900/90 text-slate-300 border border-slate-700">
+                                #{idx + 1}
+                              </span>
+                            </div>
+
+                            {/* Alt input */}
+                            <input
+                              type="text"
+                              value={img.alt || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setProductImages((prev) =>
+                                  prev.map((item, i) => (i === idx ? { ...item, alt: val } : item))
+                                );
+                              }}
+                              placeholder="Mô tả ảnh (Alt text)..."
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
+                            />
+
+                            {/* Action Toolbar */}
+                            <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-800/60">
+                              <div className="flex items-center gap-1">
+                                {!isThumb && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingProduct({ ...editingProduct, thumbnail: img.url })}
+                                    className="px-2 py-1 rounded text-[10px] font-semibold bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-300 transition-all flex items-center gap-1 cursor-pointer"
+                                    title="Chọn làm ảnh đại diện chính"
+                                  >
+                                    <Star className="w-3 h-3 text-amber-400" />
+                                    <span>Đặt đại diện</span>
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={() => handleMoveProductImage(idx, 'up')}
+                                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                  title="Chuyển lên trước"
+                                >
+                                  <ArrowUp className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={idx === productImages.length - 1}
+                                  onClick={() => handleMoveProductImage(idx, 'down')}
+                                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                  title="Chuyển xuống sau"
+                                >
+                                  <ArrowDown className="w-3 h-3" />
+                                </button>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteProductImage(idx)}
+                                className="p-1 rounded bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white transition-all cursor-pointer"
+                                title="Xóa ảnh này"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Mô tả ngắn */}
@@ -4677,18 +5447,158 @@ export default function AdminPage() {
                   />
                 </div>
 
-                {/* Ảnh combo */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Đường Dẫn Hình Ảnh
-                  </label>
-                  <input
-                    type="text"
-                    value={editingCombo.image || ''}
-                    onChange={(e) => setEditingCombo({ ...editingCombo, image: e.target.value })}
-                    placeholder="/images/combos/combo-1.jpg"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
-                  />
+                {/* Quản lý Thư viện Hình ảnh Combo */}
+                <div className="sm:col-span-2 p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800/80 pb-3">
+                    <div>
+                      <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                        <ImageIcon className="w-4 h-4 text-amber-400" />
+                        <span>Quản Lý Hình Ảnh Gói Combo</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-amber-400 border border-slate-700">
+                          {comboImages.length} ảnh
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Tải ảnh combo từ máy hoặc dán URL. Admin có thể kéo/chọn ảnh đại diện chính, sắp xếp thứ tự và sửa Alt text.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white cursor-pointer transition-all shadow-sm">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{uploadingImage ? 'Đang tải lên...' : 'Tải ảnh từ máy'}</span>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          disabled={uploadingImage}
+                          onChange={(e) => handleUploadImageFile(e, 'combos')}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Thêm từ URL */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newImageUrl}
+                      onChange={(e) => setNewImageUrl(e.target.value)}
+                      placeholder="Dán đường dẫn ảnh: /images/combos/... hoặc https://..."
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddImageUrl('combos')}
+                      className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer"
+                    >
+                      Thêm URL
+                    </button>
+                  </div>
+
+                  {/* Danh sách ảnh trong Gallery Combo */}
+                  {comboImages.length === 0 ? (
+                    <div className="p-6 text-center border-2 border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
+                      Chưa có hình ảnh nào cho combo. Bấm &quot;Tải ảnh từ máy&quot; để thêm ảnh cho combo này.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {comboImages.map((img, idx) => {
+                        const isThumb = editingCombo.image === img.url;
+                        return (
+                          <div
+                            key={img.id || img.url || idx}
+                            className={`p-2.5 rounded-xl bg-slate-900 border transition-all flex flex-col gap-2 ${
+                              isThumb
+                                ? 'border-amber-500/80 shadow-md shadow-amber-950/40 bg-amber-950/10'
+                                : 'border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="relative aspect-[4/3] w-full rounded-lg bg-slate-950 border border-slate-800/80 overflow-hidden flex items-center justify-center">
+                              {img.url ? (
+                                <Image
+                                  src={img.url}
+                                  alt={img.alt || 'Ảnh combo'}
+                                  fill
+                                  className="object-contain p-1"
+                                  unoptimized
+                                />
+                              ) : null}
+
+                              {isThumb && (
+                                <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-600 text-white shadow-sm flex items-center gap-1">
+                                  <Star className="w-2.5 h-2.5 fill-white" />
+                                  <span>Ảnh chính</span>
+                                </span>
+                              )}
+
+                              <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-900/90 text-slate-300 border border-slate-700">
+                                #{idx + 1}
+                              </span>
+                            </div>
+
+                            <input
+                              type="text"
+                              value={img.alt || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setComboImages((prev) =>
+                                  prev.map((item, i) => (i === idx ? { ...item, alt: val } : item))
+                                );
+                              }}
+                              placeholder="Mô tả ảnh combo..."
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-amber-500"
+                            />
+
+                            <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-800/60">
+                              <div className="flex items-center gap-1">
+                                {!isThumb && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingCombo({ ...editingCombo, image: img.url })}
+                                    className="px-2 py-1 rounded text-[10px] font-semibold bg-slate-800 hover:bg-amber-600 hover:text-white text-slate-300 transition-all flex items-center gap-1 cursor-pointer"
+                                    title="Chọn làm ảnh combo chính"
+                                  >
+                                    <Star className="w-3 h-3 text-amber-400" />
+                                    <span>Đặt làm ảnh chính</span>
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={() => handleMoveComboImage(idx, 'up')}
+                                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                  title="Chuyển lên trước"
+                                >
+                                  <ArrowUp className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={idx === comboImages.length - 1}
+                                  onClick={() => handleMoveComboImage(idx, 'down')}
+                                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                  title="Chuyển xuống sau"
+                                >
+                                  <ArrowDown className="w-3 h-3" />
+                                </button>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteComboImage(idx)}
+                                className="p-1 rounded bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white transition-all cursor-pointer"
+                                title="Xóa ảnh này"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Mô tả chi tiết */}
@@ -4764,6 +5674,321 @@ export default function AdminPage() {
                 >
                   {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                   <span>{editingCombo.id ? 'Cập Nhật Combo' : 'Tạo Combo Mới'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: TẠO / SỬA BANNER */}
+      {/* ======================================================== */}
+      {isBannerModalOpen && editingBanner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-amber-400" />
+                <span>{editingBanner.id ? 'Chỉnh Sửa Banner' : 'Thêm Banner Mới'}</span>
+              </h3>
+              <button
+                onClick={() => setIsBannerModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBanner} className="p-5 space-y-4 overflow-y-auto flex-1">
+              <div className="space-y-3">
+                {/* Vị trí hiển thị */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Vị trí hiển thị (Placement) *</label>
+                  <select
+                    value={editingBanner.placement || 'hero'}
+                    onChange={(e) => setEditingBanner({ ...editingBanner, placement: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="hero">Hero Banner (Đầu trang chủ)</option>
+                    <option value="scroll">Scroll Showcase Banner (Cuộn giới thiệu sản phẩm)</option>
+                    <option value="promo">Khuyến mãi / Khác</option>
+                  </select>
+                </div>
+
+                {/* Tiêu đề */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Tiêu đề Banner</label>
+                  <input
+                    type="text"
+                    value={editingBanner.title || ''}
+                    onChange={(e) => setEditingBanner({ ...editingBanner, title: e.target.value })}
+                    placeholder="Ví dụ: UỐNG MỘT BỮA ĂN NGON LÀNH"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Tag / Nhãn */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Nhãn / Tag nhỏ</label>
+                  <input
+                    type="text"
+                    value={editingBanner.tag || ''}
+                    onChange={(e) => setEditingBanner({ ...editingBanner, tag: e.target.value })}
+                    placeholder="Ví dụ: Bản sắc & Tự nhiên"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Phụ đề (Subtitle) */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Mô tả / Phụ đề</label>
+                  <textarea
+                    rows={2}
+                    value={editingBanner.subtitle || ''}
+                    onChange={(e) => setEditingBanner({ ...editingBanner, subtitle: e.target.value })}
+                    placeholder="Mô tả bổ sung xuất hiện bên dưới banner..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Hình ảnh */}
+                <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-white">Hình Ảnh Banner *</label>
+                    <label className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white cursor-pointer transition-all">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{uploadingImage ? 'Đang tải...' : 'Tải ảnh từ máy'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingImage}
+                        onChange={(e) => handleUploadImageFile(e, 'banners')}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={editingBanner.image || ''}
+                    onChange={(e) => setEditingBanner({ ...editingBanner, image: e.target.value })}
+                    placeholder="/images/banners/... hoặc https://..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 font-mono"
+                  />
+
+                  {editingBanner.image && (
+                    <div className="relative aspect-[16/9] w-full rounded-lg bg-slate-900 border border-slate-800 overflow-hidden">
+                      <Image
+                        src={editingBanner.image}
+                        alt="Preview"
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Đường link liên kết */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Đường dẫn khi click (Link)</label>
+                  <input
+                    type="text"
+                    value={editingBanner.link || ''}
+                    onChange={(e) => setEditingBanner({ ...editingBanner, link: e.target.value })}
+                    placeholder="/#san-pham hoặc /combo"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+
+                {/* Thứ tự và Kích hoạt */}
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Thứ tự ưu tiên</label>
+                    <input
+                      type="number"
+                      value={editingBanner.sort_order || 0}
+                      onChange={(e) => setEditingBanner({ ...editingBanner, sort_order: parseInt(e.target.value, 10) || 0 })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div className="flex items-center pt-5">
+                    <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(editingBanner.is_active)}
+                        onChange={(e) => setEditingBanner({ ...editingBanner, is_active: e.target.checked })}
+                        className="accent-amber-600 rounded"
+                      />
+                      <span>Kích hoạt hiển thị</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBannerModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/30 transition-all cursor-pointer flex items-center gap-2"
+                >
+                  {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  <span>{editingBanner.id ? 'Cập Nhật Banner' : 'Tạo Banner Mới'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: CHỈNH SỬA BRAND SLIDE */}
+      {/* ======================================================== */}
+      {isSlideModalOpen && editingSlide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>Chỉnh Sửa Slide Thương Hiệu (Về Chúng Tôi)</span>
+              </h3>
+              <button
+                onClick={() => setIsSlideModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSlide} className="p-5 space-y-4 overflow-y-auto flex-1">
+              <div className="space-y-3">
+                {/* Tag */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Tag / Phân loại *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingSlide.tag || ''}
+                    onChange={(e) => setEditingSlide({ ...editingSlide, tag: e.target.value })}
+                    placeholder="Ví dụ: Nguyên liệu, Sản xuất, Hương vị, Gia đình"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Tiêu đề */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Tiêu đề Slide *</label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={editingSlide.title || ''}
+                    onChange={(e) => setEditingSlide({ ...editingSlide, title: e.target.value })}
+                    placeholder="Ví dụ: NGUYÊN LIỆU&#10;CHỌN LỌC"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Mô tả chi tiết */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Nội dung câu chuyện *</label>
+                  <textarea
+                    rows={3}
+                    required
+                    value={editingSlide.description || ''}
+                    onChange={(e) => setEditingSlide({ ...editingSlide, description: e.target.value })}
+                    placeholder="Mô tả câu chuyện thương hiệu..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Hình ảnh Slide */}
+                <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-white">Hình Ảnh Slide (Tỉ lệ 3:4 hoặc 490x740) *</label>
+                    <label className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white cursor-pointer transition-all">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{uploadingImage ? 'Đang tải...' : 'Tải ảnh từ máy'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingImage}
+                        onChange={(e) => handleUploadImageFile(e, 'slides')}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  <input
+                    type="text"
+                    required
+                    value={editingSlide.image || ''}
+                    onChange={(e) => setEditingSlide({ ...editingSlide, image: e.target.value })}
+                    placeholder="/images/banners/490x740-SGL.jpg"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 font-mono"
+                  />
+
+                  {editingSlide.image && (
+                    <div className="relative aspect-[3/4] max-w-[200px] mx-auto rounded-lg bg-slate-900 border border-slate-800 overflow-hidden">
+                      <Image
+                        src={editingSlide.image}
+                        alt="Preview Slide"
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* CTA Nút bấm & Liên kết */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Chữ trên nút (CTA)</label>
+                    <input
+                      type="text"
+                      value={editingSlide.cta_text || 'Khám phá Thái Sơn'}
+                      onChange={(e) => setEditingSlide({ ...editingSlide, cta_text: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Liên kết nút (Link)</label>
+                    <input
+                      type="text"
+                      value={editingSlide.cta_link || '/#san-pham'}
+                      onChange={(e) => setEditingSlide({ ...editingSlide, cta_link: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSlideModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/30 transition-all cursor-pointer flex items-center gap-2"
+                >
+                  {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  <span>Lưu Thay Đổi</span>
                 </button>
               </div>
             </form>
@@ -5008,7 +6233,7 @@ export default function AdminPage() {
               </div>
 
               {/* Chuyển đơn sang chi nhánh khác (Chỉ SUPER_ADMIN khi đơn PENDING) */}
-              {currentUser?.role === 'SUPER_ADMIN' && selectedOrder.status === 'PENDING' && (
+              {hasPermission(currentUser, 'orders.transfer') && selectedOrder.status === 'PENDING' && (
                 <div className="p-4 rounded-xl bg-slate-900 border border-indigo-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-300">

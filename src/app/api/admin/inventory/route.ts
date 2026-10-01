@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getAdminSession } from '@/lib/auth';
+import { hasPermission, getStoreScope } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,9 +25,10 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     let requestedStore = searchParams.get('storeCode');
 
-    // Nếu là tài khoản ADMIN cửa hàng (không phải SUPER_ADMIN), chỉ được xem kho của cửa hàng mình
-    if (session.role !== 'SUPER_ADMIN') {
-      requestedStore = session.username;
+    // Nếu là STORE_STAFF, chỉ được xem kho của cửa hàng mình
+    const storeScope = getStoreScope(session);
+    if (storeScope) {
+      requestedStore = storeScope;
     } else {
       // Super admin mặc định xem NH (Vườn Lài - Tân Phú) nếu chưa chọn
       if (!requestedStore) {
@@ -76,7 +78,7 @@ export async function GET(req: NextRequest) {
       success: true,
       currentStore: requestedStore,
       stores: activeStores,
-      isSuperAdmin: session.role === 'SUPER_ADMIN',
+      isSuperAdmin: hasPermission(session, 'inventory.view_all'),
       data: res.rows,
     });
   } catch (error: any) {
@@ -96,9 +98,10 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     let { storeCode, productId, stockQuantity, items } = body;
 
-    // Phân quyền cửa hàng: ADMIN chỉ được sửa kho của chính mình
-    if (session.role !== 'SUPER_ADMIN') {
-      storeCode = session.username;
+    // Phân quyền cửa hàng: STAFF chỉ được sửa kho của chính mình
+    const storeScope = getStoreScope(session);
+    if (storeScope) {
+      storeCode = storeScope;
     } else {
       if (!storeCode) storeCode = 'NH';
     }

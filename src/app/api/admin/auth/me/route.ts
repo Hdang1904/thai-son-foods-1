@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getAdminSession } from '@/lib/auth';
 import { query } from '@/lib/db';
 
+import { ROLE_PERMISSIONS, Role } from '@/lib/rbac';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
@@ -23,7 +25,7 @@ export async function GET() {
 
     // Fetch fresh user data from DB to ensure still active and get updated name/role
     const userRes = await query(
-      `SELECT id, username, email, full_name, role, is_active, created_at
+      `SELECT id, username, email, full_name, role, store_code, must_change_password, is_active, created_at
        FROM admin_users
        WHERE id = $1
        LIMIT 1;`,
@@ -40,6 +42,8 @@ export async function GET() {
     }
 
     const userData = userRes.rows[0];
+    const role = userData.role as Role;
+    const permissions = ROLE_PERMISSIONS[role] || [];
 
     return NextResponse.json({
       success: true,
@@ -51,6 +55,9 @@ export async function GET() {
         email: userData.email,
         fullName: userData.full_name,
         role: userData.role,
+        storeCode: userData.store_code || null,
+        mustChangePassword: Boolean(userData.must_change_password),
+        permissions,
         createdAt: userData.created_at,
       },
     });

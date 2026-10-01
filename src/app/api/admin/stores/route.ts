@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getAdminSession } from '@/lib/auth';
+import { hasPermission, getStoreScope } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,9 +40,10 @@ export async function GET(req: NextRequest) {
     `;
     const params: any[] = [];
 
-    // Nếu không phải SUPER_ADMIN thì chỉ xem được cửa hàng của mình
-    if (session.role !== 'SUPER_ADMIN') {
-      params.push(session.username);
+    // Nếu là STORE_STAFF thì chỉ xem được cửa hàng của mình
+    const storeScope = getStoreScope(session);
+    if (storeScope) {
+      params.push(storeScope);
       sql += ` AND s.code = $${params.length}`;
     } else if (storeCode) {
       params.push(storeCode);
@@ -55,8 +57,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       stores: res.rows,
-      currentUserStore: session.role !== 'SUPER_ADMIN' ? session.username : null,
-      isSuperAdmin: session.role === 'SUPER_ADMIN',
+      currentUserStore: storeScope,
+      isSuperAdmin: hasPermission(session, 'stores.edit_all'),
     });
   } catch (error: any) {
     console.error('Error fetching admin stores:', error);
@@ -76,8 +78,9 @@ export async function PUT(req: NextRequest) {
     let { code, name, address, phone, province, district, ward, map_url, mapUrl, latitude, longitude, region, group_code, status: storeStatus, notes } = body;
 
     // Quyền: Cửa hàng chỉ được sửa thông tin của chính mình
-    if (session.role !== 'SUPER_ADMIN') {
-      code = session.username;
+    const storeScope = getStoreScope(session);
+    if (storeScope) {
+      code = storeScope;
     }
 
     if (!code) {

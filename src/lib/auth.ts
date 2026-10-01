@@ -2,12 +2,16 @@ import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
+import { query } from '@/lib/db';
+
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'tsf_super_secret_jwt_key_2026_thai_son_foods'
 );
 
 export const ADMIN_COOKIE_NAME = 'tsf_admin_token';
-export const TOKEN_EXPIRY_DAYS = 7;
+export const TOKEN_EXPIRY_DAYS = 7; // For customer users
+export const ADMIN_TOKEN_EXPIRY = '24h'; // Admin token strictly 24 hours
+export const ADMIN_TOKEN_MAX_AGE_SECONDS = 24 * 60 * 60; // 86400s
 
 export interface AdminJWTPayload {
   id: string;
@@ -15,6 +19,8 @@ export interface AdminJWTPayload {
   email: string;
   fullName?: string | null;
   role: string;
+  storeCode?: string | null;
+  mustChangePassword?: boolean;
 }
 
 /**
@@ -33,13 +39,13 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 /**
- * Sign a JWT token containing admin information
+ * Sign a JWT token containing admin information (24h lifespan)
  */
 export async function signAdminToken(payload: AdminJWTPayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime(`${TOKEN_EXPIRY_DAYS}d`)
+    .setExpirationTime(ADMIN_TOKEN_EXPIRY)
     .sign(JWT_SECRET);
 }
 
@@ -54,22 +60,79 @@ export async function verifyAdminToken(token: string): Promise<AdminJWTPayload |
       username: payload.username as string,
       email: payload.email as string,
       fullName: (payload.fullName as string) || null,
-      role: (payload.role as string) || 'ADMIN',
+      role: (payload.role as string) || 'STORE_STAFF',
+      storeCode: (payload.storeCode as string) || null,
+      mustChangePassword: Boolean(payload.mustChangePassword),
     };
   } catch {
     return null;
   }
 }
+
+interface CachedAdminSession {
+  session: AdminJWTPayload | null;
+  expiresAt: number;
+}
+const adminSessionCache = new Map<string, CachedAdminSession>();
+const ADMIN_SESSION_CACHE_TTL_MS = 5000;
+
 /**
- * Get current admin session from server components or route handlers
+ * Get current admin session from server components or route handlers.
+ * Real-time verification against DB admin_users to ensure deactivated accounts
+ * or altered roles take effect immediately, protected with a 5s in-memory cache.
  */
 export async function getAdminSession(): Promise<AdminJWTPayload | null> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get(ADMIN_COOKIE_NAME)?.value;
     if (!token) return null;
-    return await verifyAdminToken(token);
-  } catch {
+
+    const decoded = await verifyAdminToken(token);
+    if (!decoded || !decoded.id) return null;
+
+    const now = Date.now();
+    const cached = adminSessionCache.get(decoded.id);
+    if (cached && cached.expiresAt > now) {
+      return cached.session;
+    }
+
+    const res = await query(
+      `SELECT id, username, email, full_name, role, store_code, is_active, must_change_password
+       FROM admin_users
+       WHERE id = $1
+       LIMIT 1;`,
+      [decoded.id]
+    );
+
+    if (res.rows.length === 0) {
+      adminSessionCache.set(decoded.id, { session: null, expiresAt: now + ADMIN_SESSION_CACHE_TTL_MS });
+      return null;
+    }
+
+    const user = res.rows[0];
+    if (!user.is_active) {
+      adminSessionCache.set(decoded.id, { session: null, expiresAt: now + ADMIN_SESSION_CACHE_TTL_MS });
+      return null;
+    }
+
+    const verifiedSession: AdminJWTPayload = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      fullName: user.full_name || decoded.fullName || null,
+      role: user.role,
+      storeCode: user.store_code || null,
+      mustChangePassword: Boolean(user.must_change_password),
+    };
+
+    adminSessionCache.set(decoded.id, {
+      session: verifiedSession,
+      expiresAt: now + ADMIN_SESSION_CACHE_TTL_MS,
+    });
+
+    return verifiedSession;
+  } catch (error) {
+    console.error('Error in getAdminSession DB verification:', error);
     return null;
   }
 }

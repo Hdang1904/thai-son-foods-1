@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { getAdminSession } from '@/lib/auth';
+import { hasPermission } from '@/lib/rbac';
 import {
   expandComboItems,
   reserveStock,
@@ -20,9 +21,9 @@ export async function POST(req: NextRequest) {
     }
 
     // CHỈ SUPER_ADMIN mới có quyền chuyển đơn hàng giữa các chi nhánh
-    if (session.role !== 'SUPER_ADMIN') {
+    if (!hasPermission(session, 'orders.transfer')) {
       return NextResponse.json(
-        { success: false, error: 'Chỉ Quản trị viên tổng (SUPER_ADMIN) mới có quyền chuyển đơn sang chi nhánh khác.' },
+        { success: false, error: 'Chỉ Quản trị viên có quyền chuyển đơn mới có thể chuyển đơn sang chi nhánh khác.' },
         { status: 403 }
       );
     }
