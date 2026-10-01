@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { username, email, fullName, password, role, storeCode } = body;
+    const { username, email, fullName, password, role, storeCode, mustChangePassword } = body;
 
     // 1. Validation
     if (!username || typeof username !== 'string' || username.trim().length < 3) {
@@ -131,11 +131,13 @@ export async function POST(req: NextRequest) {
     const hashedPassword = await hashPassword(password);
     const userId = `admin_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
+    const defaultMustChange = mustChangePassword !== undefined ? Boolean(mustChangePassword) : true;
+
     const insertRes = await query(
       `INSERT INTO admin_users (id, username, email, password_hash, full_name, role, store_code, is_active, must_change_password)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, true, false)
-       RETURNING id, username, email, full_name, role, store_code, is_active, created_at;`,
-      [userId, cleanUsername, cleanEmail, hashedPassword, fullName?.trim() || cleanUsername, assignedRole, finalStoreCode]
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)
+       RETURNING id, username, email, full_name, role, store_code, is_active, must_change_password, created_at;`,
+      [userId, cleanUsername, cleanEmail, hashedPassword, fullName?.trim() || cleanUsername, assignedRole, finalStoreCode, defaultMustChange]
     );
 
     const createdUser = insertRes.rows[0];

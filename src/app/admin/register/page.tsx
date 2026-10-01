@@ -192,6 +192,33 @@ export default function AdminRegisterPage() {
             </div>
           )}
 
+          {/* Khi đã có admin: Cổng đăng ký công khai đóng hoàn toàn */}
+          {!checkingInit && hasAdmins ? (
+            <div className="py-6 text-center space-y-5">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400 shadow-lg shadow-amber-950/40">
+                <Lock className="w-8 h-8" />
+              </div>
+
+              <div className="space-y-2">
+                <h2 className="text-lg font-bold text-white">Cổng Đăng Ký Tự Do Đã Đóng</h2>
+                <p className="text-xs sm:text-sm text-slate-300 max-w-sm mx-auto leading-relaxed">
+                  Hệ thống quản trị Thái Sơn Foods đã được thiết lập. Nhằm đảm bảo an toàn và bảo mật thông tin, việc đăng ký tài khoản mới tự do đã bị vô hiệu hóa.
+                </p>
+                <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-400 max-w-sm mx-auto text-left space-y-1">
+                  <p className="font-semibold text-slate-300">📋 Nguyên tắc cấp phát tài khoản:</p>
+                  <p>• Mọi tài khoản <strong>Marketing</strong> hoặc <strong>Nhân viên cửa hàng</strong> đều phải do Quản trị viên cấp cao (Super Admin) tạo.</p>
+                  <p>• Vui lòng liên hệ Super Admin của công ty để được cấp tài khoản và phân quyền cửa hàng tương ứng.</p>
+                </div>
+              </div>
+
+              <Link
+                href="/admin/login"
+                className="inline-flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl font-semibold text-sm bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-950/50 transition-all cursor-pointer"
+              >
+                <span>Chuyển Đến Trang Đăng Nhập</span>
+              </Link>
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Full Name */}
             <div>
@@ -358,6 +385,7 @@ export default function AdminRegisterPage() {
               )}
             </button>
           </form>
+          )}
 
           {/* Switch to Login link */}
           <div className="mt-5 pt-4 border-t border-slate-800/80 text-center text-xs text-slate-400">

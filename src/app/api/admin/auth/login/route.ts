@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { verifyPassword, signAdminToken, ADMIN_COOKIE_NAME, ADMIN_TOKEN_MAX_AGE_SECONDS } from '@/lib/auth';
 import { writeAuditLog } from '@/lib/audit';
+import { checkRateLimit, recordFailedLogin, resetLoginRateLimit } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,43 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanIdentifier = identifier.trim().toLowerCase();
+    const ipKey = ip ? `ip:${ip}` : null;
+    const userKey = `user:${cleanIdentifier}`;
+
+    // 0. Kiểm tra Rate Limiting chống Brute-force
+    const userLimit = checkRateLimit(userKey);
+    const ipLimit = ipKey ? checkRateLimit(ipKey) : { isBlocked: false, remainingSeconds: 0 };
+
+    if (userLimit.isBlocked || ipLimit.isBlocked) {
+      const waitSeconds = Math.max(userLimit.remainingSeconds, ipLimit.remainingSeconds);
+      const waitMinutes = Math.ceil(waitSeconds / 60);
+
+      await writeAuditLog({
+        adminUsername: cleanIdentifier,
+        action: 'AUTH_RATE_LIMITED',
+        entityType: 'AUTH',
+        afterJson: {
+          reason: 'TOO_MANY_FAILED_ATTEMPTS',
+          identifier: cleanIdentifier,
+          waitSeconds,
+        },
+        ip,
+        userAgent,
+      });
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Đăng nhập sai quá nhiều lần. Vui lòng thử lại sau ${waitMinutes} phút.`,
+          code: 'RATE_LIMITED',
+          retryAfter: waitSeconds,
+        },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(waitSeconds) },
+        }
+      );
+    }
 
     // 1. Search by username or email
     const res = await query(
@@ -38,6 +76,9 @@ export async function POST(req: NextRequest) {
     );
 
     if (res.rows.length === 0) {
+      recordFailedLogin(userKey);
+      if (ipKey) recordFailedLogin(ipKey);
+
       await writeAuditLog({
         adminUsername: cleanIdentifier,
         action: 'AUTH_LOGIN_FAILED',
@@ -78,6 +119,9 @@ export async function POST(req: NextRequest) {
     // 3. Verify password
     const isPasswordValid = await verifyPassword(password, user.password_hash);
     if (!isPasswordValid) {
+      recordFailedLogin(userKey);
+      if (ipKey) recordFailedLogin(ipKey);
+
       await writeAuditLog({
         adminId: user.id,
         adminUsername: user.username,
@@ -95,6 +139,10 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
+
+    // Đăng nhập thành công -> Reset bộ đếm rate limit
+    resetLoginRateLimit(userKey);
+    if (ipKey) resetLoginRateLimit(ipKey);
 
     // Update last_login_at in background
     query('UPDATE admin_users SET last_login_at = NOW() WHERE id = $1', [user.id]).catch(err => {

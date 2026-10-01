@@ -18,6 +18,13 @@ export async function GET(request: Request) {
       );
     }
 
+    if (session.mustChangePassword) {
+      return NextResponse.json(
+        { success: false, error: 'Tài khoản bắt buộc phải đổi mật khẩu lần đầu trước khi tiếp tục thao tác.', code: 'MUST_CHANGE_PASSWORD' },
+        { status: 403 }
+      );
+    }
+
     const canViewAll = hasPermission(session, 'orders.view_all');
     const canViewOwnStore = hasPermission(session, 'orders.view_own_store');
 
@@ -145,6 +152,13 @@ export async function PUT(request: Request) {
       return NextResponse.json(
         { success: false, error: 'Chưa đăng nhập quản trị.', code: 'UNAUTHORIZED' },
         { status: 401 }
+      );
+    }
+
+    if (session.mustChangePassword) {
+      return NextResponse.json(
+        { success: false, error: 'Tài khoản bắt buộc phải đổi mật khẩu lần đầu trước khi tiếp tục thao tác.', code: 'MUST_CHANGE_PASSWORD' },
+        { status: 403 }
       );
     }
 

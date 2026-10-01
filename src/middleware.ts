@@ -9,25 +9,58 @@ const JWT_SECRET = new TextEncoder().encode(
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 1. Whitelist auth API routes
+  // 1. Chống tấn công CSRF (Cross-Origin Request Forgery) trên các API quản trị thay đổi dữ liệu
+  if (pathname.startsWith('/api/admin/') && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+    const origin = req.headers.get('origin');
+    const host = req.headers.get('host');
+
+    if (origin && host) {
+      try {
+        const originUrl = new URL(origin);
+        // Kiểm tra host hoặc x-forwarded-host
+        const forwardedHost = req.headers.get('x-forwarded-host');
+        const allowedHosts = [host, forwardedHost].filter(Boolean);
+
+        if (!allowedHosts.includes(originUrl.host)) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Yêu cầu bị từ chối do vi phạm chính sách bảo mật CSRF (Cross-Origin Request Forbidden)',
+              code: 'CSRF_BLOCKED',
+            },
+            { status: 403 }
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { success: false, error: 'Header Origin không hợp lệ', code: 'CSRF_BLOCKED' },
+          { status: 403 }
+        );
+      }
+    }
+  }
+
+  // 2. Whitelist auth API routes
   if (pathname.startsWith('/api/admin/auth/')) {
     return NextResponse.next();
   }
 
-  // 2. Check token from cookie
+  // 3. Check token from cookie
   const token = req.cookies.get(ADMIN_COOKIE_NAME)?.value;
   let isAuthenticated = false;
+  let mustChangePassword = false;
 
   if (token) {
     try {
-      await jwtVerify(token, JWT_SECRET);
+      const { payload } = await jwtVerify(token, JWT_SECRET);
       isAuthenticated = true;
+      mustChangePassword = Boolean(payload.mustChangePassword);
     } catch {
       isAuthenticated = false;
     }
   }
 
-  // 3. Login & Register pages
+  // 4. Login & Register pages
   if (pathname === '/admin/login' || pathname === '/admin/register') {
     if (isAuthenticated) {
       // Already logged in, redirect to admin dashboard
@@ -36,12 +69,22 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 4. Protected Admin API routes
+  // 5. Protected Admin API routes
   if (pathname.startsWith('/api/admin/')) {
     if (!isAuthenticated) {
       return NextResponse.json(
-        { success: false, error: 'Yêu cầu đăng nhập quản trị viên' },
+        { success: false, error: 'Yêu cầu đăng nhập quản trị viên', code: 'UNAUTHORIZED' },
         { status: 401 }
+      );
+    }
+    if (mustChangePassword) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Tài khoản bắt buộc phải đổi mật khẩu lần đầu trước khi tiếp tục thao tác.',
+          code: 'MUST_CHANGE_PASSWORD',
+        },
+        { status: 403 }
       );
     }
     return NextResponse.next();

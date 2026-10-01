@@ -381,6 +381,16 @@ export default function AdminPage() {
   const [userSearch, setUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('ALL');
 
+  // Password Change Modal (Mandatory first-time or manual)
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [pwdCurrent, setPwdCurrent] = useState('');
+  const [pwdNew, setPwdNew] = useState('');
+  const [pwdConfirm, setPwdConfirm] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdError, setPwdError] = useState('');
+  const [pwdSuccess, setPwdSuccess] = useState('');
+  const [showPwdFields, setShowPwdFields] = useState(false);
+
   // Audit Logs (Super Admin only)
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [auditLogsLoading, setAuditLogsLoading] = useState(false);
@@ -575,6 +585,9 @@ export default function AdminPage() {
       .then((data) => {
         if (data.authenticated && data.user) {
           setCurrentUser(data.user);
+          if (data.user.mustChangePassword) {
+            setIsPasswordModalOpen(true);
+          }
           // Tab mặc định theo vai trò:
           if (data.user.role === 'MARKETING') {
             setActiveTab('products');
@@ -1587,6 +1600,71 @@ export default function AdminPage() {
       window.location.href = '/admin/login';
     } catch {
       window.location.href = '/admin/login';
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwdError('');
+    setPwdSuccess('');
+
+    if (!pwdCurrent) {
+      setPwdError('Vui lòng nhập mật khẩu hiện tại');
+      return;
+    }
+    if (pwdNew.length < 8) {
+      setPwdError('Mật khẩu mới phải có ít nhất 8 ký tự');
+      return;
+    }
+    const regex = /^(?=.*[a-zA-Z])(?=.*\d).{8,}$/;
+    if (!regex.test(pwdNew)) {
+      setPwdError('Mật khẩu mới phải bao gồm cả chữ cái và chữ số');
+      return;
+    }
+    if (pwdNew !== pwdConfirm) {
+      setPwdError('Mật khẩu xác nhận không khớp');
+      return;
+    }
+    if (pwdNew === pwdCurrent) {
+      setPwdError('Mật khẩu mới không được trùng với mật khẩu hiện tại');
+      return;
+    }
+
+    setPwdLoading(true);
+    try {
+      const res = await fetch('/api/admin/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: pwdCurrent,
+          newPassword: pwdNew,
+          confirmPassword: pwdConfirm,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setPwdError(data.error || 'Đổi mật khẩu thất bại');
+        setPwdLoading(false);
+        return;
+      }
+
+      setPwdSuccess('Đổi mật khẩu thành công! Thông tin đăng nhập đã được cập nhật an toàn.');
+      if (currentUser) {
+        setCurrentUser({ ...currentUser, mustChangePassword: false });
+      }
+      setTimeout(() => {
+        setIsPasswordModalOpen(false);
+        setPwdCurrent('');
+        setPwdNew('');
+        setPwdConfirm('');
+        setPwdSuccess('');
+        showToast('Mật khẩu mới đã được cập nhật an toàn!');
+        fetchData();
+      }, 1200);
+    } catch (err: any) {
+      setPwdError('Lỗi kết nối máy chủ: ' + err.message);
+    } finally {
+      setPwdLoading(false);
     }
   };
 
@@ -2620,13 +2698,29 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <button
-                onClick={handleLogout}
-                title="Đăng xuất"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => {
+                    setPwdError('');
+                    setPwdSuccess('');
+                    setPwdCurrent('');
+                    setPwdNew('');
+                    setPwdConfirm('');
+                    setIsPasswordModalOpen(true);
+                  }}
+                  title="Đổi mật khẩu tài khoản"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                >
+                  <Key className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleLogout}
+                  title="Đăng xuất"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </aside>
@@ -8475,6 +8569,173 @@ export default function AdminPage() {
                 Đóng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODAL: ĐỔI MẬT KHẨU (BẮT BUỘC HOẶC TỰ NGUYỆN) ==================== */}
+      {isPasswordModalOpen && (
+        <div
+          className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 ${
+            currentUser?.mustChangePassword ? 'pointer-events-auto' : ''
+          }`}
+          onClick={(e) => {
+            // Không cho đóng bằng cách click ngoài nếu bắt buộc đổi mật khẩu
+            if (!currentUser?.mustChangePassword && e.target === e.currentTarget && !pwdLoading) {
+              setIsPasswordModalOpen(false);
+            }
+          }}
+        >
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-md shadow-2xl shadow-black/90 overflow-hidden relative">
+            {/* Modal Header */}
+            <div className={`p-6 border-b ${currentUser?.mustChangePassword ? 'border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-rose-500/10' : 'border-slate-800 bg-slate-950/40'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${currentUser?.mustChangePassword ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+                    {currentUser?.mustChangePassword ? <ShieldAlert className="w-6 h-6 text-amber-400" /> : <Key className="w-6 h-6 text-emerald-400" />}
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">
+                      {currentUser?.mustChangePassword ? 'Bắt Buộc Đổi Mật Khẩu' : 'Đổi Mật Khẩu Quản Trị'}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {currentUser?.mustChangePassword
+                        ? 'Yêu cầu bảo mật cho lần đăng nhập đầu tiên'
+                        : `Tài khoản: ${currentUser?.username || 'Admin'}`}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Nút đóng: chỉ hiển thị nếu KHÔNG phải đổi bắt buộc */}
+                {!currentUser?.mustChangePassword && (
+                  <button
+                    type="button"
+                    disabled={pwdLoading}
+                    onClick={() => setIsPasswordModalOpen(false)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+
+              {currentUser?.mustChangePassword && (
+                <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200/90 leading-relaxed">
+                  ⚠️ Vì lý do an toàn bảo mật, tài khoản của bạn được đánh dấu bắt buộc phải cập nhật mật khẩu mới trước khi có thể truy cập các tính năng quản lý chi nhánh.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleChangePassword} className="p-6 space-y-4">
+              {/* Error Message */}
+              {pwdError && (
+                <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs flex items-center gap-2 animate-in fade-in duration-150">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>{pwdError}</span>
+                </div>
+              )}
+
+              {/* Success Message */}
+              {pwdSuccess && (
+                <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 text-xs flex items-center gap-2 animate-in fade-in duration-150">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{pwdSuccess}</span>
+                </div>
+              )}
+
+              {/* Current Password */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Mật khẩu hiện tại <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type={showPwdFields ? 'text' : 'password'}
+                  required
+                  disabled={pwdLoading}
+                  value={pwdCurrent}
+                  onChange={(e) => setPwdCurrent(e.target.value)}
+                  placeholder="Nhập mật khẩu hiện tại"
+                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
+                />
+              </div>
+
+              {/* New Password */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Mật khẩu mới <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type={showPwdFields ? 'text' : 'password'}
+                  required
+                  disabled={pwdLoading}
+                  value={pwdNew}
+                  onChange={(e) => setPwdNew(e.target.value)}
+                  placeholder="Tối thiểu 8 ký tự (chữ & số)"
+                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Độ dài tối thiểu 8 ký tự, bao gồm ít nhất 1 chữ cái và 1 chữ số.</p>
+              </div>
+
+              {/* Confirm New Password */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Xác nhận mật khẩu mới <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type={showPwdFields ? 'text' : 'password'}
+                  required
+                  disabled={pwdLoading}
+                  value={pwdConfirm}
+                  onChange={(e) => setPwdConfirm(e.target.value)}
+                  placeholder="Nhập lại mật khẩu mới"
+                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
+                />
+              </div>
+
+              {/* Show/Hide password toggle */}
+              <div className="flex items-center justify-between text-xs pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowPwdFields(!showPwdFields)}
+                  className="text-slate-400 hover:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[11px]"
+                >
+                  {showPwdFields ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  <span>{showPwdFields ? 'Ẩn ký tự mật khẩu' : 'Hiện ký tự mật khẩu'}</span>
+                </button>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5">
+                {!currentUser?.mustChangePassword && (
+                  <button
+                    type="button"
+                    disabled={pwdLoading}
+                    onClick={() => setIsPasswordModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+                  >
+                    Hủy bỏ
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={pwdLoading}
+                  className="px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 shadow-lg shadow-amber-950/50 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {pwdLoading ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang cập nhật...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Xác Nhận Đổi Mật Khẩu</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

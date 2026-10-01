@@ -155,6 +155,21 @@ export function requirePermission(
     };
   }
 
+  // Bắt buộc đổi mật khẩu lần đầu trước khi thực hiện bất kỳ quyền quản trị nào
+  if (session.mustChangePassword) {
+    return {
+      authorized: false,
+      response: Response.json(
+        {
+          success: false,
+          error: 'Tài khoản bắt buộc phải đổi mật khẩu lần đầu trước khi tiếp tục thao tác trên hệ thống.',
+          code: 'MUST_CHANGE_PASSWORD',
+        },
+        { status: 403 }
+      ),
+    };
+  }
+
   if (!hasPermission(session, perm)) {
     return {
       authorized: false,

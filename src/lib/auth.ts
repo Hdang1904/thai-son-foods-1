@@ -79,6 +79,14 @@ interface CachedAdminSession {
 const adminSessionCache = new Map<string, CachedAdminSession>();
 const ADMIN_SESSION_CACHE_TTL_MS = 5000;
 
+export function invalidateAdminSessionCache(id?: string) {
+  if (id) {
+    adminSessionCache.delete(id);
+  } else {
+    adminSessionCache.clear();
+  }
+}
+
 /**
  * Get current admin session from server components or route handlers.
  * Real-time verification against DB admin_users to ensure deactivated accounts

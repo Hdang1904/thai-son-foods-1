@@ -1,13 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
+import { writeAuditLog } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || undefined;
+    const userAgent = req.headers.get('user-agent') || undefined;
+
+    // Check total admins in database first
+    const countRes = await query('SELECT COUNT(*) AS total FROM admin_users;');
+    const totalAdmins = parseInt(countRes.rows[0]?.total || '0', 10);
+
+    // Vô hiệu hóa hoàn toàn đăng ký công khai nếu hệ thống đã có tài khoản quản trị
+    if (totalAdmins > 0) {
+      await writeAuditLog({
+        action: 'AUTH_REGISTER_BLOCKED',
+        entityType: 'AUTH',
+        afterJson: { reason: 'PUBLIC_REGISTRATION_DISABLED', ip },
+        ip,
+        userAgent,
+      });
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Cổng đăng ký tài khoản tự do đã bị vô hiệu hóa vì lý do an toàn bảo mật. Vui lòng liên hệ Quản trị viên cấp cao (Super Admin) để được cấp tài khoản qua menu Quản lý tài khoản.',
+          code: 'REGISTRATION_DISABLED',
+        },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
-    const { username, email, password, fullName, registerKey } = body;
+    const { username, email, password, fullName } = body;
 
     // 1. Validation
     if (!username || typeof username !== 'string' || username.trim().length < 3) {
@@ -34,35 +62,14 @@ export async function POST(req: NextRequest) {
     }
     const cleanEmail = email.trim().toLowerCase();
 
-    if (!password || typeof password !== 'string' || password.length < 6) {
+    if (!password || typeof password !== 'string' || password.length < 8) {
       return NextResponse.json(
-        { success: false, error: 'Mật khẩu phải có ít nhất 6 ký tự' },
+        { success: false, error: 'Mật khẩu phải có ít nhất 8 ký tự' },
         { status: 400 }
       );
     }
 
-    // 2. Check total admins in database
-    const countRes = await query('SELECT COUNT(*) AS total FROM admin_users;');
-    const totalAdmins = parseInt(countRes.rows[0]?.total || '0', 10);
-
-    const configuredSecret = process.env.ADMIN_REGISTER_KEY || 'tsf@admin2026';
-    let assignedRole = 'ADMIN';
-
-    if (totalAdmins === 0) {
-      // First account gets SUPER_ADMIN automatically without requiring registerKey
-      assignedRole = 'SUPER_ADMIN';
-    } else {
-      // Subsequent accounts require the admin registration secret key
-      if (!registerKey || registerKey.trim() !== configuredSecret) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Mã bảo mật đăng ký không chính xác. Vui lòng liên hệ Quản trị viên cấp cao.',
-          },
-          { status: 403 }
-        );
-      }
-    }
+    const assignedRole = 'SUPER_ADMIN';
 
     // 3. Check for existing username or email
     const existing = await query(
