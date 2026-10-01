@@ -651,17 +651,6 @@ export default function AdminPage() {
     }
   };
 
-  // Đồng bộ nạp dữ liệu khi chuyển tab sang Users, Inventory, hoặc Banners
-  useEffect(() => {
-    if (activeTab === 'users' && hasPermission(currentUser, 'users.manage')) {
-      fetchAdminUsers();
-    } else if (activeTab === 'inventory') {
-      fetchInventory(selectedStoreCode);
-    } else if (activeTab === 'banners') {
-      fetchBannersAndSlides();
-    }
-  }, [activeTab]);
-
   // Fetch Banners and Brand Slides
   const fetchBannersAndSlides = async () => {
     setBannersLoading(true);
@@ -680,6 +669,17 @@ export default function AdminPage() {
       setBannersLoading(false);
     }
   };
+
+  // Đồng bộ nạp dữ liệu khi chuyển tab sang Users, Inventory, hoặc Banners
+  useEffect(() => {
+    if (activeTab === 'users' && hasPermission(currentUser, 'users.manage')) {
+      fetchAdminUsers();
+    } else if (activeTab === 'inventory') {
+      fetchInventory(selectedStoreCode);
+    } else if (activeTab === 'banners') {
+      fetchBannersAndSlides();
+    }
+  }, [activeTab]);
 
   // Helper tải ảnh lên máy chủ qua /api/admin/upload
   const handleUploadImageFile = async (

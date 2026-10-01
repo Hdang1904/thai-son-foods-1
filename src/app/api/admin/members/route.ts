@@ -1,20 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, initDatabase } from '@/lib/db';
 import { getAdminSession } from '@/lib/auth';
+import { hasPermission } from '@/lib/rbac';
+import { writeAuditLog } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
+
+function maskMember(member: any, hasFullView: boolean) {
+  if (hasFullView) return member;
+  const rawPhone = member.phone || '';
+  const maskedPhone = rawPhone.length > 6 
+    ? rawPhone.substring(0, 3) + '****' + rawPhone.substring(rawPhone.length - 3)
+    : (rawPhone ? '****' : null);
+
+  return {
+    ...member,
+    phone: maskedPhone,
+    address: null,
+    province: null,
+    district: null,
+    ward: null,
+  };
+}
+
+function maskOrder(order: any, hasFullView: boolean) {
+  if (hasFullView) return order;
+  const rawPhone = order.phone || '';
+  const maskedPhone = rawPhone.length > 6 
+    ? rawPhone.substring(0, 3) + '****' + rawPhone.substring(rawPhone.length - 3)
+    : (rawPhone ? '****' : null);
+
+  return {
+    ...order,
+    phone: maskedPhone,
+    shipping_address: null,
+  };
+}
 
 // GET: Lấy danh sách thành viên hoặc thông tin chi tiết + lịch sử đơn của 1 thành viên
 export async function GET(req: NextRequest) {
   try {
     await initDatabase();
 
-    // Kiểm tra quyền quản trị viên
     const session = await getAdminSession();
     if (!session) {
       return NextResponse.json(
         { success: false, error: 'Yêu cầu đăng nhập tài khoản quản trị' },
         { status: 401 }
+      );
+    }
+
+    const canViewFull = hasPermission(session, 'members.view_full');
+    const canViewMasked = hasPermission(session, 'members.view_masked');
+
+    if (!canViewFull && !canViewMasked) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền truy cập danh sách thành viên.', code: 'FORBIDDEN' },
+        { status: 403 }
       );
     }
 
@@ -77,8 +119,8 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        member: userRes.rows[0],
-        orders: ordersRes.rows,
+        member: maskMember(userRes.rows[0], canViewFull),
+        orders: ordersRes.rows.map((o: any) => maskOrder(o, canViewFull)),
       });
     }
 
@@ -110,7 +152,7 @@ export async function GET(req: NextRequest) {
       sql += ` WHERE (
         LOWER(u.full_name) LIKE $1 
         OR LOWER(u.email) LIKE $1 
-        OR LOWER(COALESCE(u.phone, '')) LIKE $1
+        OR LOWER(COALESCE(u.phone, '')) LIKE $1 
         OR LOWER(COALESCE(u.address, '')) LIKE $1
       )`;
       params.push(`%${search.trim().toLowerCase()}%`);
@@ -119,11 +161,12 @@ export async function GET(req: NextRequest) {
     sql += ` GROUP BY u.id ORDER BY u.created_at DESC;`;
 
     const res = await query(sql, params);
+    const maskedMembers = res.rows.map((m: any) => maskMember(m, canViewFull));
 
     return NextResponse.json({
       success: true,
-      members: res.rows,
-      total: res.rows.length,
+      members: maskedMembers,
+      total: maskedMembers.length,
     });
   } catch (error: any) {
     console.error('Error fetching members:', error);
@@ -138,10 +181,10 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const session = await getAdminSession();
-    if (!session) {
+    if (!session || !hasPermission(session, 'members.manage')) {
       return NextResponse.json(
-        { success: false, error: 'Yêu cầu đăng nhập tài khoản quản trị' },
-        { status: 401 }
+        { success: false, error: 'Bạn không có quyền quản lý thành viên.', code: 'FORBIDDEN' },
+        { status: !session ? 401 : 403 }
       );
     }
 
@@ -155,6 +198,15 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    const check = await query(`SELECT * FROM users WHERE id = $1;`, [id]);
+    if (check.rows.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Không tìm thấy thông tin thành viên' },
+        { status: 404 }
+      );
+    }
+    const beforeUser = check.rows[0];
+
     // Nếu cập nhật trạng thái hoạt động (Khóa / Mở khóa)
     if (isActive !== undefined) {
       await query(
@@ -164,13 +216,24 @@ export async function PUT(req: NextRequest) {
         [Boolean(isActive), id]
       );
 
+      await writeAuditLog({
+        adminId: session.userId,
+        adminUsername: session.username,
+        role: session.role,
+        action: isActive ? 'MEMBER_UNLOCK' : 'MEMBER_LOCK',
+        entityType: 'MEMBER',
+        entityId: id,
+        beforeJson: { is_active: beforeUser.is_active },
+        afterJson: { is_active: Boolean(isActive) },
+      });
+
       return NextResponse.json({
         success: true,
         message: isActive ? 'Đã kích hoạt lại tài khoản thành viên' : 'Đã tạm khóa tài khoản thành viên',
       });
     }
 
-    // Nếu cập nhật thông tin liên hệ
+    // Nếu cập nhật thông tin liên hệ (whitelist)
     await query(
       `UPDATE users 
        SET full_name = COALESCE($1, full_name),
@@ -183,6 +246,23 @@ export async function PUT(req: NextRequest) {
        WHERE id = $7;`,
       [fullName, phone, address, province, district, ward, id]
     );
+
+    const afterRes = await query(`SELECT id, full_name, phone, address, province, district, ward, updated_at FROM users WHERE id = $1;`, [id]);
+
+    await writeAuditLog({
+      adminId: session.userId,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'MEMBER_UPDATE',
+      entityType: 'MEMBER',
+      entityId: id,
+      beforeJson: {
+        full_name: beforeUser.full_name,
+        phone: beforeUser.phone,
+        address: beforeUser.address,
+      },
+      afterJson: afterRes.rows[0],
+    });
 
     return NextResponse.json({
       success: true,
@@ -201,10 +281,10 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getAdminSession();
-    if (!session) {
+    if (!session || !hasPermission(session, 'members.manage')) {
       return NextResponse.json(
-        { success: false, error: 'Yêu cầu quyền quản trị viên' },
-        { status: 401 }
+        { success: false, error: 'Bạn không có quyền quản lý thành viên.', code: 'FORBIDDEN' },
+        { status: !session ? 401 : 403 }
       );
     }
 
@@ -218,9 +298,22 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+    const check = await query(`SELECT * FROM users WHERE id = $1;`, [id]);
+    const beforeUser = check.rows[0] || null;
+
     // Gỡ liên kết trong orders để giữ lại lịch sử đơn hàng
     await query(`UPDATE orders SET user_id = NULL WHERE user_id = $1;`, [id]);
     await query(`DELETE FROM users WHERE id = $1;`, [id]);
+
+    await writeAuditLog({
+      adminId: session.userId,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'MEMBER_DELETE',
+      entityType: 'MEMBER',
+      entityId: id,
+      beforeJson: beforeUser ? { id: beforeUser.id, email: beforeUser.email, full_name: beforeUser.full_name } : null,
+    });
 
     return NextResponse.json({
       success: true,

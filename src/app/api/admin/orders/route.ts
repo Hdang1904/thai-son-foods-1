@@ -1,22 +1,55 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, pool } from '@/lib/db';
+import { getAdminSession } from '@/lib/auth';
+import { hasPermission, getStoreScope } from '@/lib/rbac';
+import { writeAuditLog } from '@/lib/audit';
 import { sendOrderEmail } from '@/lib/email/service';
 
 export const dynamic = 'force-dynamic';
 
-// GET: Lấy danh sách đơn hàng hoặc chi tiết 1 đơn hàng
+// GET: Lấy danh sách đơn hàng hoặc chi tiết 1 đơn hàng (có kiểm tra quyền + chống IDOR)
 export async function GET(request: Request) {
   try {
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Chưa đăng nhập quản trị.', code: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
+
+    const canViewAll = hasPermission(session, 'orders.view_all');
+    const canViewOwnStore = hasPermission(session, 'orders.view_own_store');
+
+    if (!canViewAll && !canViewOwnStore) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền xem đơn hàng.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
+    const storeScope = getStoreScope(session);
     const { searchParams } = new URL(request.url);
     const orderId = searchParams.get('id');
     const status = searchParams.get('status') || 'ALL';
     const search = searchParams.get('q') || '';
+    const queryStoreCode = searchParams.get('storeCode');
 
-    // Nếu yêu cầu chi tiết 1 đơn hàng
+    // 1. Nếu yêu cầu chi tiết 1 đơn hàng (chống IDOR)
     if (orderId) {
       const orderRes = await query(`SELECT * FROM orders WHERE id = $1;`, [orderId]);
       if (orderRes.rows.length === 0) {
         return NextResponse.json({ success: false, error: 'Không tìm thấy đơn hàng' }, { status: 404 });
+      }
+
+      const orderData = orderRes.rows[0];
+
+      // STORE_STAFF không được phép đọc đơn ngoài cửa hàng của mình (chống IDOR)
+      if (storeScope && orderData.store_code !== storeScope) {
+        return NextResponse.json(
+          { success: false, error: 'Bạn không có quyền xem đơn hàng của cửa hàng khác.', code: 'FORBIDDEN' },
+          { status: 403 }
+        );
       }
 
       const itemsRes = await query(
@@ -27,13 +60,13 @@ export async function GET(request: Request) {
       return NextResponse.json({
         success: true,
         order: {
-          ...orderRes.rows[0],
+          ...orderData,
           items: itemsRes.rows,
         },
       });
     }
 
-    // Lấy danh sách đơn hàng có kèm số lượng món và món đầu tiên
+    // 2. Lấy danh sách đơn hàng (bắt buộc ép WHERE store_code = storeScope nếu là STORE_STAFF)
     let sql = `
       SELECT 
         o.*,
@@ -57,6 +90,15 @@ export async function GET(request: Request) {
       WHERE 1=1
     `;
     const params: any[] = [];
+
+    // Phạm vi cửa hàng: STORE_STAFF bị ép buộc dùng storeScope từ DB session
+    if (storeScope) {
+      params.push(storeScope);
+      sql += ` AND o.store_code = $${params.length}`;
+    } else if (queryStoreCode && queryStoreCode !== 'ALL') {
+      params.push(queryStoreCode);
+      sql += ` AND o.store_code = $${params.length}`;
+    }
 
     if (status !== 'ALL') {
       params.push(status);
@@ -83,14 +125,33 @@ export async function GET(request: Request) {
   }
 }
 
-// PUT: Cập nhật trạng thái đơn hàng hoặc ghi chú
+// PUT: Cập nhật trạng thái đơn hàng hoặc ghi chú (chống IDOR + chống Mass Assignment)
 export async function PUT(request: Request) {
   try {
-    const body = await request.json();
-    const { id, status, note } = body;
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Chưa đăng nhập quản trị.', code: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
 
-    if (!id) {
-      return NextResponse.json({ success: false, error: 'Thiếu ID đơn hàng' }, { status: 400 });
+    const canUpdateAll = hasPermission(session, 'orders.update_status_all');
+    const canUpdateOwnStore = hasPermission(session, 'orders.update_status_own_store');
+
+    if (!canUpdateAll && !canUpdateOwnStore) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền cập nhật đơn hàng.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
+    // Chống Mass Assignment: Chỉ bóc tách các trường hợp lệ từ request body
+    const body = await request.json();
+    const { id, status, note, shipperName, shipperPhone } = body;
+
+    if (!id || typeof id !== 'string') {
+      return NextResponse.json({ success: false, error: 'Thiếu ID đơn hàng hợp lệ' }, { status: 400 });
     }
 
     const validStatuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPING', 'COMPLETED', 'CANCELLED'];
@@ -101,33 +162,35 @@ export async function PUT(request: Request) {
       );
     }
 
-    // Lấy thông tin đơn hàng hiện tại
+    // 1. Kiểm tra đơn hàng trong CSDL (Anti-IDOR)
     const currentOrderRes = await query(`SELECT * FROM orders WHERE id = $1;`, [id]);
     if (currentOrderRes.rows.length === 0) {
       return NextResponse.json({ success: false, error: 'Không tìm thấy đơn hàng' }, { status: 404 });
     }
     const currentOrder = currentOrderRes.rows[0];
 
-    // Lấy session admin (nếu có)
-    let adminUsername = 'admin';
-    try {
-      const { getAdminSession } = await import('@/lib/auth');
-      const session = await getAdminSession();
-      if (session) adminUsername = session.username;
-    } catch {
-      // ignore
+    // Chống IDOR: STORE_STAFF sửa đơn ngoài cửa hàng của mình phải bị 403
+    const storeScope = getStoreScope(session);
+    if (storeScope && currentOrder.store_code && currentOrder.store_code !== storeScope) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Bạn không có quyền sửa đơn hàng thuộc chi nhánh ${currentOrder.store_code}.`,
+          code: 'FORBIDDEN',
+        },
+        { status: 403 }
+      );
     }
 
     // Xác định cửa hàng xử lý đơn
     let targetStoreCode = currentOrder.store_code;
     if (!targetStoreCode) {
-      targetStoreCode = adminUsername && adminUsername !== 'admin' ? adminUsername : 'NH';
+      targetStoreCode = storeScope || (session.username !== 'admin' ? session.username : 'NH');
     }
 
     let deductedNow = false;
 
     // Thực hiện trong Transaction an toàn
-    const { pool } = await import('@/lib/db');
     const client = await pool.connect();
     let updatedOrder;
 
@@ -136,11 +199,11 @@ export async function PUT(request: Request) {
 
       if (status === 'CONFIRMED' || status === 'PROCESSING' || status === 'SHIPPING' || status === 'COMPLETED') {
         const { confirmStock } = await import('@/lib/inventory');
-        const confirmRes = await confirmStock(id, targetStoreCode, client, adminUsername);
+        const confirmRes = await confirmStock(id, targetStoreCode, client, session.username);
         deductedNow = !confirmRes.alreadyConfirmed;
       } else if (status === 'CANCELLED') {
         const { releaseStock } = await import('@/lib/inventory');
-        await releaseStock(id, client, note || 'Hủy bởi Admin', adminUsername);
+        await releaseStock(id, client, note || 'Hủy bởi Admin', session.username);
       }
 
       // Cập nhật thông tin đơn hàng
@@ -167,6 +230,27 @@ export async function PUT(request: Request) {
     } finally {
       client.release();
     }
+
+    // Ghi Audit Log cho hành động cập nhật trạng thái đơn hàng
+    await writeAuditLog({
+      adminId: session.id,
+      adminUsername: session.username,
+      role: session.role,
+      action: status === 'CANCELLED' ? 'ORDER_CANCEL' : 'ORDER_STATUS_UPDATE',
+      entityType: 'ORDER',
+      entityId: id,
+      storeCode: targetStoreCode,
+      beforeJson: {
+        status: currentOrder.status,
+        note: currentOrder.note,
+        store_code: currentOrder.store_code,
+      },
+      afterJson: {
+        status: updatedOrder.status,
+        note: updatedOrder.note,
+        store_code: updatedOrder.store_code,
+      },
+    });
 
     // Tự động kích hoạt gửi email trạng thái cho khách hàng (Non-blocking async)
     if (updatedOrder && updatedOrder.email && (status === 'SHIPPING' || status === 'COMPLETED')) {
@@ -203,8 +287,8 @@ export async function PUT(request: Request) {
 
           if (status === 'SHIPPING') {
             await sendOrderEmail('ORDER_SHIPPING', payload, {
-              shipperName: body.shipperName || 'Đội ngũ giao nhận Thái Sơn Foods',
-              shipperPhone: body.shipperPhone || '0961 888 888',
+              shipperName: shipperName || 'Đội ngũ giao nhận Thái Sơn Foods',
+              shipperPhone: shipperPhone || '028 6291 5024',
               storeAddress: updatedOrder.store_address,
             });
           } else if (status === 'COMPLETED') {
@@ -239,9 +323,24 @@ export async function PUT(request: Request) {
 // PATCH: Hỗ trợ cú pháp PATCH tương đương PUT
 export const PATCH = PUT;
 
-// DELETE: Xóa đơn hàng
+// DELETE: Xóa đơn hàng (chỉ dành cho cấp quản trị cao nhất có orders.update_status_all)
 export async function DELETE(request: Request) {
   try {
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Chưa đăng nhập quản trị.', code: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
+
+    if (!hasPermission(session, 'orders.update_status_all')) {
+      return NextResponse.json(
+        { success: false, error: 'Chỉ Quản trị viên cấp cao mới có quyền xóa đơn hàng.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -249,8 +348,26 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, error: 'Thiếu ID đơn hàng' }, { status: 400 });
     }
 
+    const currentOrderRes = await query(`SELECT * FROM orders WHERE id = $1;`, [id]);
+    if (currentOrderRes.rows.length === 0) {
+      return NextResponse.json({ success: false, error: 'Không tìm thấy đơn hàng' }, { status: 404 });
+    }
+    const currentOrder = currentOrderRes.rows[0];
+
     await query(`DELETE FROM order_items WHERE order_id = $1;`, [id]);
     await query(`DELETE FROM orders WHERE id = $1;`, [id]);
+
+    await writeAuditLog({
+      adminId: session.id,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'ORDER_DELETE',
+      entityType: 'ORDER',
+      entityId: id,
+      storeCode: currentOrder.store_code,
+      beforeJson: currentOrder,
+      afterJson: null,
+    });
 
     return NextResponse.json({ success: true, message: 'Đã xóa đơn hàng thành công' });
   } catch (error: any) {

@@ -15,6 +15,7 @@ export const ADMIN_TOKEN_MAX_AGE_SECONDS = 24 * 60 * 60; // 86400s
 
 export interface AdminJWTPayload {
   id: string;
+  userId: string;
   username: string;
   email: string;
   fullName?: string | null;
@@ -41,8 +42,8 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 /**
  * Sign a JWT token containing admin information (24h lifespan)
  */
-export async function signAdminToken(payload: AdminJWTPayload): Promise<string> {
-  return new SignJWT({ ...payload })
+export async function signAdminToken(payload: Partial<AdminJWTPayload> & { id: string; username: string; email: string; role: string }): Promise<string> {
+  return new SignJWT({ ...payload, userId: payload.userId || payload.id })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(ADMIN_TOKEN_EXPIRY)
@@ -55,8 +56,10 @@ export async function signAdminToken(payload: AdminJWTPayload): Promise<string> 
 export async function verifyAdminToken(token: string): Promise<AdminJWTPayload | null> {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
+    const id = payload.id as string;
     return {
-      id: payload.id as string,
+      id,
+      userId: (payload.userId as string) || id,
       username: payload.username as string,
       email: payload.email as string,
       fullName: (payload.fullName as string) || null,
@@ -117,6 +120,7 @@ export async function getAdminSession(): Promise<AdminJWTPayload | null> {
 
     const verifiedSession: AdminJWTPayload = {
       id: user.id,
+      userId: user.id,
       username: user.username,
       email: user.email,
       fullName: user.full_name || decoded.fullName || null,

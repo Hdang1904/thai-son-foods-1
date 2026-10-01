@@ -31,7 +31,7 @@ export function syncProductToStaticFile(data: ProductSyncPayload): boolean {
       return false;
     }
 
-    let content = fs.readFileSync(filePath, 'utf8');
+    const content = fs.readFileSync(filePath, 'utf8');
 
     // Tìm kiếm vị trí sản phẩm theo sku, id hoặc slug
     const identifiers = [data.sku, data.id, data.slug].filter(Boolean) as string[];

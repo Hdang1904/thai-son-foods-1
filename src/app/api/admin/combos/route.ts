@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { getAdminSession } from '@/lib/auth';
+import { hasPermission } from '@/lib/rbac';
+import { writeAuditLog } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,9 +19,26 @@ function slugify(text: string) {
     .replace(/-+/g, '-');
 }
 
-// GET: Lấy danh sách tất cả combo
+// GET: Lấy danh sách tất cả combo (lọc bỏ cost_price nếu không có quyền)
 export async function GET(request: Request) {
   try {
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Chưa đăng nhập quản trị.', code: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
+
+    if (!hasPermission(session, 'combos.view')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền xem danh sách combo.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
+    const canViewCostPrice = hasPermission(session, 'cost_price.view');
+
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('q') || '';
     const filter = searchParams.get('filter') || 'ALL'; // ALL, ACTIVE, INACTIVE, FEATURED, BEST_SELLER
@@ -26,13 +46,28 @@ export async function GET(request: Request) {
     let sql = `
       SELECT 
         c.*,
-        COALESCE(json_agg(
-          CASE WHEN ci.id IS NOT NULL 
-          THEN json_build_object('id', ci.id, 'product_id', ci.product_id, 'quantity', ci.quantity, 'unit', ci.unit)
-          ELSE NULL END
-        ) FILTER (WHERE ci.id IS NOT NULL), '[]') AS items
+        COALESCE((
+          SELECT json_agg(
+            json_build_object('id', ci.id, 'product_id', ci.product_id, 'quantity', ci.quantity, 'unit', ci.unit)
+          ) FROM combo_items ci WHERE ci.combo_id = c.id
+        ), '[]') AS items,
+        COALESCE((
+          SELECT json_agg(
+            json_build_object(
+              'id', cimg.id,
+              'url', cimg.url,
+              'alt', cimg.alt,
+              'sortOrder', cimg.sort_order,
+              'sort_order', cimg.sort_order,
+              'imageType', cimg.image_type,
+              'image_type', cimg.image_type,
+              'isActive', cimg.is_active,
+              'is_active', cimg.is_active
+            )
+            ORDER BY cimg.sort_order ASC, cimg.created_at ASC
+          ) FROM combo_images cimg WHERE cimg.combo_id = c.id
+        ), '[]') AS images
       FROM combos c
-      LEFT JOIN combo_items ci ON ci.combo_id = c.id
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -52,10 +87,20 @@ export async function GET(request: Request) {
       sql += ` AND c.is_best_seller = true`;
     }
 
-    sql += ` GROUP BY c.id ORDER BY c.created_at DESC;`;
+    sql += ` ORDER BY c.created_at DESC;`;
 
     const res = await query(sql, params);
-    return NextResponse.json({ success: true, data: res.rows });
+
+    // Lọc bỏ cost_price ở server nếu không có cost_price.view
+    const sanitizedCombos = res.rows.map(row => {
+      if (!canViewCostPrice) {
+        const { cost_price, ...safeData } = row;
+        return safeData;
+      }
+      return row;
+    });
+
+    return NextResponse.json({ success: true, data: sanitizedCombos });
   } catch (error: any) {
     console.error('Error fetching admin combos:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -65,6 +110,21 @@ export async function GET(request: Request) {
 // POST: Thêm mới combo
 export async function POST(request: Request) {
   try {
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Chưa đăng nhập quản trị.', code: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
+
+    if (!hasPermission(session, 'combos.manage')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền tạo combo.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const {
       name,
@@ -98,16 +158,16 @@ export async function POST(request: Request) {
       [
         id,
         slug,
-        name,
-        description || null,
-        original_price || sale_price,
-        sale_price,
-        total_items,
-        discount,
-        image || '/images/combos/combo-1.jpg',
-        is_featured,
-        is_best_seller,
-        is_active,
+        String(name).trim(),
+        description ? String(description) : null,
+        parseInt(original_price || sale_price, 10),
+        parseInt(sale_price, 10),
+        parseInt(total_items || 10, 10),
+        parseInt(discount || 0, 10),
+        image ? String(image) : '/images/combos/combo-1.jpg',
+        Boolean(is_featured),
+        Boolean(is_best_seller),
+        Boolean(is_active),
       ]
     );
 
@@ -117,10 +177,37 @@ export async function POST(request: Request) {
         await query(
           `INSERT INTO combo_items (id, combo_id, product_id, quantity, unit)
            VALUES ($1, $2, $3, $4, $5);`,
-          [`${id}_item_${i + 1}`, id, it.product_id, it.quantity || 1, it.unit || 'chai']
+          [`${id}_item_${i + 1}`, id, String(it.product_id), parseInt(it.quantity || 1, 10), it.unit ? String(it.unit) : 'chai']
         );
       }
     }
+
+    if (Array.isArray(body.images) && body.images.length > 0) {
+      for (let i = 0; i < body.images.length; i++) {
+        const img = body.images[i];
+        if (img && (img.url || typeof img === 'string')) {
+          const imgUrl = typeof img === 'string' ? img : img.url;
+          const imgAlt = typeof img === 'object' && img.alt ? img.alt : name;
+          const sortOrder = typeof img === 'object' && img.sortOrder !== undefined ? img.sortOrder : i + 1;
+          const imgId = `cimg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          await query(
+            `INSERT INTO combo_images (id, combo_id, url, alt, sort_order, image_type, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, true);`,
+            [imgId, id, imgUrl, imgAlt, sortOrder, 'gallery']
+          );
+        }
+      }
+    }
+
+    await writeAuditLog({
+      adminId: session.id,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'COMBO_CREATE',
+      entityType: 'COMBO',
+      entityId: id,
+      afterJson: { id, slug, name, sale_price },
+    });
 
     return NextResponse.json({ success: true, data: { id, slug, name } });
   } catch (error: any) {
@@ -132,6 +219,14 @@ export async function POST(request: Request) {
 // PUT: Cập nhật combo
 export async function PUT(request: Request) {
   try {
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Chưa đăng nhập quản trị.', code: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const {
       id,
@@ -148,51 +243,73 @@ export async function PUT(request: Request) {
       items,
     } = body;
 
-    if (!id) {
+    if (!id || typeof id !== 'string') {
       return NextResponse.json({ success: false, error: 'Thiếu ID combo' }, { status: 400 });
+    }
+
+    const currRes = await query(`SELECT * FROM combos WHERE id = $1;`, [id]);
+    if (currRes.rows.length === 0) {
+      return NextResponse.json({ success: false, error: 'Không tìm thấy combo' }, { status: 404 });
+    }
+    const currentCombo = currRes.rows[0];
+
+    // Kiểm tra quyền sửa giá
+    const isPriceChanging = sale_price !== undefined && parseInt(sale_price, 10) !== currentCombo.sale_price;
+    if (isPriceChanging && !hasPermission(session, 'products.manage_price')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền chỉnh sửa giá combo.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
+    if (!hasPermission(session, 'combos.manage')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền chỉnh sửa combo.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
     }
 
     const updates: string[] = [];
     const params: any[] = [id];
 
     if (name !== undefined) {
-      params.push(name);
+      params.push(String(name).trim());
       updates.push(`name = $${params.length}`);
     }
     if (description !== undefined) {
-      params.push(description);
+      params.push(description ? String(description) : null);
       updates.push(`description = $${params.length}`);
     }
     if (original_price !== undefined) {
-      params.push(original_price);
+      params.push(parseInt(original_price, 10));
       updates.push(`original_price = $${params.length}`);
     }
     if (sale_price !== undefined) {
-      params.push(sale_price);
+      params.push(parseInt(sale_price, 10));
       updates.push(`sale_price = $${params.length}`);
     }
     if (total_items !== undefined) {
-      params.push(total_items);
+      params.push(parseInt(total_items, 10));
       updates.push(`total_items = $${params.length}`);
     }
     if (discount !== undefined) {
-      params.push(discount);
+      params.push(parseInt(discount, 10));
       updates.push(`discount = $${params.length}`);
     }
     if (image !== undefined) {
-      params.push(image);
+      params.push(String(image));
       updates.push(`image = $${params.length}`);
     }
     if (is_featured !== undefined) {
-      params.push(is_featured);
+      params.push(Boolean(is_featured));
       updates.push(`is_featured = $${params.length}`);
     }
     if (is_best_seller !== undefined) {
-      params.push(is_best_seller);
+      params.push(Boolean(is_best_seller));
       updates.push(`is_best_seller = $${params.length}`);
     }
     if (is_active !== undefined) {
-      params.push(is_active);
+      params.push(Boolean(is_active));
       updates.push(`is_active = $${params.length}`);
     }
 
@@ -209,10 +326,52 @@ export async function PUT(request: Request) {
         await query(
           `INSERT INTO combo_items (id, combo_id, product_id, quantity, unit)
            VALUES ($1, $2, $3, $4, $5);`,
-          [`${id}_item_${i + 1}`, id, it.product_id, it.quantity || 1, it.unit || 'chai']
+          [`${id}_item_${i + 1}`, id, String(it.product_id), parseInt(it.quantity || 1, 10), it.unit ? String(it.unit) : 'chai']
         );
       }
     }
+
+    if (Array.isArray(body.images)) {
+      await query(`DELETE FROM combo_images WHERE combo_id = $1;`, [id]);
+      for (let i = 0; i < body.images.length; i++) {
+        const img = body.images[i];
+        if (img && (img.url || typeof img === 'string')) {
+          const imgUrl = typeof img === 'string' ? img : img.url;
+          const imgAlt = typeof img === 'object' && img.alt ? img.alt : (name || 'Combo');
+          const sortOrder = typeof img === 'object' && img.sortOrder !== undefined ? img.sortOrder : i + 1;
+          const imgId = `cimg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          await query(
+            `INSERT INTO combo_images (id, combo_id, url, alt, sort_order, image_type, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, true);`,
+            [imgId, id, imgUrl, imgAlt, sortOrder, 'gallery']
+          );
+        }
+      }
+    }
+
+    if (isPriceChanging) {
+      await writeAuditLog({
+        adminId: session.id,
+        adminUsername: session.username,
+        role: session.role,
+        action: 'COMBO_PRICE_UPDATE',
+        entityType: 'COMBO',
+        entityId: id,
+        beforeJson: { sale_price: currentCombo.sale_price },
+        afterJson: { sale_price },
+      });
+    }
+
+    await writeAuditLog({
+      adminId: session.id,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'COMBO_UPDATE',
+      entityType: 'COMBO',
+      entityId: id,
+      beforeJson: currentCombo,
+      afterJson: body,
+    });
 
     return NextResponse.json({ success: true, message: 'Cập nhật combo thành công' });
   } catch (error: any) {
@@ -224,6 +383,21 @@ export async function PUT(request: Request) {
 // DELETE: Xóa combo
 export async function DELETE(request: Request) {
   try {
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Chưa đăng nhập quản trị.', code: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
+
+    if (!hasPermission(session, 'combos.manage')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền xóa combo.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -231,7 +405,27 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, error: 'Thiếu ID combo' }, { status: 400 });
     }
 
+    const currRes = await query(`SELECT * FROM combos WHERE id = $1;`, [id]);
+    if (currRes.rows.length === 0) {
+      return NextResponse.json({ success: false, error: 'Không tìm thấy combo' }, { status: 404 });
+    }
+    const comboToDelete = currRes.rows[0];
+
+    await query(`DELETE FROM combo_images WHERE combo_id = $1;`, [id]);
+    await query(`DELETE FROM combo_items WHERE combo_id = $1;`, [id]);
     await query(`DELETE FROM combos WHERE id = $1;`, [id]);
+
+    await writeAuditLog({
+      adminId: session.id,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'COMBO_DELETE',
+      entityType: 'COMBO',
+      entityId: id,
+      beforeJson: comboToDelete,
+      afterJson: null,
+    });
+
     return NextResponse.json({ success: true, message: 'Đã xóa combo thành công' });
   } catch (error: any) {
     console.error('Error deleting admin combo:', error);

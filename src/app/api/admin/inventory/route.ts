@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getAdminSession } from '@/lib/auth';
 import { hasPermission, getStoreScope } from '@/lib/rbac';
+import { writeAuditLog } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,50 @@ export async function GET(req: NextRequest) {
     const session = await getAdminSession();
     if (!session) {
       return NextResponse.json({ success: false, error: 'Chưa đăng nhập quản trị' }, { status: 401 });
+    }
+
+    const canViewAll = hasPermission(session, 'inventory.view_all');
+    const canViewOwn = hasPermission(session, 'inventory.view_own_store');
+    const canViewTotal = hasPermission(session, 'inventory.view_total');
+
+    if (!canViewAll && !canViewOwn && !canViewTotal) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền truy cập kho hàng.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
+    // Trường hợp MARKETING (chỉ có inventory.view_total, không có view_all hay view_own_store)
+    if (canViewTotal && !canViewAll && !canViewOwn) {
+      const sqlTotal = `
+        SELECT 
+          p.id AS product_id,
+          p.name AS product_name,
+          p.sku,
+          p.price,
+          p.unit,
+          p.thumbnail,
+          p.is_active,
+          c.name AS category_name,
+          COALESCE(SUM(si.stock_quantity), 0) AS stock_quantity,
+          COALESCE(SUM(si.reserved), 0) AS reserved,
+          GREATEST(0, COALESCE(SUM(si.stock_quantity), 0) - COALESCE(SUM(si.reserved), 0)) AS available_quantity,
+          COALESCE(SUM(si.safety_stock), 0) AS safety_stock
+        FROM products p
+        LEFT JOIN categories c ON c.id = p.category_id
+        LEFT JOIN store_inventory si ON si.product_id = p.id
+        GROUP BY p.id, c.name
+        ORDER BY p.id ASC;
+      `;
+      const resTotal = await query(sqlTotal);
+      return NextResponse.json({
+        success: true,
+        currentStore: 'TOTAL',
+        stores: [],
+        isSuperAdmin: false,
+        isTotalOnly: true,
+        data: resTotal.rows,
+      });
     }
 
     const { searchParams } = new URL(req.url);
@@ -95,8 +140,16 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Chưa đăng nhập quản trị' }, { status: 401 });
     }
 
+    if (!hasPermission(session, 'inventory.update_own_store')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền cập nhật tồn kho.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
-    let { storeCode, productId, stockQuantity, items } = body;
+    let { storeCode } = body;
+    const { productId, stockQuantity, items } = body;
 
     // Phân quyền cửa hàng: STAFF chỉ được sửa kho của chính mình
     const storeScope = getStoreScope(session);
@@ -150,7 +203,7 @@ export async function PUT(req: NextRequest) {
           ]
         );
 
-        // Cập nhật tồn kho tổng của sản phẩm = TỔNG TỒN KHO CỦA TẤT CẢ CÁC CỬA HÀNG
+        // Cập nhật tồn kho tổng của sản phẩm = TỔNG TỒN KHO CỦA TẤT CẢ CẢ CỬA HÀNG
         await query(
           `UPDATE products 
            SET stock_quantity = (
@@ -162,6 +215,16 @@ export async function PUT(req: NextRequest) {
           [pId]
         );
       }
+
+      await writeAuditLog({
+        adminId: session.userId,
+        adminUsername: session.username,
+        role: session.role,
+        action: 'INVENTORY_BATCH_UPDATE',
+        entityType: 'INVENTORY',
+        storeCode,
+        afterJson: { storeCode, itemCount: items.length },
+      });
 
       return NextResponse.json({
         success: true,
@@ -225,6 +288,18 @@ export async function PUT(req: NextRequest) {
        WHERE id = $1;`,
       [productId]
     );
+
+    await writeAuditLog({
+      adminId: session.userId,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'INVENTORY_UPDATE',
+      entityType: 'INVENTORY',
+      entityId: productId,
+      storeCode,
+      beforeJson: { stock_quantity: oldStock },
+      afterJson: { stock_quantity: qty },
+    });
 
     return NextResponse.json({
       success: true,

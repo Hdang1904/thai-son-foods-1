@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const district = searchParams.get('district');
 
     let sql = '';
-    let params: any[] = [];
+    const params: any[] = [];
 
     if (productId) {
       let dbProductId = productId;

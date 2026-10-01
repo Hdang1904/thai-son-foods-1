@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { getAdminSession } from '@/lib/auth';
+import { hasPermission } from '@/lib/rbac';
+import { writeAuditLog } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +22,13 @@ function slugify(text: string) {
 // GET: Danh sách danh mục cùng số lượng sản phẩm
 export async function GET() {
   try {
+    const session = await getAdminSession();
+    if (!session || !hasPermission(session, 'categories.view')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền xem danh mục.', code: 'FORBIDDEN' },
+        { status: !session ? 401 : 403 }
+      );
+    }
     const res = await query(`
       SELECT 
         c.*,
@@ -38,6 +48,14 @@ export async function GET() {
 // POST: Tạo danh mục mới
 export async function POST(request: Request) {
   try {
+    const session = await getAdminSession();
+    if (!session || !hasPermission(session, 'categories.manage')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền quản lý danh mục.', code: 'FORBIDDEN' },
+        { status: !session ? 401 : 403 }
+      );
+    }
+
     const body = await request.json();
     const { name, slug } = body;
 
@@ -55,7 +73,18 @@ export async function POST(request: Request) {
       [catId, catSlug, name]
     );
 
-    return NextResponse.json({ success: true, data: res.rows[0] });
+    const created = res.rows[0];
+    await writeAuditLog({
+      adminId: session.userId,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'CATEGORY_CREATE',
+      entityType: 'CATEGORY',
+      entityId: catId,
+      afterJson: created,
+    });
+
+    return NextResponse.json({ success: true, data: created });
   } catch (error: any) {
     console.error('Error creating category:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -65,12 +94,23 @@ export async function POST(request: Request) {
 // PUT: Cập nhật danh mục
 export async function PUT(request: Request) {
   try {
+    const session = await getAdminSession();
+    if (!session || !hasPermission(session, 'categories.manage')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền quản lý danh mục.', code: 'FORBIDDEN' },
+        { status: !session ? 401 : 403 }
+      );
+    }
+
     const body = await request.json();
     const { id, name, slug } = body;
 
     if (!id || !name) {
       return NextResponse.json({ success: false, error: 'Thiếu ID hoặc Tên danh mục' }, { status: 400 });
     }
+
+    const existingRes = await query(`SELECT * FROM categories WHERE id = $1 LIMIT 1;`, [id]);
+    const beforeCategory = existingRes.rows[0] || null;
 
     const catSlug = slug ? slugify(slug) : slugify(name);
 
@@ -79,7 +119,19 @@ export async function PUT(request: Request) {
       [id, name, catSlug]
     );
 
-    return NextResponse.json({ success: true, data: res.rows[0] });
+    const updated = res.rows[0];
+    await writeAuditLog({
+      adminId: session.userId,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'CATEGORY_UPDATE',
+      entityType: 'CATEGORY',
+      entityId: id,
+      beforeJson: beforeCategory,
+      afterJson: updated,
+    });
+
+    return NextResponse.json({ success: true, data: updated });
   } catch (error: any) {
     console.error('Error updating category:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -89,6 +141,14 @@ export async function PUT(request: Request) {
 // DELETE: Xóa danh mục
 export async function DELETE(request: Request) {
   try {
+    const session = await getAdminSession();
+    if (!session || !hasPermission(session, 'categories.manage')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền quản lý danh mục.', code: 'FORBIDDEN' },
+        { status: !session ? 401 : 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -96,9 +156,22 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, error: 'Thiếu ID danh mục' }, { status: 400 });
     }
 
+    const existingRes = await query(`SELECT * FROM categories WHERE id = $1 LIMIT 1;`, [id]);
+    const beforeCategory = existingRes.rows[0] || null;
+
     // Set null cho sản phẩm trước
     await query(`UPDATE products SET category_id = NULL WHERE category_id = $1;`, [id]);
     await query(`DELETE FROM categories WHERE id = $1;`, [id]);
+
+    await writeAuditLog({
+      adminId: session.userId,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'CATEGORY_DELETE',
+      entityType: 'CATEGORY',
+      entityId: id,
+      beforeJson: beforeCategory,
+    });
 
     return NextResponse.json({ success: true, message: 'Đã xóa danh mục thành công' });
   } catch (error: any) {

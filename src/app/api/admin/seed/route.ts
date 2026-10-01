@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { getAdminSession } from '@/lib/auth';
+import { hasPermission } from '@/lib/rbac';
+import { writeAuditLog } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +17,20 @@ const SAMPLE_CUSTOMERS = [
 
 export async function POST() {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { success: false, error: 'Chức năng tạo đơn ảo bị vô hiệu hóa hoàn toàn trên môi trường production.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
+    const session = await getAdminSession();
+    if (!session || !hasPermission(session, 'system.seed')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền thực thi lệnh seed hệ thống.', code: 'FORBIDDEN' },
+        { status: !session ? 401 : 403 }
+      );
+    }
     // 1. Get existing products
     const prodsRes = await query(`SELECT id, name, price, unit, thumbnail FROM products WHERE is_active = true;`);
     const prods = prodsRes.rows;
@@ -108,6 +125,15 @@ export async function POST() {
 
       createdCount++;
     }
+
+    await writeAuditLog({
+      adminId: session.userId,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'SYSTEM_SEED',
+      entityType: 'SYSTEM',
+      afterJson: { createdCount },
+    });
 
     return NextResponse.json({
       success: true,

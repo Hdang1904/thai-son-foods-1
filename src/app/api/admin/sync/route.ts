@@ -2,11 +2,22 @@ import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { products, categories } from '@/data/products';
 import { combos } from '@/data/combos';
+import { getAdminSession } from '@/lib/auth';
+import { hasPermission } from '@/lib/rbac';
+import { writeAuditLog } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    const session = await getAdminSession();
+    if (!session || !hasPermission(session, 'system.sync')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền đồng bộ hệ thống.', code: 'FORBIDDEN' },
+        { status: !session ? 401 : 403 }
+      );
+    }
+
     const prodCountRes = await query(`SELECT count(*) as count FROM products;`);
     const comboCountRes = await query(`SELECT count(*) as count FROM combos;`);
     const catCountRes = await query(`SELECT count(*) as count FROM categories;`);
@@ -37,6 +48,14 @@ export async function GET() {
 
 export async function POST() {
   try {
+    const session = await getAdminSession();
+    if (!session || !hasPermission(session, 'system.sync')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền đồng bộ hệ thống.', code: 'FORBIDDEN' },
+        { status: !session ? 401 : 403 }
+      );
+    }
+
     console.log('Admin triggered synchronization from store website data to database...');
 
     // 1. Ensure categories
@@ -181,6 +200,19 @@ export async function POST() {
         }
       }
     }
+
+    await writeAuditLog({
+      adminId: session.userId,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'SYSTEM_SYNC',
+      entityType: 'SYSTEM',
+      afterJson: {
+        products: products.length,
+        combos: combos.length,
+        categories: categories.length,
+      },
+    });
 
     return NextResponse.json({
       success: true,

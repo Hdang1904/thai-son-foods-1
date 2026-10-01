@@ -1,23 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getAdminSession, hashPassword } from '@/lib/auth';
-import { hasPermission } from '@/lib/rbac';
+import { hasPermission, Role } from '@/lib/rbac';
+import { writeAuditLog } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
+
+const VALID_ROLES: Role[] = ['SUPER_ADMIN', 'MARKETING', 'STORE_STAFF'];
 
 // GET: Danh sách tất cả tài khoản admin (chỉ dành cho SUPER_ADMIN)
 export async function GET(req: NextRequest) {
   try {
     const session = await getAdminSession();
-    if (!hasPermission(session, 'users.manage')) {
+    if (!session || !hasPermission(session, 'users.manage')) {
       return NextResponse.json(
-        { success: false, error: 'Chỉ Quản trị viên cấp cao (Super Admin) mới có quyền xem danh sách tài khoản' },
-        { status: 403 }
+        { success: false, error: 'Chỉ Quản trị viên cấp cao (Super Admin) mới có quyền xem danh sách tài khoản', code: 'FORBIDDEN' },
+        { status: !session ? 401 : 403 }
       );
     }
 
     const res = await query(
-      `SELECT id, username, email, full_name, role, store_code, is_active, created_at, updated_at
+      `SELECT id, username, email, full_name, role, store_code, is_active, must_change_password, password_changed_at, last_login_at, created_at, updated_at
        FROM admin_users
        ORDER BY created_at ASC;`
     );
@@ -33,15 +36,15 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getAdminSession();
-    if (!hasPermission(session, 'users.manage')) {
+    if (!session || !hasPermission(session, 'users.manage')) {
       return NextResponse.json(
-        { success: false, error: 'Chỉ Quản trị viên cấp cao (Super Admin) mới có quyền tạo tài khoản quản trị' },
-        { status: 403 }
+        { success: false, error: 'Chỉ Quản trị viên cấp cao (Super Admin) mới có quyền tạo tài khoản quản trị', code: 'FORBIDDEN' },
+        { status: !session ? 401 : 403 }
       );
     }
 
     const body = await req.json();
-    const { username, email, fullName, password, role } = body;
+    const { username, email, fullName, password, role, storeCode } = body;
 
     // 1. Validation
     if (!username || typeof username !== 'string' || username.trim().length < 3) {
@@ -75,7 +78,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const assignedRole = role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ADMIN';
+    const assignedRole = (role as Role) || 'STORE_STAFF';
+    if (!VALID_ROLES.includes(assignedRole)) {
+      return NextResponse.json(
+        { success: false, error: `Vai trò "${role}" không hợp lệ. Chọn một trong: SUPER_ADMIN, MARKETING, STORE_STAFF.` },
+        { status: 400 }
+      );
+    }
+
+    let finalStoreCode: string | null = null;
+    if (assignedRole === 'STORE_STAFF') {
+      if (!storeCode || typeof storeCode !== 'string' || !storeCode.trim()) {
+        return NextResponse.json(
+          { success: false, error: 'Tài khoản nhân viên cửa hàng (STORE_STAFF) bắt buộc phải gắn với một cửa hàng cụ thể.' },
+          { status: 400 }
+        );
+      }
+      finalStoreCode = storeCode.trim();
+
+      const storeCheck = await query('SELECT code FROM stores WHERE code = $1 LIMIT 1;', [finalStoreCode]);
+      if (storeCheck.rows.length === 0) {
+        return NextResponse.json(
+          { success: false, error: `Mã cửa hàng "${finalStoreCode}" không tồn tại trên hệ thống.` },
+          { status: 400 }
+        );
+      }
+    }
 
     // 2. Check duplicate username or email
     const existing = await query(
@@ -104,16 +132,29 @@ export async function POST(req: NextRequest) {
     const userId = `admin_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
     const insertRes = await query(
-      `INSERT INTO admin_users (id, username, email, password_hash, full_name, role, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, true)
-       RETURNING id, username, email, full_name, role, is_active, created_at;`,
-      [userId, cleanUsername, cleanEmail, hashedPassword, fullName?.trim() || cleanUsername, assignedRole]
+      `INSERT INTO admin_users (id, username, email, password_hash, full_name, role, store_code, is_active, must_change_password)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true, false)
+       RETURNING id, username, email, full_name, role, store_code, is_active, created_at;`,
+      [userId, cleanUsername, cleanEmail, hashedPassword, fullName?.trim() || cleanUsername, assignedRole, finalStoreCode]
     );
+
+    const createdUser = insertRes.rows[0];
+
+    await writeAuditLog({
+      adminId: session.userId,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'ADMIN_USER_CREATE',
+      entityType: 'ADMIN_USER',
+      entityId: userId,
+      storeCode: finalStoreCode,
+      afterJson: createdUser,
+    });
 
     return NextResponse.json({
       success: true,
       message: `Đã tạo tài khoản quản trị viên "${cleanUsername}" thành công!`,
-      data: insertRes.rows[0],
+      data: createdUser,
     });
   } catch (error: any) {
     console.error('Error creating admin user:', error);
@@ -127,67 +168,173 @@ export async function PUT(req: NextRequest) {
     const session = await getAdminSession();
     if (!session || !hasPermission(session, 'users.manage')) {
       return NextResponse.json(
-        { success: false, error: 'Chỉ Quản trị viên cấp cao (Super Admin) mới có quyền chỉnh sửa tài khoản' },
-        { status: 403 }
+        { success: false, error: 'Chỉ Quản trị viên cấp cao (Super Admin) mới có quyền chỉnh sửa tài khoản', code: 'FORBIDDEN' },
+        { status: !session ? 401 : 403 }
       );
     }
 
     const body = await req.json();
-    const { id, fullName, email, role, isActive, password } = body;
+    const { id, fullName, email, role, storeCode, isActive, password, mustChangePassword } = body;
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'Thiếu ID tài khoản cần chỉnh sửa' }, { status: 400 });
     }
 
+    const targetUserRes = await query('SELECT * FROM admin_users WHERE id = $1 LIMIT 1;', [id]);
+    if (targetUserRes.rows.length === 0) {
+      return NextResponse.json({ success: false, error: 'Không tìm thấy tài khoản quản trị viên' }, { status: 404 });
+    }
+    const targetUser = targetUserRes.rows[0];
+
+    // Không cho phép tự đổi role của chính mình
+    const isSelf = session.userId === id || session.id === id;
+    if (isSelf && role !== undefined && role !== targetUser.role) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không thể tự thay đổi vai trò của chính mình' },
+        { status: 400 }
+      );
+    }
+
     // Không cho phép tự khóa tài khoản của chính mình
-    if (session.id === id && isActive === false) {
+    if (isSelf && isActive === false) {
       return NextResponse.json(
         { success: false, error: 'Bạn không thể tự khóa tài khoản Super Admin của chính mình' },
         { status: 400 }
       );
     }
 
-    let sql = 'UPDATE admin_users SET updated_at = CURRENT_TIMESTAMP';
+    // Bảo vệ SUPER_ADMIN cuối cùng: không cho hạ quyền hoặc khóa SUPER_ADMIN đang hoạt động duy nhất
+    if (targetUser.role === 'SUPER_ADMIN') {
+      const isDemoting = role !== undefined && role !== 'SUPER_ADMIN';
+      const isDeactivating = isActive === false && targetUser.is_active === true;
+
+      if (isDemoting || isDeactivating) {
+        const superAdminsCountRes = await query(
+          "SELECT COUNT(*)::int AS count FROM admin_users WHERE role = 'SUPER_ADMIN' AND is_active = true;"
+        );
+        const superAdminCount = superAdminsCountRes.rows[0]?.count || 0;
+        if (superAdminCount <= 1) {
+          return NextResponse.json(
+            { success: false, error: 'Không thể hạ quyền hoặc khóa Quản trị viên cấp cao (Super Admin) cuối cùng đang hoạt động của hệ thống' },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    // Whitelist updates
+    const updates: string[] = [];
     const params: any[] = [id];
 
     if (fullName !== undefined) {
       params.push(fullName.trim());
-      sql += `, full_name = $${params.length}`;
+      updates.push(`full_name = $${params.length}`);
     }
 
     if (email !== undefined && email.includes('@')) {
       params.push(email.trim().toLowerCase());
-      sql += `, email = $${params.length}`;
+      updates.push(`email = $${params.length}`);
     }
 
     if (role !== undefined) {
-      const targetRole = role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ADMIN';
-      params.push(targetRole);
-      sql += `, role = $${params.length}`;
+      if (!VALID_ROLES.includes(role)) {
+        return NextResponse.json(
+          { success: false, error: `Vai trò "${role}" không hợp lệ. Chọn một trong: SUPER_ADMIN, MARKETING, STORE_STAFF.` },
+          { status: 400 }
+        );
+      }
+      params.push(role);
+      updates.push(`role = $${params.length}`);
+    }
+
+    const effectiveRole = role !== undefined ? role : targetUser.role;
+
+    if (storeCode !== undefined) {
+      if (effectiveRole === 'STORE_STAFF') {
+        if (!storeCode || !storeCode.trim()) {
+          return NextResponse.json(
+            { success: false, error: 'Tài khoản nhân viên cửa hàng (STORE_STAFF) bắt buộc phải gắn với mã cửa hàng.' },
+            { status: 400 }
+          );
+        }
+        const storeCheck = await query('SELECT code FROM stores WHERE code = $1 LIMIT 1;', [storeCode.trim()]);
+        if (storeCheck.rows.length === 0) {
+          return NextResponse.json(
+            { success: false, error: `Mã cửa hàng "${storeCode}" không tồn tại.` },
+            { status: 400 }
+          );
+        }
+        params.push(storeCode.trim());
+        updates.push(`store_code = $${params.length}`);
+      } else {
+        params.push(null);
+        updates.push(`store_code = $${params.length}`);
+      }
+    } else if (role !== undefined && role !== 'STORE_STAFF') {
+      // Nếu đổi sang SUPER_ADMIN hoặc MARKETING mà không truyền storeCode, tự động set store_code = NULL
+      params.push(null);
+      updates.push(`store_code = $${params.length}`);
     }
 
     if (isActive !== undefined) {
       params.push(Boolean(isActive));
-      sql += `, is_active = $${params.length}`;
+      updates.push(`is_active = $${params.length}`);
     }
 
+    if (mustChangePassword !== undefined) {
+      params.push(Boolean(mustChangePassword));
+      updates.push(`must_change_password = $${params.length}`);
+    }
+
+    let passwordChanged = false;
     if (password && typeof password === 'string' && password.trim().length >= 6) {
       const hashedPassword = await hashPassword(password.trim());
       params.push(hashedPassword);
-      sql += `, password_hash = $${params.length}`;
+      updates.push(`password_hash = $${params.length}`);
+      updates.push(`password_changed_at = CURRENT_TIMESTAMP`);
+      updates.push(`must_change_password = true`);
+      passwordChanged = true;
     }
 
-    sql += ' WHERE id = $1 RETURNING id, username, email, full_name, role, is_active, updated_at;';
+    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+
+    const sql = `UPDATE admin_users SET ${updates.join(', ')} WHERE id = $1 RETURNING id, username, email, full_name, role, store_code, is_active, must_change_password, password_changed_at, updated_at;`;
 
     const updateRes = await query(sql, params);
-    if (updateRes.rows.length === 0) {
-      return NextResponse.json({ success: false, error: 'Không tìm thấy tài khoản quản trị viên' }, { status: 404 });
-    }
+    const updatedUser = updateRes.rows[0];
+
+    // Ghi audit log
+    await writeAuditLog({
+      adminId: session.userId,
+      adminUsername: session.username,
+      role: session.role,
+      action: passwordChanged ? 'ADMIN_PASSWORD_RESET' : 'ADMIN_USER_UPDATE',
+      entityType: 'ADMIN_USER',
+      entityId: id,
+      storeCode: updatedUser.store_code,
+      beforeJson: {
+        username: targetUser.username,
+        email: targetUser.email,
+        full_name: targetUser.full_name,
+        role: targetUser.role,
+        store_code: targetUser.store_code,
+        is_active: targetUser.is_active,
+      },
+      afterJson: {
+        username: updatedUser.username,
+        email: updatedUser.email,
+        full_name: updatedUser.full_name,
+        role: updatedUser.role,
+        store_code: updatedUser.store_code,
+        is_active: updatedUser.is_active,
+        password_reset: passwordChanged,
+      },
+    });
 
     return NextResponse.json({
       success: true,
       message: 'Cập nhật tài khoản quản trị viên thành công!',
-      data: updateRes.rows[0],
+      data: updatedUser,
     });
   } catch (error: any) {
     console.error('Error updating admin user:', error);
@@ -201,8 +348,8 @@ export async function DELETE(req: NextRequest) {
     const session = await getAdminSession();
     if (!session || !hasPermission(session, 'users.manage')) {
       return NextResponse.json(
-        { success: false, error: 'Chỉ Quản trị viên cấp cao (Super Admin) mới có quyền xóa tài khoản' },
-        { status: 403 }
+        { success: false, error: 'Chỉ Quản trị viên cấp cao (Super Admin) mới có quyền xóa tài khoản', code: 'FORBIDDEN' },
+        { status: !session ? 401 : 403 }
       );
     }
 
@@ -214,21 +361,55 @@ export async function DELETE(req: NextRequest) {
     }
 
     // Không cho phép tự xóa tài khoản của chính mình
-    if (session.id === targetId) {
+    if (session.userId === targetId || session.id === targetId) {
       return NextResponse.json(
         { success: false, error: 'Bạn không thể tự xóa tài khoản đang đăng nhập' },
         { status: 400 }
       );
     }
 
-    const delRes = await query('DELETE FROM admin_users WHERE id = $1 RETURNING username;', [targetId]);
-    if (delRes.rows.length === 0) {
+    const targetUserRes = await query('SELECT * FROM admin_users WHERE id = $1 LIMIT 1;', [targetId]);
+    if (targetUserRes.rows.length === 0) {
       return NextResponse.json({ success: false, error: 'Không tìm thấy tài khoản để xóa' }, { status: 404 });
     }
+    const targetUser = targetUserRes.rows[0];
+
+    // Không cho phép xóa SUPER_ADMIN cuối cùng
+    if (targetUser.role === 'SUPER_ADMIN') {
+      const superAdminsCountRes = await query(
+        "SELECT COUNT(*)::int AS count FROM admin_users WHERE role = 'SUPER_ADMIN';"
+      );
+      const superAdminCount = superAdminsCountRes.rows[0]?.count || 0;
+      if (superAdminCount <= 1) {
+        return NextResponse.json(
+          { success: false, error: 'Không thể xóa Quản trị viên cấp cao (Super Admin) duy nhất của hệ thống' },
+          { status: 400 }
+        );
+      }
+    }
+
+    await query('DELETE FROM admin_users WHERE id = $1;', [targetId]);
+
+    await writeAuditLog({
+      adminId: session.userId,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'ADMIN_USER_DELETE',
+      entityType: 'ADMIN_USER',
+      entityId: targetId,
+      storeCode: targetUser.store_code,
+      beforeJson: {
+        username: targetUser.username,
+        email: targetUser.email,
+        full_name: targetUser.full_name,
+        role: targetUser.role,
+        store_code: targetUser.store_code,
+      },
+    });
 
     return NextResponse.json({
       success: true,
-      message: `Đã xóa tài khoản "${delRes.rows[0].username}" thành công!`,
+      message: `Đã xóa tài khoản "${targetUser.username}" thành công!`,
     });
   } catch (error: any) {
     console.error('Error deleting admin user:', error);

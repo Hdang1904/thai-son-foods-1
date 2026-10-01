@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { getAdminSession } from '@/lib/auth';
+import { hasPermission } from '@/lib/rbac';
+import { writeAuditLog } from '@/lib/audit';
 import { syncProductToStaticFile } from '@/lib/products-file-sync';
 
 export const dynamic = 'force-dynamic';
@@ -17,9 +20,26 @@ function slugify(text: string) {
     .replace(/-+/g, '-');
 }
 
-// GET: Lấy danh sách sản phẩm (hỗ trợ tìm kiếm, lọc theo category, trạng thái)
+// GET: Lấy danh sách sản phẩm (loại bỏ trường cost_price nếu không có cost_price.view)
 export async function GET(request: Request) {
   try {
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Chưa đăng nhập quản trị.', code: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
+
+    if (!hasPermission(session, 'products.view')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền xem sản phẩm.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
+    const canViewCostPrice = hasPermission(session, 'cost_price.view');
+
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('q') || '';
     const categoryId = searchParams.get('categoryId') || '';
@@ -30,14 +50,30 @@ export async function GET(request: Request) {
         p.*,
         c.name AS category_name,
         c.slug AS category_slug,
-        COALESCE(json_agg(
-          CASE WHEN pv.id IS NOT NULL 
-          THEN json_build_object('id', pv.id, 'name', pv.name, 'quantity', pv.quantity, 'price', pv.price, 'unit', pv.unit)
-          ELSE NULL END
-        ) FILTER (WHERE pv.id IS NOT NULL), '[]') AS variants
+        COALESCE((
+          SELECT json_agg(
+            json_build_object('id', pv.id, 'name', pv.name, 'quantity', pv.quantity, 'price', pv.price, 'unit', pv.unit)
+            ORDER BY pv.quantity ASC
+          ) FROM product_variants pv WHERE pv.product_id = p.id
+        ), '[]') AS variants,
+        COALESCE((
+          SELECT json_agg(
+            json_build_object(
+              'id', pi.id,
+              'url', pi.url,
+              'alt', pi.alt,
+              'sortOrder', pi.sort_order,
+              'sort_order', pi.sort_order,
+              'imageType', pi.image_type,
+              'image_type', pi.image_type,
+              'isActive', pi.is_active,
+              'is_active', pi.is_active
+            )
+            ORDER BY pi.sort_order ASC, pi.created_at ASC
+          ) FROM product_images pi WHERE pi.product_id = p.id
+        ), '[]') AS images
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
-      LEFT JOIN product_variants pv ON pv.product_id = p.id
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -62,10 +98,20 @@ export async function GET(request: Request) {
       sql += ` AND p.is_best_seller = true`;
     }
 
-    sql += ` GROUP BY p.id, c.name, c.slug ORDER BY p.created_at DESC;`;
+    sql += ` ORDER BY p.created_at DESC;`;
 
     const res = await query(sql, params);
-    return NextResponse.json({ success: true, data: res.rows });
+
+    // Lọc bỏ triệt để cost_price ở server nếu không có quyền cost_price.view
+    const sanitizedProducts = res.rows.map(row => {
+      if (!canViewCostPrice) {
+        const { cost_price, ...safeData } = row;
+        return safeData;
+      }
+      return row;
+    });
+
+    return NextResponse.json({ success: true, data: sanitizedProducts });
   } catch (error: any) {
     console.error('Error fetching admin products:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -75,6 +121,21 @@ export async function GET(request: Request) {
 // POST: Thêm mới sản phẩm
 export async function POST(request: Request) {
   try {
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Chưa đăng nhập quản trị.', code: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
+
+    if (!hasPermission(session, 'products.manage')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền tạo sản phẩm.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const {
       name,
@@ -115,14 +176,14 @@ export async function POST(request: Request) {
     const values = [
       id,
       slug,
-      name,
-      sku || `TSF-${Date.now().toString().slice(-4)}`,
-      short_description || '',
-      description || '',
+      String(name).trim(),
+      sku ? String(sku).trim() : `TSF-${Date.now().toString().slice(-4)}`,
+      short_description ? String(short_description) : '',
+      description ? String(description) : '',
       parseInt(price, 10),
-      unit || '1 chai',
-      thumbnail || '/images/products/sua-bap-nep.png',
-      category_id || null,
+      unit ? String(unit) : '1 chai',
+      thumbnail ? String(thumbnail) : '/images/products/sua-bap-nep.png',
+      category_id ? String(category_id) : null,
       Boolean(is_featured),
       Boolean(is_new),
       Boolean(is_best_seller),
@@ -140,11 +201,39 @@ export async function POST(request: Request) {
           await query(
             `INSERT INTO product_variants (id, product_id, name, quantity, price, unit)
              VALUES ($1, $2, $3, $4, $5, $6);`,
-            [varId, id, v.name, parseInt(v.quantity || 1, 10), parseInt(v.price, 10), v.unit || 'chai']
+            [varId, id, String(v.name), parseInt(v.quantity || 1, 10), parseInt(v.price, 10), v.unit || 'chai']
           );
         }
       }
     }
+
+    // Thêm images nếu có
+    if (Array.isArray(body.images) && body.images.length > 0) {
+      for (let i = 0; i < body.images.length; i++) {
+        const img = body.images[i];
+        if (img && (img.url || typeof img === 'string')) {
+          const imgUrl = typeof img === 'string' ? img : img.url;
+          const imgAlt = typeof img === 'object' && img.alt ? img.alt : name;
+          const sortOrder = typeof img === 'object' && img.sortOrder !== undefined ? img.sortOrder : i + 1;
+          const imgId = `pimg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          await query(
+            `INSERT INTO product_images (id, product_id, url, alt, sort_order, image_type, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, true);`,
+            [imgId, id, imgUrl, imgAlt, sortOrder, 'gallery']
+          );
+        }
+      }
+    }
+
+    await writeAuditLog({
+      adminId: session.id,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'PRODUCT_CREATE',
+      entityType: 'PRODUCT',
+      entityId: id,
+      afterJson: createdProduct,
+    });
 
     return NextResponse.json({ success: true, data: createdProduct });
   } catch (error: any) {
@@ -153,9 +242,17 @@ export async function POST(request: Request) {
   }
 }
 
-// PUT: Cập nhật sản phẩm
+// PUT: Cập nhật sản phẩm (kiểm tra products.manage & products.manage_price, ghi audit log khi sửa giá)
 export async function PUT(request: Request) {
   try {
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Chưa đăng nhập quản trị.', code: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const {
       id,
@@ -174,8 +271,32 @@ export async function PUT(request: Request) {
       variants,
     } = body;
 
-    if (!id) {
+    if (!id || typeof id !== 'string') {
       return NextResponse.json({ success: false, error: 'Thiếu ID sản phẩm' }, { status: 400 });
+    }
+
+    // Lấy thông tin sản phẩm hiện tại
+    const currRes = await query(`SELECT * FROM products WHERE id = $1;`, [id]);
+    if (currRes.rows.length === 0) {
+      return NextResponse.json({ success: false, error: 'Không tìm thấy sản phẩm' }, { status: 404 });
+    }
+    const currentProd = currRes.rows[0];
+
+    // Kiểm tra quyền sửa giá
+    const isPriceChanging = price !== undefined && parseInt(price, 10) !== currentProd.price;
+    if (isPriceChanging && !hasPermission(session, 'products.manage_price')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền chỉnh sửa giá sản phẩm.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
+    // Kiểm tra quyền quản lý thông tin sản phẩm
+    if (!hasPermission(session, 'products.manage')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền chỉnh sửa thông tin sản phẩm.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
     }
 
     const updateSql = `
@@ -198,13 +319,13 @@ export async function PUT(request: Request) {
 
     const values = [
       id,
-      name,
-      sku,
-      short_description,
-      description,
+      name !== undefined ? String(name).trim() : null,
+      sku !== undefined ? String(sku).trim() : null,
+      short_description !== undefined ? String(short_description) : null,
+      description !== undefined ? String(description) : null,
       price !== undefined ? parseInt(price, 10) : null,
-      unit,
-      thumbnail,
+      unit !== undefined ? String(unit) : null,
+      thumbnail !== undefined ? String(thumbnail) : null,
       category_id || null,
       is_featured !== undefined ? Boolean(is_featured) : null,
       is_new !== undefined ? Boolean(is_new) : null,
@@ -213,6 +334,7 @@ export async function PUT(request: Request) {
     ];
 
     const result = await query(updateSql, values);
+    const updatedProd = result.rows[0];
 
     // Cập nhật variants nếu có truyền vào
     if (Array.isArray(variants)) {
@@ -223,13 +345,56 @@ export async function PUT(request: Request) {
           await query(
             `INSERT INTO product_variants (id, product_id, name, quantity, price, unit)
              VALUES ($1, $2, $3, $4, $5, $6);`,
-            [varId, id, v.name, parseInt(v.quantity || 1, 10), parseInt(v.price, 10), v.unit || 'chai']
+            [varId, id, String(v.name), parseInt(v.quantity || 1, 10), parseInt(v.price, 10), v.unit || 'chai']
           );
         }
       }
     }
 
-    const updatedProd = result.rows[0];
+    // Cập nhật images nếu có truyền vào
+    if (Array.isArray(body.images)) {
+      await query(`DELETE FROM product_images WHERE product_id = $1;`, [id]);
+      for (let i = 0; i < body.images.length; i++) {
+        const img = body.images[i];
+        if (img && (img.url || typeof img === 'string')) {
+          const imgUrl = typeof img === 'string' ? img : img.url;
+          const imgAlt = typeof img === 'object' && img.alt ? img.alt : name;
+          const sortOrder = typeof img === 'object' && img.sortOrder !== undefined ? img.sortOrder : i + 1;
+          const imgId = `pimg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          await query(
+            `INSERT INTO product_images (id, product_id, url, alt, sort_order, image_type, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, true);`,
+            [imgId, id, imgUrl, imgAlt, sortOrder, 'gallery']
+          );
+        }
+      }
+    }
+
+    // Ghi Audit Log nếu có sửa đổi giá
+    if (isPriceChanging) {
+      await writeAuditLog({
+        adminId: session.id,
+        adminUsername: session.username,
+        role: session.role,
+        action: 'PRODUCT_PRICE_UPDATE',
+        entityType: 'PRODUCT',
+        entityId: id,
+        beforeJson: { price: currentProd.price },
+        afterJson: { price: updatedProd.price },
+      });
+    }
+
+    // Ghi Audit Log chung cho cập nhật sản phẩm
+    await writeAuditLog({
+      adminId: session.id,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'PRODUCT_UPDATE',
+      entityType: 'PRODUCT',
+      entityId: id,
+      beforeJson: currentProd,
+      afterJson: updatedProd,
+    });
 
     // Tự động đồng bộ vào file src/data/products.ts để toàn bộ website lập tức hiển thị thông tin mới
     syncProductToStaticFile({
@@ -259,6 +424,21 @@ export async function PUT(request: Request) {
 // DELETE: Xóa sản phẩm
 export async function DELETE(request: Request) {
   try {
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Chưa đăng nhập quản trị.', code: 'UNAUTHORIZED' },
+        { status: 401 }
+      );
+    }
+
+    if (!hasPermission(session, 'products.manage')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền xóa sản phẩm.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -266,10 +446,28 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, error: 'Thiếu ID sản phẩm' }, { status: 400 });
     }
 
+    const currRes = await query(`SELECT * FROM products WHERE id = $1;`, [id]);
+    if (currRes.rows.length === 0) {
+      return NextResponse.json({ success: false, error: 'Không tìm thấy sản phẩm' }, { status: 404 });
+    }
+    const productToDelete = currRes.rows[0];
+
     // Set null trong order_items để không vi phạm ràng buộc khóa ngoại
     await query(`UPDATE order_items SET product_id = NULL WHERE product_id = $1;`, [id]);
     await query(`DELETE FROM product_variants WHERE product_id = $1;`, [id]);
+    await query(`DELETE FROM product_images WHERE product_id = $1;`, [id]);
     await query(`DELETE FROM products WHERE id = $1;`, [id]);
+
+    await writeAuditLog({
+      adminId: session.id,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'PRODUCT_DELETE',
+      entityType: 'PRODUCT',
+      entityId: id,
+      beforeJson: productToDelete,
+      afterJson: null,
+    });
 
     return NextResponse.json({ success: true, message: 'Đã xóa sản phẩm thành công' });
   } catch (error: any) {

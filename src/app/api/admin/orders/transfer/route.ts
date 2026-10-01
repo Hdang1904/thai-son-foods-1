@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { getAdminSession } from '@/lib/auth';
 import { hasPermission } from '@/lib/rbac';
+import { writeAuditLog } from '@/lib/audit';
 import {
   expandComboItems,
   reserveStock,
@@ -167,6 +168,25 @@ export async function POST(req: NextRequest) {
       }
 
       await client.query('COMMIT;');
+
+      await writeAuditLog({
+        adminId: session.id,
+        adminUsername: session.username,
+        role: session.role,
+        action: 'ORDER_TRANSFER_STORE',
+        entityType: 'ORDER',
+        entityId: orderId,
+        storeCode: targetStoreCode,
+        beforeJson: {
+          store_code: currentStoreCode,
+          order_code: order.order_code,
+        },
+        afterJson: {
+          store_code: targetStoreCode,
+          store_name: newStoreName,
+          order_code: order.order_code,
+        },
+      });
 
       return NextResponse.json({
         success: true,

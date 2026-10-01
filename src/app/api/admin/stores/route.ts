@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getAdminSession } from '@/lib/auth';
 import { hasPermission, getStoreScope } from '@/lib/rbac';
+import { writeAuditLog } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,8 +75,19 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Chưa đăng nhập quản trị' }, { status: 401 });
     }
 
+    const canEditAll = hasPermission(session, 'stores.edit_all');
+    const canEditOwn = hasPermission(session, 'stores.edit_own');
+
+    if (!canEditAll && !canEditOwn) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền chỉnh sửa thông tin cửa hàng.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
-    let { code, name, address, phone, province, district, ward, map_url, mapUrl, latitude, longitude, region, group_code, status: storeStatus, notes } = body;
+    let { code } = body;
+    const { name, address, phone, province, district, ward, map_url, mapUrl, latitude, longitude, region, group_code, status: storeStatus, notes } = body;
 
     // Quyền: Cửa hàng chỉ được sửa thông tin của chính mình
     const storeScope = getStoreScope(session);
@@ -86,6 +98,9 @@ export async function PUT(req: NextRequest) {
     if (!code) {
       return NextResponse.json({ success: false, error: 'Thiếu mã cửa hàng (code)' }, { status: 400 });
     }
+
+    const checkRes = await query(`SELECT * FROM stores WHERE code = $1 LIMIT 1;`, [code]);
+    const beforeStore = checkRes.rows[0] || null;
 
     const finalMapUrl = map_url || mapUrl || (latitude && longitude
       ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
@@ -135,10 +150,23 @@ export async function PUT(req: NextRequest) {
       isActive,
     ]);
 
+    const updatedStore = res.rows[0];
+    await writeAuditLog({
+      adminId: session.userId,
+      adminUsername: session.username,
+      role: session.role,
+      action: 'STORE_UPDATE',
+      entityType: 'STORE',
+      entityId: code,
+      storeCode: code,
+      beforeJson: beforeStore,
+      afterJson: updatedStore,
+    });
+
     return NextResponse.json({
       success: true,
       message: `Đã cập nhật thông tin địa chỉ cho cửa hàng ${code} thành công!`,
-      store: res.rows[0],
+      store: updatedStore,
     });
   } catch (error: any) {
     console.error('Error updating store info:', error);

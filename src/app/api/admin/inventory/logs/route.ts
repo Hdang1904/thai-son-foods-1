@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getAdminSession } from '@/lib/auth';
-import { getStoreScope } from '@/lib/rbac';
+import { hasPermission, getStoreScope } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +10,16 @@ export async function GET(req: NextRequest) {
     const session = await getAdminSession();
     if (!session) {
       return NextResponse.json({ success: false, error: 'Chưa đăng nhập quản trị' }, { status: 401 });
+    }
+
+    const canViewAll = hasPermission(session, 'inventory.view_all');
+    const canViewOwn = hasPermission(session, 'inventory.view_own_store');
+
+    if (!canViewAll && !canViewOwn) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền xem nhật ký tồn kho.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
     }
 
     const { searchParams } = new URL(req.url);

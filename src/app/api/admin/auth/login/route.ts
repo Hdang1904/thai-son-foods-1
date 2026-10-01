@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { verifyPassword, signAdminToken, ADMIN_COOKIE_NAME, ADMIN_TOKEN_MAX_AGE_SECONDS } from '@/lib/auth';
+import { writeAuditLog } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +9,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { identifier, password } = body;
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || undefined;
+    const userAgent = req.headers.get('user-agent') || undefined;
 
     if (!identifier || typeof identifier !== 'string' || !identifier.trim()) {
       return NextResponse.json(
@@ -35,6 +38,15 @@ export async function POST(req: NextRequest) {
     );
 
     if (res.rows.length === 0) {
+      await writeAuditLog({
+        adminUsername: cleanIdentifier,
+        action: 'AUTH_LOGIN_FAILED',
+        entityType: 'AUTH',
+        afterJson: { reason: 'USER_NOT_FOUND', identifier: cleanIdentifier },
+        ip,
+        userAgent,
+      });
+
       return NextResponse.json(
         { success: false, error: 'Tài khoản hoặc mật khẩu không chính xác' },
         { status: 401 }
@@ -45,6 +57,18 @@ export async function POST(req: NextRequest) {
 
     // 2. Check if active
     if (!user.is_active) {
+      await writeAuditLog({
+        adminId: user.id,
+        adminUsername: user.username,
+        role: user.role,
+        action: 'AUTH_LOGIN_FAILED',
+        entityType: 'AUTH',
+        storeCode: user.store_code,
+        afterJson: { reason: 'ACCOUNT_LOCKED' },
+        ip,
+        userAgent,
+      });
+
       return NextResponse.json(
         { success: false, error: 'Tài khoản đã bị tạm khóa. Vui lòng liên hệ quản trị viên.' },
         { status: 403 }
@@ -54,6 +78,18 @@ export async function POST(req: NextRequest) {
     // 3. Verify password
     const isPasswordValid = await verifyPassword(password, user.password_hash);
     if (!isPasswordValid) {
+      await writeAuditLog({
+        adminId: user.id,
+        adminUsername: user.username,
+        role: user.role,
+        action: 'AUTH_LOGIN_FAILED',
+        entityType: 'AUTH',
+        storeCode: user.store_code,
+        afterJson: { reason: 'INVALID_PASSWORD' },
+        ip,
+        userAgent,
+      });
+
       return NextResponse.json(
         { success: false, error: 'Tài khoản hoặc mật khẩu không chính xác' },
         { status: 401 }
@@ -76,6 +112,18 @@ export async function POST(req: NextRequest) {
       mustChangePassword: Boolean(user.must_change_password),
     };
     const token = await signAdminToken(payload);
+
+    await writeAuditLog({
+      adminId: user.id,
+      adminUsername: user.username,
+      role: user.role,
+      action: 'AUTH_LOGIN_SUCCESS',
+      entityType: 'AUTH',
+      storeCode: user.store_code,
+      afterJson: { role: user.role, storeCode: user.store_code },
+      ip,
+      userAgent,
+    });
 
     // 5. Response with HttpOnly cookie
     const response = NextResponse.json({
