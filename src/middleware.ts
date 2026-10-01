@@ -6,36 +6,80 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'tsf_super_secret_jwt_key_2026_thai_son_foods'
 );
 
+// Allowlist các route ngoại lệ có chủ đích (webhook cổng thanh toán, cronjob có Bearer token)
+const CSRF_EXEMPT_ROUTES: readonly string[] = [
+  '/api/cron/',
+  '/api/payment/webhook',
+  '/api/webhooks/',
+];
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // 1. Chống tấn công CSRF (Cross-Origin Request Forgery) trên các API quản trị thay đổi dữ liệu
-  if (pathname.startsWith('/api/admin/') && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
-    const origin = req.headers.get('origin');
-    const host = req.headers.get('host');
+  const isStateChanging = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method);
+  if (pathname.startsWith('/api/admin/') && isStateChanging) {
+    const isExempt = CSRF_EXEMPT_ROUTES.some((route) => pathname.startsWith(route));
 
-    if (origin && host) {
-      try {
-        const originUrl = new URL(origin);
-        // Kiểm tra host hoặc x-forwarded-host
-        const forwardedHost = req.headers.get('x-forwarded-host');
-        const allowedHosts = [host, forwardedHost].filter(Boolean);
+    if (!isExempt) {
+      const origin = req.headers.get('origin');
+      const referer = req.headers.get('referer');
+      const host = req.headers.get('host');
+      const forwardedHost = req.headers.get('x-forwarded-host');
+      const allowedHosts = [host, forwardedHost].filter(Boolean) as string[];
 
-        if (!allowedHosts.includes(originUrl.host)) {
+      // Fail-closed: Nếu thiếu cả Origin và Referer -> Từ chối 403
+      if (!origin && !referer) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Yêu cầu bị từ chối do vi phạm chính sách bảo mật CSRF: Thiếu thông tin nguồn gốc (Origin/Referer header required)',
+            code: 'CSRF_BLOCKED',
+          },
+          { status: 403 }
+        );
+      }
+
+      // Nếu có Origin -> Kiểm tra Origin
+      if (origin) {
+        try {
+          const originUrl = new URL(origin);
+          if (!allowedHosts.includes(originUrl.host)) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: 'Yêu cầu bị từ chối do vi phạm chính sách bảo mật CSRF (Origin mismatch)',
+                code: 'CSRF_BLOCKED',
+              },
+              { status: 403 }
+            );
+          }
+        } catch {
           return NextResponse.json(
-            {
-              success: false,
-              error: 'Yêu cầu bị từ chối do vi phạm chính sách bảo mật CSRF (Cross-Origin Request Forbidden)',
-              code: 'CSRF_BLOCKED',
-            },
+            { success: false, error: 'Header Origin không hợp lệ', code: 'CSRF_BLOCKED' },
             { status: 403 }
           );
         }
-      } catch {
-        return NextResponse.json(
-          { success: false, error: 'Header Origin không hợp lệ', code: 'CSRF_BLOCKED' },
-          { status: 403 }
-        );
+      } else if (referer) {
+        // Nếu thiếu Origin nhưng có Referer -> Kiểm tra Referer
+        try {
+          const refererUrl = new URL(referer);
+          if (!allowedHosts.includes(refererUrl.host)) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: 'Yêu cầu bị từ chối do vi phạm chính sách bảo mật CSRF (Referer mismatch)',
+                code: 'CSRF_BLOCKED',
+              },
+              { status: 403 }
+            );
+          }
+        } catch {
+          return NextResponse.json(
+            { success: false, error: 'Header Referer không hợp lệ', code: 'CSRF_BLOCKED' },
+            { status: 403 }
+          );
+        }
       }
     }
   }
