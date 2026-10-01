@@ -196,6 +196,25 @@ export async function GET() {
           ORDER BY d.day ASC;
         `);
 
+    // 8. Profit overview (CHỈ dành riêng cho SUPER_ADMIN với profit.view)
+    const canViewProfit = hasPermission(session, 'profit.view');
+    let profitOverview: any = null;
+    if (canViewProfit) {
+      const profitRes = await query(`
+        SELECT
+          COALESCE(SUM(oi.price * oi.quantity), 0) AS total_revenue,
+          COALESCE(SUM(CASE WHEN oi.cost_price IS NOT NULL THEN (oi.cost_price * oi.quantity) ELSE 0 END), 0) AS total_cost,
+          COALESCE(SUM(CASE WHEN oi.cost_price IS NOT NULL THEN ((oi.price - oi.cost_price) * oi.quantity) ELSE 0 END), 0) AS gross_profit,
+          COUNT(CASE WHEN oi.cost_price IS NULL THEN 1 END) AS missing_cost_items
+        FROM orders o
+        JOIN order_items oi ON oi.order_id = o.id
+        WHERE o.status != 'CANCELLED';
+      `);
+      if (profitRes.rows.length > 0) {
+        profitOverview = profitRes.rows[0];
+      }
+    }
+
     return NextResponse.json({
       success: true,
       storeScope: storeScope || 'ALL',
@@ -208,6 +227,7 @@ export async function GET() {
       recentOrders: recentOrdersRes.rows || [],
       topProducts: topProductsRes.rows || [],
       revenueTrend: last7DaysRes.rows || [],
+      ...(canViewProfit && profitOverview ? { profitOverview } : {}),
       dbStatus: {
         connected: true,
         database: 'WebTSF',

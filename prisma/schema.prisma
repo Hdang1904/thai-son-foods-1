@@ -29,6 +29,7 @@ model Product {
   shortDescription String?          @map("short_description")
   description      String?
   price            Int
+  costPrice        Int?             @default(0) @map("cost_price")
   unit             String           @default("1 chai")
   thumbnail        String
   isFeatured       Boolean          @default(false) @map("is_featured")
@@ -84,6 +85,7 @@ model Combo {
   descriptionEn String?      @map("description_en")
   originalPrice Int          @map("original_price")
   salePrice     Int          @map("sale_price")
+  costPrice     Int?         @default(0) @map("cost_price")
   totalItems    Int          @default(10) @map("total_items")
   discount      Int          @default(0)
   image         String?
@@ -196,6 +198,7 @@ model OrderItem {
   canonicalProductId  String?  @map("canonical_product_id")
   name                String
   price               Int
+  costPrice           Int?     @map("cost_price")
   quantity            Int
   unit                String   @default("1 chai")
   thumbnail           String?

@@ -398,6 +398,11 @@ export async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
       CREATE INDEX IF NOT EXISTS idx_audit_logs_store_code ON audit_logs(store_code);
       CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+
+      -- Phase 4: Cost price and profit reporting
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_price INTEGER DEFAULT 0;
+      ALTER TABLE combos ADD COLUMN IF NOT EXISTS cost_price INTEGER DEFAULT 0;
+      ALTER TABLE order_items ADD COLUMN IF NOT EXISTS cost_price INTEGER;
     `);
 
     console.log('Database tables verified/created successfully!');

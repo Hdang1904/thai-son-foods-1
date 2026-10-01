@@ -150,11 +150,16 @@ export async function POST(request: Request) {
     const id = `combo_${Date.now()}`;
     const slug = slugify(name);
 
+    const canEditCostPrice = hasPermission(session, 'cost_price.edit');
+    const costPriceVal = canEditCostPrice && body.cost_price !== undefined
+      ? Math.max(0, parseInt(body.cost_price, 10) || 0)
+      : 0;
+
     await query(
       `INSERT INTO combos (
         id, slug, name, description, original_price, sale_price,
-        total_items, discount, image, is_featured, is_best_seller, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`,
+        total_items, discount, image, is_featured, is_best_seller, is_active, cost_price
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);`,
       [
         id,
         slug,
@@ -168,6 +173,7 @@ export async function POST(request: Request) {
         Boolean(is_featured),
         Boolean(is_best_seller),
         Boolean(is_active),
+        costPriceVal,
       ]
     );
 
@@ -253,11 +259,20 @@ export async function PUT(request: Request) {
     }
     const currentCombo = currRes.rows[0];
 
-    // Kiểm tra quyền sửa giá
+    // Kiểm tra quyền sửa giá bán
     const isPriceChanging = sale_price !== undefined && parseInt(sale_price, 10) !== currentCombo.sale_price;
     if (isPriceChanging && !hasPermission(session, 'products.manage_price')) {
       return NextResponse.json(
         { success: false, error: 'Bạn không có quyền chỉnh sửa giá combo.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
+    // Kiểm tra quyền sửa giá vốn
+    const isCostPriceChanging = body.cost_price !== undefined && parseInt(body.cost_price, 10) !== currentCombo.cost_price;
+    if (isCostPriceChanging && !hasPermission(session, 'cost_price.edit')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền chỉnh sửa giá vốn combo.', code: 'FORBIDDEN' },
         { status: 403 }
       );
     }
@@ -312,6 +327,10 @@ export async function PUT(request: Request) {
       params.push(Boolean(is_active));
       updates.push(`is_active = $${params.length}`);
     }
+    if (body.cost_price !== undefined && hasPermission(session, 'cost_price.edit')) {
+      params.push(parseInt(body.cost_price, 10));
+      updates.push(`cost_price = $${params.length}`);
+    }
 
     updates.push(`updated_at = CURRENT_TIMESTAMP`);
 
@@ -359,6 +378,19 @@ export async function PUT(request: Request) {
         entityId: id,
         beforeJson: { sale_price: currentCombo.sale_price },
         afterJson: { sale_price },
+      });
+    }
+
+    if (isCostPriceChanging) {
+      await writeAuditLog({
+        adminId: session.id,
+        adminUsername: session.username,
+        role: session.role,
+        action: 'COMBO_COST_UPDATE',
+        entityType: 'COMBO',
+        entityId: id,
+        beforeJson: { cost_price: currentCombo.cost_price },
+        afterJson: { cost_price: parseInt(body.cost_price, 10) },
       });
     }
 

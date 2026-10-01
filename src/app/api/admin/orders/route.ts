@@ -35,6 +35,8 @@ export async function GET(request: Request) {
     const search = searchParams.get('q') || '';
     const queryStoreCode = searchParams.get('storeCode');
 
+    const canViewCostPrice = hasPermission(session, 'cost_price.view');
+
     // 1. Nếu yêu cầu chi tiết 1 đơn hàng (chống IDOR)
     if (orderId) {
       const orderRes = await query(`SELECT * FROM orders WHERE id = $1;`, [orderId]);
@@ -57,16 +59,25 @@ export async function GET(request: Request) {
         [orderId]
       );
 
+      const sanitizedItems = itemsRes.rows.map(item => {
+        if (!canViewCostPrice) {
+          const { cost_price, ...safeItem } = item;
+          return safeItem;
+        }
+        return item;
+      });
+
       return NextResponse.json({
         success: true,
         order: {
           ...orderData,
-          items: itemsRes.rows,
+          items: sanitizedItems,
         },
       });
     }
 
     // 2. Lấy danh sách đơn hàng (bắt buộc ép WHERE store_code = storeScope nếu là STORE_STAFF)
+    const costFieldSql = canViewCostPrice ? `'cost_price', oi.cost_price,` : '';
     let sql = `
       SELECT 
         o.*,
@@ -76,6 +87,7 @@ export async function GET(request: Request) {
             'id', oi.id,
             'name', oi.name,
             'price', oi.price,
+            ${costFieldSql}
             'quantity', oi.quantity,
             'unit', oi.unit,
             'thumbnail', oi.thumbnail,

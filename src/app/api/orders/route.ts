@@ -351,6 +351,8 @@ export async function POST(request: Request) {
         let bottleMultiplier = 1;
         let totalBottlesVal = item.quantity || 1;
 
+        let itemCostPriceSnapshot: number | null = null;
+
         if (rawPId && !rawPId.startsWith('combo-')) {
           const resolved = await resolveProductCanonical(rawPId, item.name, client);
           if (resolved) {
@@ -365,12 +367,24 @@ export async function POST(request: Request) {
             };
             bottleMultiplier = extractMult(rawPId, item.unit, item.name);
             totalBottlesVal = bottleMultiplier * (item.quantity || 1);
+
+            // Snapshot giá vốn sản phẩm nhân với hệ số quy cách
+            const prodCostRes = await client.query('SELECT cost_price FROM products WHERE id = $1 LIMIT 1;', [resolved.id]);
+            if (prodCostRes.rows.length > 0 && prodCostRes.rows[0].cost_price !== null && prodCostRes.rows[0].cost_price !== undefined) {
+              itemCostPriceSnapshot = (Number(prodCostRes.rows[0].cost_price) || 0) * bottleMultiplier;
+            }
+          }
+        } else if (rawPId && (rawPId.startsWith('combo-') || rawPId.includes('combo'))) {
+          // Snapshot giá vốn combo
+          const comboCostRes = await client.query('SELECT cost_price FROM combos WHERE id = $1 OR slug = $1 LIMIT 1;', [rawPId]);
+          if (comboCostRes.rows.length > 0 && comboCostRes.rows[0].cost_price !== null && comboCostRes.rows[0].cost_price !== undefined) {
+            itemCostPriceSnapshot = Number(comboCostRes.rows[0].cost_price) || 0;
           }
         }
 
         await client.query(
-          `INSERT INTO order_items (id, order_id, product_id, name, price, quantity, unit, thumbnail, combo_snapshot, canonical_product_id, bottle_multiplier, total_bottles)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          `INSERT INTO order_items (id, order_id, product_id, name, price, quantity, unit, thumbnail, combo_snapshot, canonical_product_id, bottle_multiplier, total_bottles, cost_price)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           [
             itemId,
             orderId,
@@ -384,6 +398,7 @@ export async function POST(request: Request) {
             canonicalProductId,
             bottleMultiplier,
             totalBottlesVal,
+            itemCostPriceSnapshot,
           ]
         );
       }

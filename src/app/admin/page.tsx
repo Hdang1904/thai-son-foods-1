@@ -155,6 +155,7 @@ interface Product {
   short_description: string | null;
   description: string | null;
   price: number;
+  cost_price?: number | null;
   unit: string;
   thumbnail: string;
   category_id: string | null;
@@ -175,6 +176,7 @@ interface OrderItem {
   product_id: string | null;
   name: string;
   price: number;
+  cost_price?: number | null;
   quantity: number;
   unit: string;
   thumbnail: string | null;
@@ -227,6 +229,7 @@ interface Combo {
   description_en?: string | null;
   original_price: number;
   sale_price: number;
+  cost_price?: number | null;
   total_items: number;
   discount: number;
   image: string | null;
@@ -388,6 +391,12 @@ export default function AdminPage() {
   const [selectedAuditLog, setSelectedAuditLog] = useState<any | null>(null);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Profit Reporting (Super Admin only - profit.view)
+  const [profitGroupBy, setProfitGroupBy] = useState<'day' | 'month' | 'product' | 'store'>('day');
+  const [profitStoreFilter, setProfitStoreFilter] = useState('ALL');
+  const [profitData, setProfitData] = useState<any>(null);
+  const [profitLoading, setProfitLoading] = useState(false);
 
   // Customer Member Management
   const [members, setMembers] = useState<MemberUser[]>([]);
@@ -695,6 +704,55 @@ export default function AdminPage() {
     showToast(`Đã xuất ${auditLogs.length} dòng nhật ký sang CSV!`);
   };
 
+  // Tải báo cáo lợi nhuận gộp (Chỉ SUPER_ADMIN với profit.view)
+  const fetchProfitReport = async () => {
+    if (!currentUser || !hasPermission(currentUser, 'profit.view')) return;
+    setProfitLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('groupBy', profitGroupBy);
+      if (profitStoreFilter !== 'ALL') params.set('storeCode', profitStoreFilter);
+      const res = await fetch(`/api/admin/reports/profit?${params.toString()}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success) {
+        setProfitData(data);
+      }
+    } catch (err) {
+      console.error('Error fetching profit report:', err);
+    } finally {
+      setProfitLoading(false);
+    }
+  };
+
+  // Xuất file CSV báo cáo lợi nhuận
+  const handleExportProfitCSV = () => {
+    if (!profitData?.breakdown || profitData.breakdown.length === 0) {
+      showToast('Không có dữ liệu lợi nhuận để xuất CSV', 'error');
+      return;
+    }
+    const headers = ['Tiêu chí / Đối tượng', 'Số đơn / Số lượng bán', 'Doanh thu (VNĐ)', 'Giá vốn (VNĐ)', 'Lợi nhuận gộp (VNĐ)', 'Tỷ suất (%)', 'Số mục chưa có giá vốn'];
+    const rows = profitData.breakdown.map((r: any) => [
+      `"${r.label || r.name || r.store_name || r.period || ''}"`,
+      r.orders_count !== undefined ? r.orders_count : r.quantity_sold,
+      r.revenue,
+      r.cost,
+      r.profit,
+      `${r.margin}%`,
+      r.missing_cost_items || 0,
+    ]);
+    const csvContent =
+      'data:text/csv;charset=utf-8,\uFEFF' +
+      [headers.join(','), ...rows.map((e: any[]) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `WebTSF_Loi_Nhuan_${profitGroupBy}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Đã xuất báo cáo lợi nhuận sang CSV thành công!');
+  };
+
   // Fetch inventory for store
   const fetchInventory = async (storeCode?: string) => {
     setInventoryLoading(true);
@@ -802,6 +860,8 @@ export default function AdminPage() {
       fetchBannersAndSlides();
     } else if (activeTab === 'audit' && hasPermission(currentUser, 'audit.view')) {
       fetchAuditLogs(1);
+    } else if (activeTab === 'analytics' && hasPermission(currentUser, 'profit.view')) {
+      fetchProfitReport();
     }
   }, [activeTab]);
 
@@ -811,6 +871,13 @@ export default function AdminPage() {
       fetchAuditLogs(1);
     }
   }, [auditActionFilter, auditStoreFilter]);
+
+  // Tự động tải lại báo cáo lợi nhuận khi đổi bộ lọc
+  useEffect(() => {
+    if (activeTab === 'analytics' && hasPermission(currentUser, 'profit.view')) {
+      fetchProfitReport();
+    }
+  }, [profitGroupBy, profitStoreFilter]);
 
   // Helper tải ảnh lên máy chủ qua /api/admin/upload
   const handleUploadImageFile = async (
@@ -3048,8 +3115,15 @@ export default function AdminPage() {
                               {p.category_name || 'Chưa phân loại'}
                             </span>
                           </td>
-                          <td className="py-3 px-4 font-bold text-emerald-400 text-sm">
-                            {formatVND(p.price)}
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-emerald-400 text-sm">
+                              {formatVND(p.price)}
+                            </div>
+                            {hasPermission(currentUser, 'cost_price.view') && (
+                              <div className="text-[10px] text-amber-400/90 font-mono mt-0.5">
+                                Vốn: {p.cost_price ? formatVND(p.cost_price) : '0 ₫'}
+                              </div>
+                            )}
                           </td>
                           <td className="py-3 px-4">
                             <div className="flex flex-wrap items-center gap-1.5">
@@ -3269,8 +3343,15 @@ export default function AdminPage() {
                             </td>
 
                             {/* Sale Price */}
-                            <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400 text-sm">
-                              {formatVND(c.sale_price)}
+                            <td className="py-3 px-4 text-right">
+                              <div className="font-mono font-bold text-emerald-400 text-sm">
+                                {formatVND(c.sale_price)}
+                              </div>
+                              {hasPermission(currentUser, 'cost_price.view') && (
+                                <div className="text-[10px] text-amber-400/90 font-mono mt-0.5">
+                                  Vốn: {c.cost_price ? formatVND(c.cost_price) : '0 ₫'}
+                                </div>
+                              )}
                             </td>
 
                             {/* Savings */}
@@ -3941,6 +4022,237 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
+
+              {/* ======================================================== */}
+              {/* BÁO CÁO LỢI NHUẬN GỘP & GIÁ VỐN (CHỈ DÀNH CHO SUPER_ADMIN) */}
+              {/* ======================================================== */}
+              {hasPermission(currentUser, 'profit.view') && (
+                <div className="p-6 rounded-2xl bg-gradient-to-r from-amber-950/20 via-slate-900 to-indigo-950/20 border border-amber-500/30 space-y-6">
+                  {/* Header & Controls */}
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                        <DollarSign className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-bold text-white">Báo Cáo Lợi Nhuận Gộp & Phân Tích Giá Vốn</h3>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                            Super Admin
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Tự động tính từ snapshot giá vốn tại thời điểm đặt hàng. Đơn cũ chưa có vốn được ghi nhận minh bạch riêng.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Group By Selector */}
+                      <div className="flex rounded-xl bg-slate-950 p-1 border border-slate-800">
+                        {[
+                          { id: 'day', label: 'Theo Ngày' },
+                          { id: 'month', label: 'Theo Tháng' },
+                          { id: 'product', label: 'Theo Sản Phẩm' },
+                          { id: 'store', label: 'Theo Cửa Hàng' },
+                        ].map((gb) => (
+                          <button
+                            key={gb.id}
+                            type="button"
+                            onClick={() => setProfitGroupBy(gb.id as any)}
+                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                              profitGroupBy === gb.id
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            {gb.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Store Filter */}
+                      <select
+                        value={profitStoreFilter}
+                        onChange={(e) => setProfitStoreFilter(e.target.value)}
+                        className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500 cursor-pointer"
+                      >
+                        <option value="ALL">Toàn công ty</option>
+                        {storeList.map((s) => (
+                          <option key={s.code} value={s.code}>
+                            {s.code} - {s.name}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Refresh */}
+                      <button
+                        type="button"
+                        onClick={fetchProfitReport}
+                        disabled={profitLoading}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                        title="Tải lại báo cáo"
+                      >
+                        <RefreshCw className={`w-4 h-4 text-amber-400 ${profitLoading ? 'animate-spin' : ''}`} />
+                      </button>
+
+                      {/* Export CSV */}
+                      <button
+                        type="button"
+                        onClick={handleExportProfitCSV}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/30 transition-all cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Xuất CSV Lợi Nhuận</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Profit Overview Cards */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                      <p className="text-[11px] font-medium text-slate-400">Doanh Thu Ghi Nhận</p>
+                      <p className="text-lg font-black text-white mt-1">
+                        {formatVND(profitData?.summary?.totalRevenue || 0)}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-1">{profitData?.summary?.totalOrders || 0} đơn hàng thành công</p>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-slate-950/80 border border-amber-900/30">
+                      <p className="text-[11px] font-medium text-amber-400/90">Tổng Giá Vốn (COGS)</p>
+                      <p className="text-lg font-black text-amber-300 mt-1">
+                        {formatVND(profitData?.summary?.totalCost || 0)}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-1">{profitData?.summary?.itemsWithCost || 0} mục có giá vốn</p>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-slate-950/80 border border-emerald-900/30">
+                      <p className="text-[11px] font-medium text-emerald-400">Lợi Nhuận Gộp (Gross Profit)</p>
+                      <p className="text-lg font-black text-emerald-400 mt-1">
+                        {formatVND(profitData?.summary?.grossProfit || 0)}
+                      </p>
+                      <p className="text-[10px] text-emerald-400/70 mt-1">Doanh thu - Giá vốn</p>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-slate-950/80 border border-cyan-900/30">
+                      <p className="text-[11px] font-medium text-cyan-400">Tỷ Suất Lợi Nhuận Gộp</p>
+                      <p className="text-lg font-black text-cyan-300 mt-1">
+                        {profitData?.summary?.marginPercent || 0}%
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-1">Trên danh mục có giá vốn</p>
+                    </div>
+                  </div>
+
+                  {/* Alert banner if historical items lack cost data */}
+                  {profitData?.summary?.hasMissingCostData && (
+                    <div className="p-3.5 rounded-xl bg-amber-950/30 border border-amber-500/30 flex items-start gap-3">
+                      <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                      <div className="text-xs text-amber-200">
+                        <span className="font-bold text-amber-300">Lưu ý dữ liệu lịch sử: </span>
+                        <span>{profitData?.summary?.note} </span>
+                        <span>Doanh thu các mục này: <strong className="font-mono text-white">{formatVND(profitData?.summary?.revenueWithoutCost || 0)}</strong>.</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Breakdown Table */}
+                  <div className="rounded-xl bg-slate-950 border border-slate-800 overflow-hidden">
+                    <div className="p-3.5 border-b border-slate-800 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-200">
+                        Chi Tiết Lợi Nhuận {
+                          profitGroupBy === 'day' ? 'Theo Ngày' :
+                          profitGroupBy === 'month' ? 'Theo Tháng' :
+                          profitGroupBy === 'product' ? 'Theo Sản Phẩm' : 'Theo Cửa Hàng'
+                        }
+                      </span>
+                      <span className="text-[11px] font-mono text-slate-400">
+                        {profitData?.breakdown?.length || 0} bản ghi
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs text-slate-300">
+                        <thead className="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
+                          <tr>
+                            <th className="py-2.5 px-4">
+                              {profitGroupBy === 'product' ? 'Sản Phẩm' : profitGroupBy === 'store' ? 'Chi Nhánh' : 'Thời Gian'}
+                            </th>
+                            <th className="py-2.5 px-4 text-center">
+                              {profitGroupBy === 'product' ? 'Số Lượng Bán' : 'Số Đơn'}
+                            </th>
+                            <th className="py-2.5 px-4 text-right">Doanh Thu</th>
+                            <th className="py-2.5 px-4 text-right">Giá Vốn</th>
+                            <th className="py-2.5 px-4 text-right">Lợi Nhuận Gộp</th>
+                            <th className="py-2.5 px-4 text-center">Tỷ Suất (%)</th>
+                            <th className="py-2.5 px-4 text-center">Dữ Liệu Giá Vốn</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60">
+                          {profitLoading ? (
+                            <tr>
+                              <td colSpan={7} className="py-8 text-center text-slate-500">
+                                <RefreshCw className="w-5 h-5 animate-spin mx-auto text-amber-400 mb-2" />
+                                <span>Đang tính toán báo cáo lợi nhuận...</span>
+                              </td>
+                            </tr>
+                          ) : !profitData?.breakdown || profitData.breakdown.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="py-8 text-center text-slate-500">
+                                Không có dữ liệu đơn hàng trong phạm vi được chọn.
+                              </td>
+                            </tr>
+                          ) : (
+                            profitData.breakdown.map((row: any, idx: number) => (
+                              <tr key={idx} className="hover:bg-slate-900/40 transition-colors">
+                                <td className="py-3 px-4 font-semibold text-white">
+                                  {row.label || row.name || row.store_name || row.period}
+                                  {row.store_code && profitGroupBy === 'store' && (
+                                    <span className="ml-2 font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                                      {row.store_code}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 text-center font-mono text-slate-300">
+                                  {row.orders_count !== undefined ? row.orders_count : row.quantity_sold}
+                                </td>
+                                <td className="py-3 px-4 text-right font-mono font-bold text-white">
+                                  {formatVND(row.revenue)}
+                                </td>
+                                <td className="py-3 px-4 text-right font-mono text-amber-300">
+                                  {formatVND(row.cost)}
+                                </td>
+                                <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400">
+                                  {formatVND(row.profit)}
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    row.margin >= 30 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                    row.margin > 0 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                                    'bg-slate-800 text-slate-400'
+                                  }`}>
+                                    {row.margin}%
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  {row.missing_cost_items > 0 ? (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-950/60 text-amber-400 border border-amber-800/40" title={`${row.missing_cost_items} mục chưa có vốn`}>
+                                      Chưa đủ ({row.missing_cost_items})
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-950/60 text-emerald-400 border border-emerald-800/40">
+                                      ✓ Đầy đủ
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -5490,6 +5802,34 @@ export default function AdminPage() {
                   />
                 </div>
 
+                {/* Giá vốn */}
+                {hasPermission(currentUser, 'cost_price.view') && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-amber-300">
+                        Giá vốn (VNĐ)
+                      </label>
+                      {!hasPermission(currentUser, 'cost_price.edit') && (
+                        <span className="text-[10px] text-slate-400 font-medium">Chỉ xem</span>
+                      )}
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000}
+                      disabled={!hasPermission(currentUser, 'cost_price.edit')}
+                      value={editingProduct.cost_price || 0}
+                      onChange={(e) =>
+                        setEditingProduct({ ...editingProduct, cost_price: parseInt(e.target.value, 10) || 0 })
+                      }
+                      placeholder="0"
+                      className={`w-full bg-slate-950 border border-amber-900/50 rounded-xl px-3.5 py-2 text-xs text-amber-200 focus:outline-none focus:border-amber-500 ${
+                        !hasPermission(currentUser, 'cost_price.edit') ? 'opacity-60 cursor-not-allowed bg-slate-900' : ''
+                      }`}
+                    />
+                  </div>
+                )}
+
                 {/* Đơn vị tính */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Đơn vị tính</label>
@@ -5966,6 +6306,34 @@ export default function AdminPage() {
                     }`}
                   />
                 </div>
+
+                {/* Giá vốn combo */}
+                {hasPermission(currentUser, 'cost_price.view') && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-amber-300">
+                        Giá Vốn Combo (VNĐ)
+                      </label>
+                      {!hasPermission(currentUser, 'cost_price.edit') && (
+                        <span className="text-[10px] text-slate-400 font-medium">Chỉ xem</span>
+                      )}
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000}
+                      disabled={!hasPermission(currentUser, 'cost_price.edit')}
+                      value={editingCombo.cost_price || 0}
+                      onChange={(e) =>
+                        setEditingCombo({ ...editingCombo, cost_price: parseInt(e.target.value, 10) || 0 })
+                      }
+                      placeholder="0"
+                      className={`w-full bg-slate-950 border border-amber-900/50 rounded-xl px-3.5 py-2 text-xs text-amber-200 focus:outline-none focus:border-amber-500 ${
+                        !hasPermission(currentUser, 'cost_price.edit') ? 'opacity-60 cursor-not-allowed bg-slate-900' : ''
+                      }`}
+                    />
+                  </div>
+                )}
 
                 {/* Tỷ lệ giảm giá % */}
                 <div>

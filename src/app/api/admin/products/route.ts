@@ -165,11 +165,16 @@ export async function POST(request: Request) {
     const slug = `${baseSlug}-${uniqueSuffix}`;
     const id = `prod_${Date.now()}`;
 
+    const canEditCostPrice = hasPermission(session, 'cost_price.edit');
+    const costPriceVal = canEditCostPrice && body.cost_price !== undefined
+      ? Math.max(0, parseInt(body.cost_price, 10) || 0)
+      : 0;
+
     const insertSql = `
       INSERT INTO products (
         id, slug, name, sku, short_description, description, price, unit, thumbnail,
-        category_id, is_featured, is_new, is_best_seller, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        category_id, is_featured, is_new, is_best_seller, is_active, cost_price
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *;
     `;
 
@@ -188,6 +193,7 @@ export async function POST(request: Request) {
       Boolean(is_new),
       Boolean(is_best_seller),
       Boolean(is_active),
+      costPriceVal,
     ];
 
     const result = await query(insertSql, values);
@@ -282,11 +288,20 @@ export async function PUT(request: Request) {
     }
     const currentProd = currRes.rows[0];
 
-    // Kiểm tra quyền sửa giá
+    // Kiểm tra quyền sửa giá bán
     const isPriceChanging = price !== undefined && parseInt(price, 10) !== currentProd.price;
     if (isPriceChanging && !hasPermission(session, 'products.manage_price')) {
       return NextResponse.json(
         { success: false, error: 'Bạn không có quyền chỉnh sửa giá sản phẩm.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
+    // Kiểm tra quyền sửa giá vốn
+    const isCostPriceChanging = body.cost_price !== undefined && parseInt(body.cost_price, 10) !== currentProd.cost_price;
+    if (isCostPriceChanging && !hasPermission(session, 'cost_price.edit')) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn không có quyền chỉnh sửa giá vốn sản phẩm.', code: 'FORBIDDEN' },
         { status: 403 }
       );
     }
@@ -312,7 +327,8 @@ export async function PUT(request: Request) {
         is_featured = COALESCE($10, is_featured),
         is_new = COALESCE($11, is_new),
         is_best_seller = COALESCE($12, is_best_seller),
-        is_active = COALESCE($13, is_active)
+        is_active = COALESCE($13, is_active),
+        cost_price = COALESCE($14, cost_price)
       WHERE id = $1
       RETURNING *;
     `;
@@ -331,6 +347,7 @@ export async function PUT(request: Request) {
       is_new !== undefined ? Boolean(is_new) : null,
       is_best_seller !== undefined ? Boolean(is_best_seller) : null,
       is_active !== undefined ? Boolean(is_active) : null,
+      body.cost_price !== undefined && hasPermission(session, 'cost_price.edit') ? parseInt(body.cost_price, 10) : null,
     ];
 
     const result = await query(updateSql, values);
@@ -381,6 +398,20 @@ export async function PUT(request: Request) {
         entityId: id,
         beforeJson: { price: currentProd.price },
         afterJson: { price: updatedProd.price },
+      });
+    }
+
+    // Ghi Audit Log nếu có sửa đổi giá vốn
+    if (isCostPriceChanging) {
+      await writeAuditLog({
+        adminId: session.id,
+        adminUsername: session.username,
+        role: session.role,
+        action: 'PRODUCT_COST_UPDATE',
+        entityType: 'PRODUCT',
+        entityId: id,
+        beforeJson: { cost_price: currentProd.cost_price },
+        afterJson: { cost_price: updatedProd.cost_price },
       });
     }
 
