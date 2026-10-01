@@ -132,3 +132,83 @@ export function recordFailedLogin(key: string): {
 export function resetLoginRateLimit(key: string): void {
   rateLimitStore.delete(key);
 }
+
+interface GenericRateLimitRecord {
+  count: number;
+  resetAt: number;
+}
+const genericRateLimitStore = new Map<string, GenericRateLimitRecord>();
+
+/**
+ * Kiểm tra giới hạn tần suất request chung (Sliding/Fixed window theo IP hoặc Key)
+ */
+export function checkRequestRateLimit(
+  key: string,
+  maxRequests = 10,
+  windowMs = 60 * 1000
+): { isBlocked: boolean; remaining: number; resetInSeconds: number } {
+  const now = Date.now();
+  let record = genericRateLimitStore.get(key);
+
+  if (!record || record.resetAt <= now) {
+    record = { count: 1, resetAt: now + windowMs };
+    genericRateLimitStore.set(key, record);
+    return { isBlocked: false, remaining: maxRequests - 1, resetInSeconds: Math.ceil(windowMs / 1000) };
+  }
+
+  record.count += 1;
+  const resetInSeconds = Math.max(1, Math.ceil((record.resetAt - now) / 1000));
+
+  if (record.count > maxRequests) {
+    return { isBlocked: true, remaining: 0, resetInSeconds };
+  }
+
+  return { isBlocked: false, remaining: maxRequests - record.count, resetInSeconds };
+}
+
+interface FailedTrackingRecord {
+  failedCount: number;
+  blockedUntil: number | null;
+}
+const trackingFailedStore = new Map<string, FailedTrackingRecord>();
+const TRACKING_MAX_FAILED = 5;
+const TRACKING_BLOCK_MS = 60 * 60 * 1000; // 1 giờ
+
+/**
+ * Kiểm tra xem một mã đơn hàng có đang bị khóa tra cứu do dò sai SĐT nhiều lần hay không.
+ */
+export function isTrackingCodeBlocked(code: string): { isBlocked: boolean; remainingSeconds: number } {
+  const now = Date.now();
+  const record = trackingFailedStore.get(code.toUpperCase());
+  if (!record || !record.blockedUntil) return { isBlocked: false, remainingSeconds: 0 };
+  if (record.blockedUntil <= now) {
+    trackingFailedStore.delete(code.toUpperCase());
+    return { isBlocked: false, remainingSeconds: 0 };
+  }
+  return { isBlocked: true, remainingSeconds: Math.ceil((record.blockedUntil - now) / 1000) };
+}
+
+/**
+ * Ghi nhận một lần dò sai SĐT cho mã đơn hàng.
+ */
+export function recordFailedTrackingAttempt(code: string): { isBlocked: boolean; remainingSeconds: number } {
+  const now = Date.now();
+  const normalizedKey = code.toUpperCase();
+  let record = trackingFailedStore.get(normalizedKey);
+
+  if (!record) {
+    record = { failedCount: 1, blockedUntil: null };
+  } else {
+    record.failedCount += 1;
+  }
+
+  if (record.failedCount >= TRACKING_MAX_FAILED) {
+    record.blockedUntil = now + TRACKING_BLOCK_MS;
+    trackingFailedStore.set(normalizedKey, record);
+    return { isBlocked: true, remainingSeconds: Math.ceil(TRACKING_BLOCK_MS / 1000) };
+  }
+
+  trackingFailedStore.set(normalizedKey, record);
+  return { isBlocked: false, remainingSeconds: 0 };
+}
+

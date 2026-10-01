@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { query, initDatabase, pool } from '@/lib/db';
 import { getUserSession } from '@/lib/auth';
 import { sendOrderEmail } from '@/lib/email/service';
+import { checkRequestRateLimit, isTrackingCodeBlocked, recordFailedTrackingAttempt } from '@/lib/rateLimit';
 
 export async function POST(request: Request) {
   try {
@@ -490,37 +491,141 @@ export async function POST(request: Request) {
   }
 }
 
-// GET: Tra cứu thông tin & tiến trình đơn hàng công khai bằng mã đơn (Order Tracking)
+function normalizePhone(p: string): string {
+  let clean = p.replace(/[\s\-\.]/g, '');
+  if (clean.startsWith('+84')) clean = '0' + clean.slice(3);
+  else if (clean.startsWith('84') && clean.length > 9) clean = '0' + clean.slice(2);
+  return clean;
+}
+
+function maskPhoneNumber(p: string | null | undefined): string | null {
+  if (!p) return null;
+  const clean = p.replace(/\s+/g, '');
+  if (clean.length < 7) return '****';
+  return clean.substring(0, 3) + '****' + clean.substring(clean.length - 3);
+}
+
+function maskFullName(name: string | null | undefined): string {
+  if (!name) return 'Khách hàng';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].charAt(0) + '***';
+  if (parts.length === 2) return `${parts[0].charAt(0)}. ${parts[1]}`;
+  return `${parts[0].charAt(0)}. ${parts.slice(1, -1).map(p => p.charAt(0) + '.').join(' ')} ${parts[parts.length - 1]}`;
+}
+
+function maskAddress(order: any): string {
+  const parts = [order.ward, order.district, order.province].filter(Boolean);
+  if (parts.length > 0) return parts.join(', ');
+  return 'Khu vực giao hàng đã xác nhận';
+}
+
+// GET: Tra cứu thông tin & tiến trình đơn hàng bảo mật (Anti-IDOR & PII Protected)
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const code = (searchParams.get('code') || searchParams.get('orderCode') || '').trim();
-    const phone = (searchParams.get('phone') || '').trim();
+    const rawPhone = (searchParams.get('phone') || '').trim();
 
-    if (!code) {
+    // 0. Xác thực người dùng hiện tại (nếu có đăng nhập)
+    let userSession = null;
+    try {
+      userSession = await getUserSession();
+    } catch {
+      userSession = null;
+    }
+
+    // 1. Nếu người dùng đăng nhập xem đơn chính mình
+    if (userSession?.id && code) {
+      const userOrderRes = await query(
+        `SELECT * FROM orders WHERE (order_code = $1 OR id = $1) AND user_id = $2 LIMIT 1;`,
+        [code, userSession.id]
+      );
+      if (userOrderRes.rows.length > 0) {
+        const order = userOrderRes.rows[0];
+        const itemsRes = await query(
+          `SELECT * FROM order_items WHERE order_id = $1 ORDER BY id ASC;`,
+          [order.id]
+        );
+        return NextResponse.json({
+          success: true,
+          isOwner: true,
+          order: {
+            id: order.id,
+            orderCode: order.order_code,
+            fullName: order.full_name,
+            phone: order.phone,
+            email: order.email,
+            address: order.address,
+            province: order.province,
+            district: order.district,
+            ward: order.ward,
+            paymentMethod: order.payment_method || 'Thanh toán tiền mặt khi nhận hàng (COD)',
+            shippingFee: order.shipping_fee,
+            subtotal: order.subtotal,
+            total: order.total,
+            status: order.status,
+            storeCode: order.store_code,
+            storeAddress: order.store_address,
+            createdAt: order.created_at,
+            items: itemsRes.rows.map((it: any) => ({
+              id: it.id,
+              name: it.name,
+              price: it.price,
+              quantity: it.quantity,
+              unit: it.unit,
+              thumbnail: it.thumbnail,
+            })),
+          },
+        });
+      }
+    }
+
+    // 2. Tra cứu công khai (YÊU CẦU CẢ MÃ ĐƠN VÀ SỐ ĐIỆN THOẠI)
+    if (!code || !rawPhone) {
       return NextResponse.json(
-        { success: false, error: 'Vui lòng cung cấp mã đơn hàng cần tra cứu' },
+        { success: false, error: 'Vui lòng cung cấp cả mã đơn hàng và số điện thoại đặt hàng để tra cứu' },
         { status: 400 }
       );
     }
 
-    let sql = `SELECT * FROM orders WHERE order_code = $1 OR id = $1 LIMIT 1;`;
-    let params: any[] = [code];
-
-    if (phone) {
-      sql = `SELECT * FROM orders WHERE (order_code = $1 OR id = $1) AND (phone = $2 OR phone LIKE '%' || $2) LIMIT 1;`;
-      params = [code, phone];
+    // 3. Kiểm tra Rate Limiting (10 req/phút/IP và chống brute force dò theo mã đơn)
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
+    const ipRate = checkRequestRateLimit(`track:ip:${ip}`, 10, 60 * 1000);
+    if (ipRate.isBlocked) {
+      return NextResponse.json(
+        { success: false, error: 'Bạn đã thực hiện quá nhiều yêu cầu tra cứu. Vui lòng thử lại sau.' },
+        { status: 429 }
+      );
     }
 
-    const orderRes = await query(sql, params);
-    if (orderRes.rows.length === 0) {
+    const codeBlocked = isTrackingCodeBlocked(code);
+    if (codeBlocked.isBlocked) {
       return NextResponse.json(
-        { success: false, error: 'Không tìm thấy đơn hàng với thông tin đã cung cấp' },
+        { success: false, error: `Mã đơn hàng tạm thời bị khóa tra cứu do nhập sai quá nhiều lần. Vui lòng thử lại sau ${codeBlocked.remainingSeconds} giây.` },
+        { status: 429 }
+      );
+    }
+
+    // 4. Tìm đơn theo code và so khớp phone đã chuẩn hóa
+    const orderRes = await query(
+      `SELECT * FROM orders WHERE order_code = $1 OR id = $1 LIMIT 1;`,
+      [code]
+    );
+
+    const inputPhoneClean = normalizePhone(rawPhone);
+    const order = orderRes.rows[0];
+    const orderPhoneClean = order ? normalizePhone(order.phone || '') : '';
+
+    // Khi sai phone hoặc không tìm thấy, trả CÙNG một thông báo và status 404 chung để tránh dò mã đơn
+    if (!order || orderPhoneClean !== inputPhoneClean) {
+      recordFailedTrackingAttempt(code);
+      return NextResponse.json(
+        { success: false, error: 'Không tìm thấy thông tin đơn hàng phù hợp.' },
         { status: 404 }
       );
     }
 
-    const order = orderRes.rows[0];
+    // 5. Trả về dữ liệu công khai đã được CHE MỜ thông tin nhạy cảm (PII Masked)
     const itemsRes = await query(
       `SELECT * FROM order_items WHERE order_id = $1 ORDER BY id ASC;`,
       [order.id]
@@ -528,13 +633,14 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
+      isOwner: false,
       order: {
         id: order.id,
         orderCode: order.order_code,
-        fullName: order.full_name,
-        phone: order.phone,
-        email: order.email,
-        address: order.address,
+        fullName: maskFullName(order.full_name),
+        phone: maskPhoneNumber(order.phone),
+        email: null, // Không lộ email ở tra cứu công khai
+        address: maskAddress(order), // Ẩn số nhà, tên đường chi tiết
         province: order.province,
         district: order.district,
         ward: order.ward,
@@ -559,7 +665,7 @@ export async function GET(request: Request) {
   } catch (error: any) {
     console.error('Order tracking API error:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Lỗi khi tra cứu đơn hàng' },
+      { success: false, error: 'Lỗi khi tra cứu thông tin đơn hàng' },
       { status: 500 }
     );
   }
