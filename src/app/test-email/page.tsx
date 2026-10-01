@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Clock,
   ShieldCheck,
+  ShieldAlert,
   Truck,
   Sparkles,
   ArrowRight,
@@ -48,6 +49,9 @@ export default function EmailTestingStudio() {
   const [logs, setLogs] = useState<EmailLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
+  const [authError, setAuthError] = useState<string | null>(
+    process.env.NODE_ENV === 'production' ? 'not_found' : null
+  );
 
   const tabConfigs = {
     confirmation: {
@@ -79,9 +83,25 @@ export default function EmailTestingStudio() {
   const currentTab = tabConfigs[activeTab];
 
   const fetchLogs = async () => {
+    if (process.env.NODE_ENV === 'production') {
+      setAuthError('not_found');
+      return;
+    }
     setLoadingLogs(true);
     try {
       const res = await fetch('/api/test-email/logs');
+      if (res.status === 404) {
+        setAuthError('not_found');
+        return;
+      }
+      if (res.status === 401) {
+        setAuthError('unauthorized');
+        return;
+      }
+      if (res.status === 403) {
+        setAuthError('forbidden');
+        return;
+      }
       const data = await res.json();
       if (data.success && Array.isArray(data.logs)) {
         setLogs(data.logs);
@@ -141,6 +161,45 @@ export default function EmailTestingStudio() {
       setSending(false);
     }
   };
+
+  if (process.env.NODE_ENV === 'production' || authError === 'not_found') {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="text-center max-w-md bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+          <h1 className="text-5xl font-black text-slate-800 mb-2">404</h1>
+          <p className="text-slate-600 font-medium mb-4">Trang không tồn tại hoặc đã bị vô hiệu hóa.</p>
+          <Link
+            href="/"
+            className="inline-block px-4 py-2 bg-[#005A34] text-white rounded-lg text-sm font-semibold hover:bg-[#004829] transition-colors"
+          >
+            Về trang chủ
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (authError === 'unauthorized' || authError === 'forbidden') {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="text-center max-w-md bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+          <ShieldAlert className="w-12 h-12 text-rose-500 mx-auto mb-3" />
+          <h2 className="text-lg font-bold text-slate-900 mb-1">Truy cập bị từ chối</h2>
+          <p className="text-xs text-slate-500 mb-4">
+            {authError === 'unauthorized'
+              ? 'Yêu cầu đăng nhập tài khoản quản trị SUPER_ADMIN để truy cập công cụ này.'
+              : 'Tài khoản của bạn không có quyền thực thi công cụ kiểm thử hệ thống.'}
+          </p>
+          <Link
+            href="/admin/login"
+            className="inline-block px-4 py-2 bg-[#005A34] text-white rounded-lg text-xs font-bold hover:bg-[#004829] transition-colors"
+          >
+            Đăng nhập quản trị
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F4F6F4] text-slate-800 flex flex-col">

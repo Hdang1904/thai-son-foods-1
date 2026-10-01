@@ -7,6 +7,8 @@ import {
 } from '@/lib/email/templates';
 import { sendOrderEmail, EmailType } from '@/lib/email/service';
 import { query } from '@/lib/db';
+import { getAdminSession } from '@/lib/auth';
+import { requirePermission } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +55,16 @@ export const mockTestOrder: OrderEmailData = {
 
 // GET: Trả về trực tiếp HTML để render preview trên iframe hoặc tab mới
 export async function GET(req: NextRequest) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not Found' }, { status: 404 });
+  }
+
+  const session = await getAdminSession();
+  const auth = requirePermission(session as any, 'system.seed');
+  if (!auth.authorized) {
+    return auth.response;
+  }
+
   const { searchParams } = new URL(req.url);
   const type = (searchParams.get('type') || 'confirmation').toLowerCase();
   const format = searchParams.get('format') || 'html';
@@ -95,6 +107,16 @@ export async function GET(req: NextRequest) {
 
 // POST: Gửi thử nghiệm một email đến địa chỉ mong muốn
 export async function POST(req: NextRequest) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not Found' }, { status: 404 });
+  }
+
+  const session = await getAdminSession();
+  const auth = requirePermission(session as any, 'system.seed');
+  if (!auth.authorized) {
+    return auth.response;
+  }
+
   try {
     const body = await req.json();
     const to = body.to?.trim();
