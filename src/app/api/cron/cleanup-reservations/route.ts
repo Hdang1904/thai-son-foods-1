@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { cleanupExpiredReservations } from '@/lib/inventory';
 
@@ -5,13 +6,36 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const authKey = searchParams.get('key') || request.headers.get('authorization');
-    const expectedKey = process.env.CRON_SECRET || 'tsf_cron_secret_default';
+    const expectedSecret = process.env.CRON_SECRET;
 
-    // Bảo vệ endpoint cron nếu môi trường có set CRON_SECRET
-    if (process.env.CRON_SECRET && authKey !== expectedKey && authKey !== `Bearer ${expectedKey}`) {
-      return NextResponse.json({ success: false, error: 'Unauthorized cron trigger' }, { status: 401 });
+    // 1. Fail-closed: Nếu máy chủ chưa cấu hình CRON_SECRET thì từ chối xử lý và báo lỗi cấu hình 500
+    if (!expectedSecret) {
+      console.error('[Cron Security] CRON_SECRET is not configured in environment variables.');
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Lỗi cấu hình hệ thống: Biến môi trường CRON_SECRET chưa được thiết lập.',
+        },
+        { status: 500 }
+      );
+    }
+
+    // 2. Không nhận secret qua query string. Bắt buộc nhận qua header Authorization: Bearer <CRON_SECRET>
+    const authHeader = request.headers.get('authorization') || '';
+    const expectedAuthHeader = `Bearer ${expectedSecret}`;
+
+    const authBuffer = Buffer.from(authHeader);
+    const expectedBuffer = Buffer.from(expectedAuthHeader);
+
+    // 3. So sánh bằng timingSafeEqual để triệt tiêu timing attack
+    if (
+      authBuffer.length !== expectedBuffer.length ||
+      !crypto.timingSafeEqual(authBuffer, expectedBuffer)
+    ) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: Header Authorization không hợp lệ.' },
+        { status: 401 }
+      );
     }
 
     const result = await cleanupExpiredReservations();
@@ -28,3 +52,4 @@ export async function GET(request: Request) {
 }
 
 export const POST = GET;
+
