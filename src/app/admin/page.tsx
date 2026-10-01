@@ -56,9 +56,11 @@ import {
   ArrowDown,
   Star,
   EyeOff,
-  GripVertical
+  GripVertical,
+  ShieldAlert,
+  Copy
 } from 'lucide-react';
-import { hasPermission } from '@/lib/rbac';
+import { hasPermission, Role, Permission } from '@/lib/rbac';
 
 // ==================== INTERFACES ====================
 export interface AdminUser {
@@ -312,10 +314,11 @@ export type AdminTab =
   | 'database'
   | 'users'
   | 'members'
-  | 'banners';
+  | 'banners'
+  | 'audit';
 
 export default function AdminPage() {
-  // Navigation tabs: 'overview' | 'inventory' | 'products' | 'combos' | 'orders' | 'categories' | 'analytics' | 'database' | 'users' | 'members'
+  // Navigation tabs
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -350,8 +353,11 @@ export default function AdminPage() {
     id: string;
     username: string;
     fullName?: string | null;
-    role: string;
+    role: Role;
     email: string;
+    storeCode?: string | null;
+    permissions?: Permission[];
+    mustChangePassword?: boolean;
   } | null>(null);
 
   // Admin Users Management (Super Admin only)
@@ -365,11 +371,23 @@ export default function AdminPage() {
     email: '',
     fullName: '',
     password: '',
-    role: 'STORE_STAFF' as 'SUPER_ADMIN' | 'MARKETING' | 'STORE_STAFF' | 'ADMIN',
+    role: 'STORE_STAFF' as Role,
+    storeCode: 'NH',
     isActive: true,
   });
   const [userSearch, setUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('ALL');
+
+  // Audit Logs (Super Admin only)
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditLogsLoading, setAuditLogsLoading] = useState(false);
+  const [auditActionFilter, setAuditActionFilter] = useState('ALL');
+  const [auditStoreFilter, setAuditStoreFilter] = useState('ALL');
+  const [auditSearch, setAuditSearch] = useState('');
+  const [auditPagination, setAuditPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
+  const [selectedAuditLog, setSelectedAuditLog] = useState<any | null>(null);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Customer Member Management
   const [members, setMembers] = useState<MemberUser[]>([]);
@@ -548,14 +566,57 @@ export default function AdminPage() {
       .then((data) => {
         if (data.authenticated && data.user) {
           setCurrentUser(data.user);
-          // Tài khoản cửa hàng (ADMIN) tự động ưu tiên mở mục Cập nhật số lượng mặt hàng
-          if (data.user.role === 'ADMIN') {
-            setActiveTab('inventory');
+          // Tab mặc định theo vai trò:
+          if (data.user.role === 'MARKETING') {
+            setActiveTab('products');
+          } else if (data.user.role === 'STORE_STAFF') {
+            setActiveTab('orders');
+          } else {
+            setActiveTab('overview');
           }
         }
       })
       .catch((err) => console.error('Failed to load current admin user', err));
   }, []);
+
+  // Kiểm tra quyền truy cập tab
+  const canAccessTab = (tab: AdminTab): boolean => {
+    if (!currentUser) return true;
+    switch (tab) {
+      case 'overview':
+        return hasPermission(currentUser, 'dashboard.view_company') || hasPermission(currentUser, 'dashboard.view_store');
+      case 'inventory':
+        return hasPermission(currentUser, 'inventory.view_own_store') || hasPermission(currentUser, 'inventory.view_all');
+      case 'products':
+        return hasPermission(currentUser, 'products.view');
+      case 'combos':
+        return hasPermission(currentUser, 'combos.view');
+      case 'categories':
+        return hasPermission(currentUser, 'categories.view');
+      case 'orders':
+        return hasPermission(currentUser, 'orders.view_own_store') || hasPermission(currentUser, 'orders.view_all');
+      case 'banners':
+        return hasPermission(currentUser, 'content.manage');
+      case 'members':
+        return hasPermission(currentUser, 'members.view_full') || hasPermission(currentUser, 'members.view_masked');
+      case 'analytics':
+        return hasPermission(currentUser, 'profit.view') || hasPermission(currentUser, 'dashboard.view_company');
+      case 'database':
+        return hasPermission(currentUser, 'system.sync') || hasPermission(currentUser, 'system.seed');
+      case 'users':
+        return hasPermission(currentUser, 'users.manage');
+      case 'audit':
+        return hasPermission(currentUser, 'audit.view');
+      default:
+        return true;
+    }
+  };
+
+  const getDefaultTab = (): AdminTab => {
+    if (currentUser?.role === 'MARKETING') return 'products';
+    if (currentUser?.role === 'STORE_STAFF') return 'orders';
+    return 'overview';
+  };
 
   // Fetch admin accounts (Super Admin only)
   const fetchAdminUsers = async () => {
@@ -571,6 +632,67 @@ export default function AdminPage() {
     } finally {
       setAdminUsersLoading(false);
     }
+  };
+
+  // Tải danh sách nhật ký hoạt động (Audit Logs)
+  const fetchAuditLogs = async (page = 1) => {
+    setAuditLogsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', String(auditPagination.limit));
+      if (auditActionFilter !== 'ALL') params.set('action', auditActionFilter);
+      if (auditStoreFilter !== 'ALL') params.set('storeCode', auditStoreFilter);
+      if (auditSearch.trim()) params.set('search', auditSearch.trim());
+
+      const res = await fetch(`/api/admin/audit?${params.toString()}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success) {
+        setAuditLogs(data.data || []);
+        if (data.pagination) {
+          setAuditPagination(data.pagination);
+        }
+      } else {
+        showToast(data.error || 'Lỗi khi tải nhật ký hoạt động', 'error');
+      }
+    } catch (err: any) {
+      console.error('Error fetching audit logs:', err);
+      showToast('Lỗi khi tải nhật ký hoạt động: ' + err.message, 'error');
+    } finally {
+      setAuditLogsLoading(false);
+    }
+  };
+
+  // Xuất file CSV danh sách nhật ký hoạt động
+  const handleExportAuditCSV = () => {
+    if (auditLogs.length === 0) {
+      showToast('Chưa có dữ liệu nhật ký để xuất', 'info');
+      return;
+    }
+    const headers = ['Mã Log', 'Thời Gian', 'Tài Khoản', 'Vai Trò', 'Hành Động', 'Loại Đối Tượng', 'Mã Đối Tượng', 'Cửa Hàng', 'IP'];
+    const rows = auditLogs.map((log) => [
+      log.id,
+      new Date(log.created_at).toLocaleString('vi-VN'),
+      log.admin_username,
+      log.role,
+      log.action,
+      log.entity_type,
+      log.entity_id || '',
+      log.store_code || 'ALL',
+      log.ip || '',
+    ]);
+
+    const csvContent =
+      'data:text/csv;charset=utf-8,\uFEFF' +
+      [headers.join(','), ...rows.map((e) => e.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `WebTSF_Audit_Logs_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast(`Đã xuất ${auditLogs.length} dòng nhật ký sang CSV!`);
   };
 
   // Fetch inventory for store
@@ -670,7 +792,7 @@ export default function AdminPage() {
     }
   };
 
-  // Đồng bộ nạp dữ liệu khi chuyển tab sang Users, Inventory, hoặc Banners
+  // Đồng bộ nạp dữ liệu khi chuyển tab sang Users, Inventory, Banners, hoặc Audit
   useEffect(() => {
     if (activeTab === 'users' && hasPermission(currentUser, 'users.manage')) {
       fetchAdminUsers();
@@ -678,8 +800,17 @@ export default function AdminPage() {
       fetchInventory(selectedStoreCode);
     } else if (activeTab === 'banners') {
       fetchBannersAndSlides();
+    } else if (activeTab === 'audit' && hasPermission(currentUser, 'audit.view')) {
+      fetchAuditLogs(1);
     }
   }, [activeTab]);
+
+  // Tự động tải lại audit logs khi đổi bộ lọc
+  useEffect(() => {
+    if (activeTab === 'audit' && hasPermission(currentUser, 'audit.view')) {
+      fetchAuditLogs(1);
+    }
+  }, [auditActionFilter, auditStoreFilter]);
 
   // Helper tải ảnh lên máy chủ qua /api/admin/upload
   const handleUploadImageFile = async (
@@ -974,7 +1105,8 @@ export default function AdminPage() {
       email: '',
       fullName: '',
       password: '',
-      role: 'ADMIN',
+      role: 'STORE_STAFF',
+      storeCode: storeList[0]?.code || 'NH',
       isActive: true,
     });
     setIsUserModalOpen(true);
@@ -989,7 +1121,8 @@ export default function AdminPage() {
       email: user.email,
       fullName: user.full_name || '',
       password: '',
-      role: user.role,
+      role: (user.role === 'ADMIN' ? 'STORE_STAFF' : user.role) as Role,
+      storeCode: user.store_code || storeList[0]?.code || 'NH',
       isActive: user.is_active,
     });
     setIsUserModalOpen(true);
@@ -1010,6 +1143,7 @@ export default function AdminPage() {
             fullName: userFormData.fullName,
             password: userFormData.password,
             role: userFormData.role,
+            storeCode: userFormData.role === 'STORE_STAFF' ? userFormData.storeCode : null,
           }),
         });
         const data = await res.json();
@@ -1029,6 +1163,7 @@ export default function AdminPage() {
             fullName: userFormData.fullName,
             email: userFormData.email,
             role: userFormData.role,
+            storeCode: userFormData.role === 'STORE_STAFF' ? userFormData.storeCode : null,
             isActive: userFormData.isActive,
             password: userFormData.password || undefined,
           }),
@@ -2037,26 +2172,30 @@ export default function AdminPage() {
 
         {/* Right action tools */}
         <div className="flex items-center gap-2.5">
-          <button
-            onClick={handleSyncStore}
-            disabled={syncLoading}
-            title="Đồng bộ toàn bộ sản phẩm và combo từ website vào cơ sở dữ liệu PostgreSQL WebTSF"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30 transition-all cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${syncLoading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{syncLoading ? 'Đang đồng bộ...' : 'Đồng bộ Store -> DB'}</span>
-            <span className="sm:hidden">{syncLoading ? 'Đồng bộ...' : 'Sync DB'}</span>
-          </button>
+          {hasPermission(currentUser, 'system.sync') && (
+            <button
+              onClick={handleSyncStore}
+              disabled={syncLoading}
+              title="Đồng bộ toàn bộ sản phẩm và combo từ website vào cơ sở dữ liệu PostgreSQL WebTSF"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30 transition-all cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${syncLoading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{syncLoading ? 'Đang đồng bộ...' : 'Đồng bộ Store -> DB'}</span>
+              <span className="sm:hidden">{syncLoading ? 'Đồng bộ...' : 'Sync DB'}</span>
+            </button>
+          )}
 
-          <button
-            onClick={handleSeedDemoOrders}
-            disabled={actionLoading}
-            title="Tạo đơn hàng mẫu để kiểm tra tính năng biểu đồ & danh sách đơn"
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600/30 transition-all cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Nạp Đơn Mẫu</span>
-          </button>
+          {hasPermission(currentUser, 'system.seed') && (
+            <button
+              onClick={handleSeedDemoOrders}
+              disabled={actionLoading}
+              title="Tạo đơn hàng mẫu để kiểm tra tính năng biểu đồ & danh sách đơn"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600/30 transition-all cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Nạp Đơn Mẫu</span>
+            </button>
+          )}
 
           <button
             onClick={fetchData}
@@ -2105,198 +2244,218 @@ export default function AdminPage() {
               <p className="px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Menu Quản Trị
               </p>
-              <button
-                onClick={() => {
-                  setActiveTab('overview');
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  activeTab === 'overview'
-                    ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <LayoutDashboard className="w-4 h-4" />
-                  <span>Tổng quan</span>
-                </div>
-              </button>
+              {(hasPermission(currentUser, 'dashboard.view_company') || hasPermission(currentUser, 'dashboard.view_store')) && (
+                <button
+                  onClick={() => {
+                    setActiveTab('overview');
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    activeTab === 'overview'
+                      ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span>Tổng quan</span>
+                  </div>
+                </button>
+              )}
 
               {/* MỤC DÀNH CHO CỬA HÀNG & QUẢN TRỊ: CẬP NHẬT SỐ LƯỢNG MẶT HÀNG */}
-              <button
-                onClick={() => {
-                  setActiveTab('inventory');
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  activeTab === 'inventory'
-                    ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <PackageCheck className="w-4 h-4 text-amber-400" />
-                  <span>Cập nhật số lượng</span>
-                </div>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  {currentUser?.role === 'ADMIN' ? 'Cửa hàng' : 'Kho hàng'}
-                </span>
-              </button>
+              {(hasPermission(currentUser, 'inventory.view_own_store') || hasPermission(currentUser, 'inventory.view_all')) && (
+                <button
+                  onClick={() => {
+                    setActiveTab('inventory');
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    activeTab === 'inventory'
+                      ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <PackageCheck className="w-4 h-4 text-amber-400" />
+                    <span>Cập nhật số lượng</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    {currentUser?.role === 'STORE_STAFF' ? 'Cửa hàng' : 'Kho hàng'}
+                  </span>
+                </button>
+              )}
 
-              <button
-                onClick={() => {
-                  setActiveTab('products');
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  activeTab === 'products'
-                    ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Package className="w-4 h-4" />
-                  <span>Sản phẩm</span>
-                </div>
-                <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">
-                  {products.length}
-                </span>
-              </button>
+              {hasPermission(currentUser, 'products.view') && (
+                <button
+                  onClick={() => {
+                    setActiveTab('products');
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    activeTab === 'products'
+                      ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Package className="w-4 h-4" />
+                    <span>Sản phẩm</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">
+                    {products.length}
+                  </span>
+                </button>
+              )}
 
-              <button
-                onClick={() => {
-                  setActiveTab('combos');
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  activeTab === 'combos'
-                    ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Boxes className="w-4 h-4" />
-                  <span>Gói Combo</span>
-                </div>
-                <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">
-                  {combos.length}
-                </span>
-              </button>
+              {hasPermission(currentUser, 'combos.view') && (
+                <button
+                  onClick={() => {
+                    setActiveTab('combos');
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    activeTab === 'combos'
+                      ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Boxes className="w-4 h-4" />
+                    <span>Gói Combo</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">
+                    {combos.length}
+                  </span>
+                </button>
+              )}
 
-              <button
-                onClick={() => {
-                  setActiveTab('orders');
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  activeTab === 'orders'
-                    ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <ShoppingCart className="w-4 h-4" />
-                  <span>Đơn hàng</span>
-                </div>
-                <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">
-                  {orders.length}
-                </span>
-              </button>
+              {(hasPermission(currentUser, 'orders.view_own_store') || hasPermission(currentUser, 'orders.view_all')) && (
+                <button
+                  onClick={() => {
+                    setActiveTab('orders');
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    activeTab === 'orders'
+                      ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <ShoppingCart className="w-4 h-4" />
+                    <span>Đơn hàng</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">
+                    {orders.length}
+                  </span>
+                </button>
+              )}
 
-              <button
-                onClick={() => {
-                  setActiveTab('members');
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  activeTab === 'members'
-                    ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <UserCheck className="w-4 h-4 text-emerald-400" />
-                  <span>Khách thành viên</span>
-                </div>
-                <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-emerald-300 border border-slate-700">
-                  {members.length}
-                </span>
-              </button>
+              {(hasPermission(currentUser, 'members.view_full') || hasPermission(currentUser, 'members.view_masked')) && (
+                <button
+                  onClick={() => {
+                    setActiveTab('members');
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    activeTab === 'members'
+                      ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <UserCheck className="w-4 h-4 text-emerald-400" />
+                    <span>Khách thành viên</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-emerald-300 border border-slate-700">
+                    {members.length}
+                  </span>
+                </button>
+              )}
 
-              <button
-                onClick={() => {
-                  setActiveTab('categories');
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  activeTab === 'categories'
-                    ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <FolderTree className="w-4 h-4" />
-                  <span>Danh mục</span>
-                </div>
-                <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">
-                  {categories.length}
-                </span>
-              </button>
+              {hasPermission(currentUser, 'categories.view') && (
+                <button
+                  onClick={() => {
+                    setActiveTab('categories');
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    activeTab === 'categories'
+                      ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <FolderTree className="w-4 h-4" />
+                    <span>Danh mục</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">
+                    {categories.length}
+                  </span>
+                </button>
+              )}
 
-              <button
-                onClick={() => {
-                  setActiveTab('banners');
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  activeTab === 'banners'
-                    ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <ImageIcon className="w-4 h-4 text-amber-400" />
-                  <span>Banner & Slider</span>
-                </div>
-                <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-amber-300 border border-slate-700">
-                  {bannersList.length + brandSlidesList.length}
-                </span>
-              </button>
+              {hasPermission(currentUser, 'content.manage') && (
+                <button
+                  onClick={() => {
+                    setActiveTab('banners');
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    activeTab === 'banners'
+                      ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <ImageIcon className="w-4 h-4 text-amber-400" />
+                    <span>Banner & Slider</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-amber-300 border border-slate-700">
+                    {bannersList.length + brandSlidesList.length}
+                  </span>
+                </button>
+              )}
 
-              <button
-                onClick={() => {
-                  setActiveTab('analytics');
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  activeTab === 'analytics'
-                    ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <BarChart3 className="w-4 h-4" />
-                  <span>Báo cáo & Phân tích</span>
-                </div>
-              </button>
+              {(hasPermission(currentUser, 'profit.view') || hasPermission(currentUser, 'dashboard.view_company')) && (
+                <button
+                  onClick={() => {
+                    setActiveTab('analytics');
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    activeTab === 'analytics'
+                      ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <BarChart3 className="w-4 h-4" />
+                    <span>Báo cáo & Phân tích</span>
+                  </div>
+                </button>
+              )}
 
-              <button
-                onClick={() => {
-                  setActiveTab('database');
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  activeTab === 'database'
-                    ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Database className="w-4 h-4" />
-                  <span>Cơ sở dữ liệu</span>
-                </div>
-                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              </button>
+              {(hasPermission(currentUser, 'system.sync') || hasPermission(currentUser, 'system.seed')) && (
+                <button
+                  onClick={() => {
+                    setActiveTab('database');
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    activeTab === 'database'
+                      ? 'bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-900/30'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Database className="w-4 h-4" />
+                    <span>Cơ sở dữ liệu</span>
+                  </div>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                </button>
+              )}
 
               {/* CHỨC NĂNG DÀNH CHO SUPER ADMIN: QUẢN LÝ & TẠO TÀI KHOẢN ADMIN */}
               {hasPermission(currentUser, 'users.manage') && (
@@ -2320,25 +2479,52 @@ export default function AdminPage() {
                   </span>
                 </button>
               )}
+
+              {/* CHỨC NĂNG DÀNH CHO SUPER ADMIN: NHẬT KÝ HOẠT ĐỘNG (AUDIT LOGS) */}
+              {hasPermission(currentUser, 'audit.view') && (
+                <button
+                  onClick={() => {
+                    setActiveTab('audit');
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    activeTab === 'audit'
+                      ? 'bg-indigo-600 text-white font-semibold shadow-lg shadow-indigo-900/30'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <History className="w-4 h-4 text-amber-400" />
+                    <span>Nhật ký hoạt động</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+                    Audit
+                  </span>
+                </button>
+              )}
             </div>
 
             {/* Quick Summary Card */}
-            <div className="p-3.5 rounded-2xl bg-gradient-to-b from-slate-800/60 to-slate-900/60 border border-slate-800/80 space-y-2.5">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span className="font-semibold text-slate-300">Doanh thu tuần này</span>
-                <TrendingUp className="w-4 h-4 text-emerald-400" />
+            {(hasPermission(currentUser, 'dashboard.view_company') || hasPermission(currentUser, 'dashboard.view_store')) && (
+              <div className="p-3.5 rounded-2xl bg-gradient-to-b from-slate-800/60 to-slate-900/60 border border-slate-800/80 space-y-2.5">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span className="font-semibold text-slate-300">
+                    {currentUser?.role === 'STORE_STAFF' ? 'Doanh thu cửa hàng' : 'Doanh thu tuần này'}
+                  </span>
+                  <TrendingUp className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="text-lg font-extrabold text-emerald-400 tracking-tight">
+                  {formatVND(stats?.summary?.total_revenue || 0)}
+                </div>
+                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-emerald-500 h-full rounded-full w-[78%]"></div>
+                </div>
+                <div className="flex justify-between text-[11px] text-slate-400 pt-1">
+                  <span>{stats?.summary?.total_orders || 0} đơn đã tạo</span>
+                  <span className="text-emerald-400 font-medium">94% thành công</span>
+                </div>
               </div>
-              <div className="text-lg font-extrabold text-emerald-400 tracking-tight">
-                {formatVND(stats?.summary?.total_revenue || 0)}
-              </div>
-              <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-emerald-500 h-full rounded-full w-[78%]"></div>
-              </div>
-              <div className="flex justify-between text-[11px] text-slate-400 pt-1">
-                <span>{stats?.summary?.total_orders || 0} đơn đã tạo</span>
-                <span className="text-emerald-400 font-medium">94% thành công</span>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Sidebar Footer */}
@@ -2380,56 +2566,78 @@ export default function AdminPage() {
 
         {/* MAIN CONTENT AREA */}
         <main className="flex-1 overflow-y-auto bg-[#0b1120] p-4 lg:p-6 space-y-6">
-          {/* ======================================================== */}
-          {/* TAB 1: OVERVIEW DASHBOARD */}
-          {/* ======================================================== */}
-          {activeTab === 'overview' && (
-            <div className="space-y-6">
-              {/* Page header */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-                    <span>Tổng Quan Bán Hàng</span>
-                    <span className="text-xs font-normal px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      Thời gian thực
-                    </span>
-                  </h1>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Dữ liệu được cập nhật trực tiếp từ PostgreSQL cơ sở dữ liệu WebTSF
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleExportOrdersCSV}
-                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 shadow-sm transition-all"
-                  >
-                    <Download className="w-4 h-4 text-slate-400" />
-                    <span>Xuất Báo Cáo CSV</span>
-                  </button>
-                  <button
-                    onClick={handleOpenCreateProduct}
-                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30 transition-all"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Thêm Sản Phẩm</span>
-                  </button>
-                </div>
+          {currentUser && !canAccessTab(activeTab) ? (
+            <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-8 bg-slate-900/60 rounded-3xl border border-slate-800">
+              <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mb-4 text-rose-400">
+                <ShieldAlert className="w-8 h-8" />
               </div>
+              <h2 className="text-xl font-bold text-white mb-2">Bạn không có quyền truy cập mục này</h2>
+              <p className="text-sm text-slate-400 max-w-md mb-6">
+                Vai trò hiện tại của bạn (<span className="text-amber-400 font-semibold">{currentUser.role}</span>) không được cấp quyền xem hoặc quản lý phân hệ này. Vui lòng liên hệ Quản trị viên cấp cao nếu cần hỗ trợ.
+              </p>
+              <button
+                onClick={() => setActiveTab(getDefaultTab())}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-all cursor-pointer shadow-lg shadow-emerald-950/40"
+              >
+                Quay về trang được phân quyền ({getDefaultTab() === 'products' ? 'Sản phẩm' : getDefaultTab() === 'orders' ? 'Đơn hàng' : 'Tổng quan'})
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* ======================================================== */}
+              {/* TAB 1: OVERVIEW DASHBOARD */}
+              {/* ======================================================== */}
+              {activeTab === 'overview' && (
+                <div className="space-y-6">
+                  {/* Page header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                      <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
+                        <span>Tổng Quan Bán Hàng</span>
+                        <span className="text-xs font-normal px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          Thời gian thực
+                        </span>
+                      </h1>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Dữ liệu được cập nhật trực tiếp từ PostgreSQL cơ sở dữ liệu WebTSF
+                      </p>
+                    </div>
 
-              {/* 5 KPI Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                {/* Total Revenue */}
-                <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800 relative overflow-hidden group hover:border-emerald-500/40 transition-all">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <DollarSign className="w-16 h-16 text-emerald-400" />
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleExportOrdersCSV}
+                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 shadow-sm transition-all"
+                      >
+                        <Download className="w-4 h-4 text-slate-400" />
+                        <span>Xuất Báo Cáo CSV</span>
+                      </button>
+                      {hasPermission(currentUser, 'products.manage') && (
+                        <button
+                          onClick={handleOpenCreateProduct}
+                          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30 transition-all cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Thêm Sản Phẩm</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-slate-400">Tổng Doanh Thu</span>
-                    <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
-                      <TrendingUp className="w-4 h-4" />
-                    </span>
-                  </div>
+
+                  {/* 5 KPI Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    {/* Total Revenue */}
+                    <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900/90 to-slate-900/40 border border-slate-800 relative overflow-hidden group hover:border-emerald-500/40 transition-all">
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <DollarSign className="w-16 h-16 text-emerald-400" />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-slate-400">
+                          {currentUser?.role === 'STORE_STAFF' ? 'Doanh Thu Cửa Hàng' : 'Tổng Doanh Thu'}
+                        </span>
+                        <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+                          <TrendingUp className="w-4 h-4" />
+                        </span>
+                      </div>
                   <div className="text-2xl font-black text-white mt-2 tracking-tight">
                     {formatVND(stats?.summary?.total_revenue || 0)}
                   </div>
@@ -2740,13 +2948,15 @@ export default function AdminPage() {
                   </p>
                 </div>
 
-                <button
-                  onClick={handleOpenCreateProduct}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30 transition-all cursor-pointer self-start sm:self-auto"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Thêm Sản Phẩm Mới</span>
-                </button>
+                {hasPermission(currentUser, 'products.manage') && (
+                  <button
+                    onClick={handleOpenCreateProduct}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30 transition-all cursor-pointer self-start sm:self-auto"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Thêm Sản Phẩm Mới</span>
+                  </button>
+                )}
               </div>
 
               {/* Filters toolbar */}
@@ -2862,8 +3072,11 @@ export default function AdminPage() {
                           </td>
                           <td className="py-3 px-4">
                             <button
+                              disabled={!hasPermission(currentUser, 'products.manage')}
                               onClick={() => handleToggleProductActive(p)}
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all cursor-pointer ${
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all ${
+                                !hasPermission(currentUser, 'products.manage') ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                              } ${
                                 p.is_active
                                   ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
                                   : 'bg-slate-800 text-slate-500 border-slate-700 hover:bg-slate-700'
@@ -2874,20 +3087,24 @@ export default function AdminPage() {
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => handleOpenEditProduct(p)}
-                                title="Chỉnh sửa sản phẩm"
-                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteProduct(p.id, p.name)}
-                                title="Xóa sản phẩm"
-                                className="p-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-800/40 transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {(hasPermission(currentUser, 'products.manage') || hasPermission(currentUser, 'products.manage_price')) && (
+                                <button
+                                  onClick={() => handleOpenEditProduct(p)}
+                                  title="Chỉnh sửa sản phẩm"
+                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {hasPermission(currentUser, 'products.manage') && (
+                                <button
+                                  onClick={() => handleDeleteProduct(p.id, p.name)}
+                                  title="Xóa sản phẩm"
+                                  className="p-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-800/40 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -2926,22 +3143,26 @@ export default function AdminPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleSyncStore}
-                    disabled={syncLoading}
-                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30 transition-all cursor-pointer"
-                  >
-                    <RefreshCw className={`w-4 h-4 text-emerald-400 ${syncLoading ? 'animate-spin' : ''}`} />
-                    <span>{syncLoading ? 'Đang đồng bộ...' : 'Đồng Bộ Store -> DB'}</span>
-                  </button>
+                  {hasPermission(currentUser, 'system.sync') && (
+                    <button
+                      onClick={handleSyncStore}
+                      disabled={syncLoading}
+                      className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30 transition-all cursor-pointer"
+                    >
+                      <RefreshCw className={`w-4 h-4 text-emerald-400 ${syncLoading ? 'animate-spin' : ''}`} />
+                      <span>{syncLoading ? 'Đang đồng bộ...' : 'Đồng Bộ Store -> DB'}</span>
+                    </button>
+                  )}
 
-                  <button
-                    onClick={handleOpenCreateCombo}
-                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/30 transition-all cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Thêm Combo Mới</span>
-                  </button>
+                  {hasPermission(currentUser, 'combos.manage') && (
+                    <button
+                      onClick={handleOpenCreateCombo}
+                      className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/30 transition-all cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Thêm Combo Mới</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -3085,20 +3306,24 @@ export default function AdminPage() {
                                 >
                                   <ExternalLink className="w-3.5 h-3.5" />
                                 </Link>
-                                <button
-                                  onClick={() => handleOpenEditCombo(c)}
-                                  title="Chỉnh sửa combo"
-                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors cursor-pointer"
-                                >
-                                  <Edit className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteCombo(c.id, c.name)}
-                                  title="Xóa combo"
-                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                {hasPermission(currentUser, 'combos.manage') && (
+                                  <button
+                                    onClick={() => handleOpenEditCombo(c)}
+                                    title="Chỉnh sửa combo"
+                                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors cursor-pointer"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {hasPermission(currentUser, 'combos.manage') && (
+                                  <button
+                                    onClick={() => handleDeleteCombo(c.id, c.name)}
+                                    title="Xóa combo"
+                                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -3264,11 +3489,16 @@ export default function AdminPage() {
                             <td className="py-3 px-4">
                               {/* Quick status dropdown */}
                               <select
+                                disabled={!(hasPermission(currentUser, 'orders.update_status_own_store') || hasPermission(currentUser, 'orders.update_status_all'))}
                                 value={order.status}
                                 onChange={(e) =>
                                   handleRequestStatusChange(order, e.target.value as Order['status'])
                                 }
-                                className={`text-[11px] font-bold rounded-lg px-2.5 py-1 border focus:outline-none cursor-pointer ${st.bg}`}
+                                className={`text-[11px] font-bold rounded-lg px-2.5 py-1 border focus:outline-none ${
+                                  !(hasPermission(currentUser, 'orders.update_status_own_store') || hasPermission(currentUser, 'orders.update_status_all'))
+                                    ? 'opacity-60 cursor-not-allowed'
+                                    : 'cursor-pointer'
+                                } ${st.bg}`}
                               >
                                 <option value="PENDING" className="bg-slate-900 text-amber-400">Chờ xử lý</option>
                                 <option value="CONFIRMED" className="bg-slate-900 text-blue-400">Đã xác nhận</option>
@@ -3294,13 +3524,15 @@ export default function AdminPage() {
                                 >
                                   Chi tiết
                                 </button>
-                                <button
-                                  onClick={() => handleDeleteOrder(order.id, order.order_code)}
-                                  title="Xóa đơn hàng"
-                                  className="p-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-800/40 transition-colors"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                {hasPermission(currentUser, 'orders.update_status_all') && (
+                                  <button
+                                    onClick={() => handleDeleteOrder(order.id, order.order_code)}
+                                    title="Xóa đơn hàng"
+                                    className="p-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-800/40 transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -3338,13 +3570,15 @@ export default function AdminPage() {
                   </p>
                 </div>
 
-                <button
-                  onClick={handleOpenCreateCategory}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30 transition-all cursor-pointer self-start sm:self-auto"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Thêm Danh Mục Mới</span>
-                </button>
+                {hasPermission(currentUser, 'categories.manage') && (
+                  <button
+                    onClick={handleOpenCreateCategory}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30 transition-all cursor-pointer self-start sm:self-auto"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Thêm Danh Mục Mới</span>
+                  </button>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -3367,20 +3601,24 @@ export default function AdminPage() {
                     </div>
 
                     <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800/80">
-                      <button
-                        onClick={() => handleOpenEditCategory(cat)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
-                      >
-                        <Edit className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Sửa</span>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteCategory(cat.id, cat.name)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-800/40"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Xóa</span>
-                      </button>
+                      {hasPermission(currentUser, 'categories.manage') && (
+                        <>
+                          <button
+                            onClick={() => handleOpenEditCategory(cat)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer"
+                          >
+                            <Edit className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Sửa</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-800/40 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Xóa</span>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -4850,25 +5088,29 @@ export default function AdminPage() {
                                   <Eye className="w-3.5 h-3.5" />
                                 </button>
 
-                                <button
-                                  onClick={() => handleToggleMemberStatus(member)}
-                                  title={member.is_active ? 'Khóa tài khoản thành viên này' : 'Mở khóa tài khoản'}
-                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                                    member.is_active
-                                      ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400'
-                                      : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'
-                                  }`}
-                                >
-                                  <Lock className="w-3.5 h-3.5" />
-                                </button>
+                                {hasPermission(currentUser, 'members.manage') && (
+                                  <>
+                                    <button
+                                      onClick={() => handleToggleMemberStatus(member)}
+                                      title={member.is_active ? 'Khóa tài khoản thành viên này' : 'Mở khóa tài khoản'}
+                                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                        member.is_active
+                                          ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400'
+                                          : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'
+                                      }`}
+                                    >
+                                      <Lock className="w-3.5 h-3.5" />
+                                    </button>
 
-                                <button
-                                  onClick={() => handleDeleteMember(member)}
-                                  title="Xóa tài khoản thành viên"
-                                  className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                    <button
+                                      onClick={() => handleDeleteMember(member)}
+                                      title="Xóa tài khoản thành viên"
+                                      className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -4880,8 +5122,276 @@ export default function AdminPage() {
               </div>
             </div>
           )}
-        </main>
-      </div>
+
+          {/* ======================================================== */}
+          {/* TAB: NHẬT KÝ HOẠT ĐỘNG (AUDIT LOGS) */}
+          {/* ======================================================== */}
+          {activeTab === 'audit' && (
+            <div className="space-y-6">
+              {/* Page Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
+                    <History className="w-6 h-6 text-amber-400" />
+                    <span>Nhật Ký Hoạt Động Hệ Thống</span>
+                    <span className="text-xs font-normal px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">
+                      Audit Trail
+                    </span>
+                  </h1>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Lưu vết bảo mật: thời gian, người thực hiện, thao tác, đối tượng và dữ liệu trước/sau thay đổi
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleExportAuditCSV}
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 shadow-sm transition-all cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-slate-400" />
+                    <span>Xuất CSV Nhật Ký</span>
+                  </button>
+                  <button
+                    onClick={() => fetchAuditLogs(auditPagination.page)}
+                    disabled={auditLogsLoading}
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/30 transition-all cursor-pointer"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${auditLogsLoading ? 'animate-spin' : ''}`} />
+                    <span>{auditLogsLoading ? 'Đang tải...' : 'Làm mới'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter & Search Bar */}
+              <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={auditSearch}
+                    onChange={(e) => setAuditSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') fetchAuditLogs(1);
+                    }}
+                    placeholder="Tìm theo username, hành động, ID đối tượng..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <select
+                    value={auditActionFilter}
+                    onChange={(e) => setAuditActionFilter(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="ALL">Tất cả hành động</option>
+                    <option value="auth.login">Đăng nhập (auth.login)</option>
+                    <option value="orders.status_update">Cập nhật đơn (orders.status_update)</option>
+                    <option value="orders.transfer">Chuyển chi nhánh (orders.transfer)</option>
+                    <option value="inventory.update">Cập nhật tồn kho (inventory.update)</option>
+                    <option value="products.create">Tạo sản phẩm (products.create)</option>
+                    <option value="products.update">Sửa sản phẩm (products.update)</option>
+                    <option value="products.delete">Xóa sản phẩm (products.delete)</option>
+                    <option value="combos.create">Tạo combo (combos.create)</option>
+                    <option value="combos.update">Sửa combo (combos.update)</option>
+                    <option value="combos.delete">Xóa combo (combos.delete)</option>
+                    <option value="users.create">Tạo tài khoản (users.create)</option>
+                    <option value="users.update">Sửa tài khoản (users.update)</option>
+                    <option value="users.delete">Xóa tài khoản (users.delete)</option>
+                  </select>
+
+                  <select
+                    value={auditStoreFilter}
+                    onChange={(e) => setAuditStoreFilter(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="ALL">Tất cả cửa hàng</option>
+                    {storeList.map((st) => (
+                      <option key={st.code} value={st.code}>
+                        {st.name} ({st.code})
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    onClick={() => fetchAuditLogs(1)}
+                    className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
+                  >
+                    Lọc
+                  </button>
+                </div>
+              </div>
+
+              {/* Audit Logs Table */}
+              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs text-slate-300">
+                    <thead>
+                      <tr className="border-b border-slate-800/80 bg-slate-950/60 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        <th className="py-3 px-4">Thời Gian</th>
+                        <th className="py-3 px-4">Người Thực Hiện</th>
+                        <th className="py-3 px-4">Hành Động</th>
+                        <th className="py-3 px-4">Đối Tượng</th>
+                        <th className="py-3 px-4">Cửa Hàng</th>
+                        <th className="py-3 px-4">Địa Chỉ IP</th>
+                        <th className="py-3 px-4 text-right">Chi Tiết</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {auditLogsLoading ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <RefreshCw className="w-6 h-6 animate-spin text-indigo-400" />
+                              <span>Đang tải nhật ký hoạt động...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : auditLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <History className="w-8 h-8 text-slate-600" />
+                              <p className="font-semibold text-slate-300">Chưa có nhật ký hoạt động nào</p>
+                              <p className="text-[11px] text-slate-500">
+                                Mọi thao tác thêm, sửa, xóa, chuyển đơn, đăng nhập sẽ tự động hiển thị tại đây
+                              </p>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        auditLogs.map((log) => {
+                          const isCreate = log.action.includes('create');
+                          const isDelete = log.action.includes('delete');
+                          const isUpdate = log.action.includes('update') || log.action.includes('transfer');
+                          const isAuth = log.action.includes('login') || log.action.includes('auth');
+
+                          return (
+                            <tr key={log.id} className="hover:bg-slate-800/40 transition-colors">
+                              {/* Thời gian */}
+                              <td className="py-3 px-4 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                                {new Date(log.created_at).toLocaleString('vi-VN', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                })}
+                              </td>
+
+                              {/* Người thực hiện */}
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-white font-mono">{log.admin_username}</span>
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                      log.role === 'SUPER_ADMIN'
+                                        ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                                        : log.role === 'MARKETING'
+                                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                    }`}
+                                  >
+                                    {log.role === 'SUPER_ADMIN' ? 'Super' : log.role === 'MARKETING' ? 'MKT' : 'CH'}
+                                  </span>
+                                </div>
+                              </td>
+
+                              {/* Hành động */}
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                                    isCreate
+                                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                      : isDelete
+                                      ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                                      : isUpdate
+                                      ? 'bg-sky-500/10 text-sky-400 border-sky-500/30'
+                                      : isAuth
+                                      ? 'bg-purple-500/10 text-purple-400 border-purple-500/30'
+                                      : 'bg-slate-800 text-slate-300 border-slate-700'
+                                  }`}
+                                >
+                                  {log.action}
+                                </span>
+                              </td>
+
+                              {/* Đối tượng */}
+                              <td className="py-3 px-4">
+                                <div className="text-slate-300 font-mono text-[11px] truncate max-w-[200px]" title={log.entity_id || ''}>
+                                  <span className="text-slate-400">{log.entity_type}</span>
+                                  {log.entity_id && <span className="text-slate-200"> #{log.entity_id}</span>}
+                                </div>
+                              </td>
+
+                              {/* Cửa hàng */}
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                {log.store_code ? (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono">
+                                    {log.store_code}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-500 text-[11px]">Toàn HT</span>
+                                )}
+                              </td>
+
+                              {/* IP */}
+                              <td className="py-3 px-4 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                                {log.ip || '—'}
+                              </td>
+
+                              {/* Nút xem JSON */}
+                              <td className="py-3 px-4 text-right whitespace-nowrap">
+                                <button
+                                  onClick={() => {
+                                    setSelectedAuditLog(log);
+                                    setIsAuditModalOpen(true);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                                >
+                                  Xem thay đổi
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                {auditPagination.totalPages > 1 && (
+                  <div className="p-4 border-t border-slate-800/80 bg-slate-950/40 flex items-center justify-between">
+                    <span className="text-xs text-slate-400">
+                      Trang {auditPagination.page} / {auditPagination.totalPages} (Tổng {auditPagination.total} bản ghi)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={auditPagination.page <= 1 || auditLogsLoading}
+                        onClick={() => fetchAuditLogs(auditPagination.page - 1)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        Trang trước
+                      </button>
+                      <button
+                        disabled={auditPagination.page >= auditPagination.totalPages || auditLogsLoading}
+                        onClick={() => fetchAuditLogs(auditPagination.page + 1)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        Trang sau
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </main>
+  </div>
 
       {/* ======================================================== */}
       {/* MODAL: THÊM / SỬA SẢN PHẨM */}
@@ -4956,19 +5466,27 @@ export default function AdminPage() {
 
                 {/* Giá bán */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Giá bán (VNĐ) *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Giá bán (VNĐ) *
+                    </label>
+                    {!hasPermission(currentUser, 'products.manage_price') && (
+                      <span className="text-[10px] text-amber-400 font-medium">Chỉ xem (không có quyền sửa giá)</span>
+                    )}
+                  </div>
                   <input
                     type="number"
                     required
                     min={0}
                     step={1000}
+                    disabled={!hasPermission(currentUser, 'products.manage_price')}
                     value={editingProduct.price || 0}
                     onChange={(e) =>
                       setEditingProduct({ ...editingProduct, price: parseInt(e.target.value, 10) })
                     }
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    className={`w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 ${
+                      !hasPermission(currentUser, 'products.manage_price') ? 'opacity-60 cursor-not-allowed bg-slate-900' : ''
+                    }`}
                   />
                 </div>
 
@@ -5275,12 +5793,15 @@ export default function AdminPage() {
                       type="number"
                       value={v.price}
                       placeholder="Giá tiền"
+                      disabled={!hasPermission(currentUser, 'products.manage_price')}
                       onChange={(e) => {
                         const next = [...productFormVariants];
                         next[i].price = parseInt(e.target.value, 10);
                         setProductFormVariants(next);
                       }}
-                      className="w-28 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white"
+                      className={`w-28 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white ${
+                        !hasPermission(currentUser, 'products.manage_price') ? 'opacity-60 cursor-not-allowed' : ''
+                      }`}
                     />
                     <button
                       type="button"
@@ -5392,13 +5913,19 @@ export default function AdminPage() {
 
                 {/* Giá gốc */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Giá Gốc Niêm Yết (VNĐ) *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Giá Gốc Niêm Yết (VNĐ) *
+                    </label>
+                    {!hasPermission(currentUser, 'products.manage_price') && (
+                      <span className="text-[10px] text-amber-400 font-medium">Chỉ xem</span>
+                    )}
+                  </div>
                   <input
                     type="number"
                     required
                     step={1000}
+                    disabled={!hasPermission(currentUser, 'products.manage_price')}
                     value={editingCombo.original_price || 0}
                     onChange={(e) => {
                       const orig = parseInt(e.target.value, 10) || 0;
@@ -5406,19 +5933,27 @@ export default function AdminPage() {
                       const disc = orig > 0 ? Math.round(((orig - sale) / orig) * 100) : 0;
                       setEditingCombo({ ...editingCombo, original_price: orig, discount: disc > 0 ? disc : 0 });
                     }}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                    className={`w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 ${
+                      !hasPermission(currentUser, 'products.manage_price') ? 'opacity-60 cursor-not-allowed bg-slate-900' : ''
+                    }`}
                   />
                 </div>
 
                 {/* Giá bán */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Giá Bán Ưu Đãi (VNĐ) *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Giá Bán Ưu Đãi (VNĐ) *
+                    </label>
+                    {!hasPermission(currentUser, 'products.manage_price') && (
+                      <span className="text-[10px] text-amber-400 font-medium">Chỉ xem</span>
+                    )}
+                  </div>
                   <input
                     type="number"
                     required
                     step={1000}
+                    disabled={!hasPermission(currentUser, 'products.manage_price')}
                     value={editingCombo.sale_price || 0}
                     onChange={(e) => {
                       const sale = parseInt(e.target.value, 10) || 0;
@@ -5426,7 +5961,9 @@ export default function AdminPage() {
                       const disc = orig > 0 ? Math.round(((orig - sale) / orig) * 100) : 0;
                       setEditingCombo({ ...editingCombo, sale_price: sale, discount: disc > 0 ? disc : 0 });
                     }}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-bold text-emerald-400"
+                    className={`w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-bold text-emerald-400 ${
+                      !hasPermission(currentUser, 'products.manage_price') ? 'opacity-60 cursor-not-allowed bg-slate-900' : ''
+                    }`}
                   />
                 </div>
 
@@ -6612,10 +7149,35 @@ export default function AdminPage() {
                   onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value as any })}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
                 >
-                  <option value="ADMIN">Quản trị viên Cửa hàng (ADMIN - Quản lý tồn kho &amp; đơn hàng)</option>
-                  <option value="SUPER_ADMIN">Quản trị viên cấp cao (SUPER ADMIN - Toàn quyền hệ thống)</option>
+                  <option value="SUPER_ADMIN">Quản lý cấp cao (Super Admin - Toàn quyền hệ thống)</option>
+                  <option value="MARKETING">Marketing (Quản lý sản phẩm, combo, danh mục, banner)</option>
+                  <option value="STORE_STAFF">Nhân viên Cửa hàng (Quản lý tồn kho &amp; đơn hàng theo cửa hàng)</option>
                 </select>
               </div>
+
+              {/* Chọn cửa hàng phụ trách nếu là STORE_STAFF */}
+              {userFormData.role === 'STORE_STAFF' && (
+                <div>
+                  <label className="block text-xs font-semibold text-amber-400 mb-1">
+                    Cửa hàng phụ trách (Bắt buộc) *
+                  </label>
+                  <select
+                    required
+                    value={userFormData.storeCode}
+                    onChange={(e) => setUserFormData({ ...userFormData, storeCode: e.target.value })}
+                    className="w-full bg-slate-950 border border-amber-500/50 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-400 cursor-pointer"
+                  >
+                    {storeList.map((st) => (
+                      <option key={st.code} value={st.code}>
+                        {st.name} ({st.code})
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Tài khoản này chỉ có quyền xem/sửa đơn hàng và tồn kho thuộc cửa hàng đã chọn. Có thể tạo nhiều tài khoản cùng một cửa hàng.
+                  </span>
+                </div>
+              )}
 
               {/* Trạng thái hoạt động */}
               {userModalMode === 'edit' && (
@@ -7359,6 +7921,188 @@ export default function AdminPage() {
                 type="button"
                 onClick={() => setIsLogModalOpen(false)}
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: CHI TIẾT NHẬT KÝ HOẠT ĐỘNG (AUDIT LOG DIFF) */}
+      {/* ======================================================== */}
+      {isAuditModalOpen && selectedAuditLog && (
+        <div className="fixed inset-0 z-[1001] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>Chi Tiết Nhật Ký Hoạt Động</span>
+                    <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-slate-800 text-indigo-400 border border-slate-700">
+                      ID #{selectedAuditLog.id}
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
+                    <span>{new Date(selectedAuditLog.created_at).toLocaleString('vi-VN')}</span>
+                    {selectedAuditLog.store_code && (
+                      <>
+                        <span>•</span>
+                        <span className="font-semibold text-emerald-400">Chi nhánh: {selectedAuditLog.store_code}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAuditModalOpen(false)}
+                className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-5">
+              {/* Meta Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                  <div className="text-[11px] text-slate-400 font-medium mb-1">Người thực hiện</div>
+                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span>{selectedAuditLog.admin_username}</span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-950/80 text-indigo-300 border border-indigo-800/50">
+                      {selectedAuditLog.role}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                  <div className="text-[11px] text-slate-400 font-medium mb-1">Hành động</div>
+                  <div className="text-xs font-bold font-mono text-emerald-400">
+                    {selectedAuditLog.action}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                  <div className="text-[11px] text-slate-400 font-medium mb-1">Đối tượng (Entity)</div>
+                  <div className="text-xs font-medium text-slate-300 flex items-center gap-1 truncate">
+                    <span className="text-amber-400 font-semibold">{selectedAuditLog.entity_type}</span>
+                    {selectedAuditLog.entity_id && (
+                      <span className="text-slate-400 font-mono text-[11px]">#{selectedAuditLog.entity_id}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                  <div className="text-[11px] text-slate-400 font-medium mb-1">IP & Thiết bị</div>
+                  <div className="text-xs font-mono text-slate-300 truncate" title={selectedAuditLog.user_agent || ''}>
+                    {selectedAuditLog.ip || '—'}
+                  </div>
+                </div>
+              </div>
+
+              {/* JSON Diff (Before vs After) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Before JSON */}
+                <div className="flex flex-col rounded-xl bg-slate-950 border border-rose-900/30 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-rose-950/20 border-b border-rose-900/30 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                      <span className="text-xs font-bold text-rose-300">Dữ liệu Trước (Before)</span>
+                    </div>
+                    {selectedAuditLog.before_json && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const text = typeof selectedAuditLog.before_json === 'string'
+                            ? selectedAuditLog.before_json
+                            : JSON.stringify(selectedAuditLog.before_json, null, 2);
+                          navigator.clipboard.writeText(text);
+                          setCopiedField('before');
+                          setTimeout(() => setCopiedField(null), 2000);
+                        }}
+                        className="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        {copiedField === 'before' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedField === 'before' ? 'Đã chép' : 'Sao chép'}</span>
+                      </button>
+                    )}
+                  </div>
+                  <div className="p-4 flex-1 overflow-x-auto max-h-[360px]">
+                    <pre className="text-[11px] font-mono text-slate-300 leading-relaxed whitespace-pre-wrap break-all">
+                      {selectedAuditLog.before_json
+                        ? (typeof selectedAuditLog.before_json === 'string'
+                            ? (() => {
+                                try { return JSON.stringify(JSON.parse(selectedAuditLog.before_json), null, 2); }
+                                catch { return selectedAuditLog.before_json; }
+                              })()
+                            : JSON.stringify(selectedAuditLog.before_json, null, 2))
+                        : '<Không có dữ liệu trước thay đổi (Tạo mới hoặc không áp dụng)>'}
+                    </pre>
+                  </div>
+                </div>
+
+                {/* After JSON */}
+                <div className="flex flex-col rounded-xl bg-slate-950 border border-emerald-900/30 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-emerald-950/20 border-b border-emerald-900/30 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                      <span className="text-xs font-bold text-emerald-300">Dữ liệu Sau (After)</span>
+                    </div>
+                    {selectedAuditLog.after_json && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const text = typeof selectedAuditLog.after_json === 'string'
+                            ? selectedAuditLog.after_json
+                            : JSON.stringify(selectedAuditLog.after_json, null, 2);
+                          navigator.clipboard.writeText(text);
+                          setCopiedField('after');
+                          setTimeout(() => setCopiedField(null), 2000);
+                        }}
+                        className="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        {copiedField === 'after' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedField === 'after' ? 'Đã chép' : 'Sao chép'}</span>
+                      </button>
+                    )}
+                  </div>
+                  <div className="p-4 flex-1 overflow-x-auto max-h-[360px]">
+                    <pre className="text-[11px] font-mono text-emerald-200 leading-relaxed whitespace-pre-wrap break-all">
+                      {selectedAuditLog.after_json
+                        ? (typeof selectedAuditLog.after_json === 'string'
+                            ? (() => {
+                                try { return JSON.stringify(JSON.parse(selectedAuditLog.after_json), null, 2); }
+                                catch { return selectedAuditLog.after_json; }
+                              })()
+                            : JSON.stringify(selectedAuditLog.after_json, null, 2))
+                        : '<Không có dữ liệu sau thay đổi (Đã xóa hoặc không áp dụng)>'}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+
+              {/* User Agent Detailed view if long */}
+              {selectedAuditLog.user_agent && (
+                <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/60 text-[11px] text-slate-400">
+                  <span className="font-semibold text-slate-300">Trình duyệt / Client: </span>
+                  <span className="font-mono text-slate-400 break-all">{selectedAuditLog.user_agent}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-slate-800 bg-slate-900/40 flex items-center justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsAuditModalOpen(false)}
+                className="px-5 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer"
               >
                 Đóng
               </button>
