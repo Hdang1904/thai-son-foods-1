@@ -1,0 +1,283 @@
+{
+  "passedCount": 46,
+  "failedCount": 0,
+  "total": 46,
+  "testReport": [
+    {
+      "id": "VULN-01-GET",
+      "name": "GET /api/auth/mock-oauth trả về HTTP 403 Disabled",
+      "status": "PASS",
+      "details": "status: 403"
+    },
+    {
+      "id": "VULN-01-POST",
+      "name": "POST /api/auth/mock-oauth trả về HTTP 403 và KHÔNG cấp Set-Cookie",
+      "status": "PASS",
+      "details": "status: 403, set-cookie: false"
+    },
+    {
+      "id": "VULN-02-NO-PHONE",
+      "name": "Tra cứu công khai thiếu phone trả HTTP 400",
+      "status": "PASS",
+      "details": "status: 400"
+    },
+    {
+      "id": "VULN-02-WRONG-PHONE",
+      "name": "Tra cứu sai phone trả HTTP 404 với thông điệp chung",
+      "status": "PASS",
+      "details": "status: 404"
+    },
+    {
+      "id": "VULN-02-WRONG-CODE",
+      "name": "Tra cứu mã không tồn tại trả HTTP 404 chung tránh dò quét",
+      "status": "PASS",
+      "details": "status: 404"
+    },
+    {
+      "id": "VULN-02-MASKED-PII",
+      "name": "Tra cứu công khai trả về dữ liệu PII đã che mờ",
+      "status": "PASS",
+      "details": "Name: N. V. T. Sơn, Phone: 090****888, Addr: Phường Đa Kao, Quận 1, TP. Hồ Chí Minh"
+    },
+    {
+      "id": "VULN-02-AUTH-OWN",
+      "name": "Khách hàng đăng nhập xem đầy đủ thông tin đơn của chính mình",
+      "status": "PASS",
+      "details": "Phone: 0900000777"
+    },
+    {
+      "id": "VULN-02-AUTH-OTHER-NOPHON",
+      "name": "Khách đăng nhập xem đơn người khác không truyền phone bị từ chối 400",
+      "status": "PASS",
+      "details": "status: 400"
+    },
+    {
+      "id": "VULN-02-LOCKOUT-429",
+      "name": "Khóa rate limit sau 5 lần đoán sai SĐT trên cùng một mã đơn (HTTP 429)",
+      "status": "PASS",
+      "details": "Hit 429: true"
+    },
+    {
+      "id": "VULN-05-UNAUTH",
+      "name": "GET /api/test-email không đăng nhập trả về HTTP 401",
+      "status": "PASS",
+      "details": "status: 401"
+    },
+    {
+      "id": "VULN-05-STAFF-FORBIDDEN",
+      "name": "GET /api/test-email với STORE_STAFF trả về HTTP 403",
+      "status": "PASS",
+      "details": "status: 403"
+    },
+    {
+      "id": "VULN-05-SUPER-ALLOWED",
+      "name": "GET /api/test-email với SUPER_ADMIN được phép truy cập (HTTP 200)",
+      "status": "PASS",
+      "details": "status: 200"
+    },
+    {
+      "id": "VULN-05-LOGS-UNAUTH",
+      "name": "GET /api/test-email/logs không đăng nhập trả về HTTP 401",
+      "status": "PASS",
+      "details": "status: 401"
+    },
+    {
+      "id": "VULN-05-LOGS-SUPER-MASKED",
+      "name": "GET /api/test-email/logs trả về danh sách log có che mờ email PII",
+      "status": "PASS",
+      "details": "Recipient: qa***r@example.com"
+    },
+    {
+      "id": "DEFECT-03-CONCURRENCY-STATUS",
+      "name": "20 request đặt hàng đồng thời: 0 lỗi HTTP 500",
+      "status": "PASS",
+      "details": "Success: 20/20"
+    },
+    {
+      "id": "DEFECT-03-UNIQUE-PKEY",
+      "name": "20 đơn hàng có 20 khóa chính ID hoàn toàn duy nhất",
+      "status": "PASS",
+      "details": "Unique IDs: 20/20"
+    },
+    {
+      "id": "DEFECT-03-UNIQUE-CODE",
+      "name": "20 mã đơn hiển thị TSF-... hoàn toàn duy nhất",
+      "status": "PASS",
+      "details": "Unique Codes: 20/20"
+    },
+    {
+      "id": "VULN-04-BLOCK-HTML-EXT",
+      "name": "Upload exploit.html giả MIME image/png bị từ chối 400",
+      "status": "PASS",
+      "details": "status: 400"
+    },
+    {
+      "id": "VULN-04-BLOCK-MAGIC-BYTES",
+      "name": "Upload shell.php.png có nội dung PHP bị từ chối 400 do sai magic bytes",
+      "status": "PASS",
+      "details": "status: 400"
+    },
+    {
+      "id": "VULN-04-VALID-PNG-SECURE-NAME",
+      "name": "Upload file PNG hợp lệ thành công HTTP 200, tên file sinh ngẫu nhiên an toàn",
+      "status": "PASS",
+      "details": "URL: /uploads/products/1790837763352_3e28f8eef2b7.png"
+    },
+    {
+      "id": "VULN-06-NO-HEADER",
+      "name": "Không có header Authorization trả về HTTP 401",
+      "status": "PASS",
+      "details": "status: 401"
+    },
+    {
+      "id": "VULN-06-QUERY-PARAM-DENY",
+      "name": "Truyền secret qua query param bị từ chối 401",
+      "status": "PASS",
+      "details": "status: 401"
+    },
+    {
+      "id": "VULN-06-WRONG-SECRET",
+      "name": "Authorization Bearer sai secret trả về HTTP 401",
+      "status": "PASS",
+      "details": "status: 401"
+    },
+    {
+      "id": "VULN-06-VALID-BEARER",
+      "name": "Authorization Bearer đúng CRON_SECRET trả về HTTP 200",
+      "status": "PASS",
+      "details": "status: 200"
+    },
+    {
+      "id": "DEFECT-07-FRAME",
+      "name": "Header X-Frame-Options: SAMEORIGIN",
+      "status": "PASS",
+      "details": "value: SAMEORIGIN"
+    },
+    {
+      "id": "DEFECT-07-NOSNIFF",
+      "name": "Header X-Content-Type-Options: nosniff",
+      "status": "PASS",
+      "details": "value: nosniff"
+    },
+    {
+      "id": "DEFECT-07-REFERRER",
+      "name": "Header Referrer-Policy: strict-origin-when-cross-origin",
+      "status": "PASS",
+      "details": "value: strict-origin-when-cross-origin"
+    },
+    {
+      "id": "DEFECT-07-PERMS",
+      "name": "Header Permissions-Policy cấu hình chặt chẽ",
+      "status": "PASS",
+      "details": "value: camera=(), microphone=(), geolocation=(self)"
+    },
+    {
+      "id": "DEFECT-07-CSP-REPORT",
+      "name": "Header Content-Security-Policy-Report-Only được cấu hình an toàn",
+      "status": "PASS",
+      "details": "value: default-src 'self'; script-src 'self' 'unsafe-eval..."
+    },
+    {
+      "id": "DEFECT-08-NO-ORIGIN-DENY",
+      "name": "POST /api/admin/users thiếu cả Origin và Referer bị chặn HTTP 403",
+      "status": "PASS",
+      "details": "status: 403"
+    },
+    {
+      "id": "DEFECT-08-EVIL-ORIGIN-DENY",
+      "name": "POST /api/admin/users với Origin từ domain lạ bị chặn HTTP 403 CSRF_BLOCKED",
+      "status": "PASS",
+      "details": "status: 403"
+    },
+    {
+      "id": "DEFECT-08-VALID-ORIGIN-PASS",
+      "name": "POST /api/admin/users với Origin hợp lệ vượt qua kiểm tra CSRF",
+      "status": "PASS",
+      "details": "code: UNAUTHORIZED"
+    },
+    {
+      "id": "DEFECT-09-HOMEPAGE-H1",
+      "name": "Trang chủ có đúng 1 thẻ <h1> ngữ nghĩa",
+      "status": "PASS",
+      "details": "h1 tags found: 1"
+    },
+    {
+      "id": "DEFECT-09-CLEAN-TITLE",
+      "name": "Tiêu đề trang sản phẩm không bị lặp hậu tố | Thái Sơn Foods",
+      "status": "PASS",
+      "details": "Title: Sữa Bắp Nếp nguyên chất từ bắp tươi, thức uống dinh dưỡng, giải pháp bữa sáng nhanh gọn, chai 330ml, đạt chuẩn HACCP. | Thái Sơn Foods"
+    },
+    {
+      "id": "RBAC-MATRIX-ALL",
+      "name": "Ma trận RBAC 18 endpoint × 5 vai trò đạt chuẩn",
+      "status": "PASS",
+      "details": "90/90 checks passed"
+    },
+    {
+      "id": "IDOR-01-READ",
+      "name": "Staff AMA xem đơn hàng của Store D1 bị chặn HTTP 403",
+      "status": "PASS",
+      "details": "status: 403"
+    },
+    {
+      "id": "IDOR-02-MUTATE",
+      "name": "Staff AMA cập nhật trạng thái đơn của Store D1 bị chặn HTTP 403",
+      "status": "PASS",
+      "details": "status: 403"
+    },
+    {
+      "id": "IDOR-03-INVENTORY",
+      "name": "Staff AMA không thể can thiệp tồn kho của Store D1 (kho D1 giữ nguyên)",
+      "status": "PASS",
+      "details": "D1 Stock before: 100, after: 100"
+    },
+    {
+      "id": "TAMPER-PRICE",
+      "name": "Giá sản phẩm gửi 100₫ bị máy chủ tính lại theo giá niêm yết 18.000₫",
+      "status": "PASS",
+      "details": "Price in DB: 18000₫"
+    },
+    {
+      "id": "TAMPER-SHIPPING",
+      "name": "Phí ship gửi 0₫ được máy chủ tính lại theo cước thực tế (Haversine)",
+      "status": "PASS",
+      "details": "Ship fee in DB: 30000₫"
+    },
+    {
+      "id": "TAMPER-FAKE-PROD",
+      "name": "Đặt hàng với mã sản phẩm không tồn tại bị từ chối an toàn (không tạo đơn)",
+      "status": "PASS",
+      "details": "status: 500"
+    },
+    {
+      "id": "RATE-LIMIT-PHONE",
+      "name": "Đặt đơn liên tiếp cùng một SĐT trong vòng vài giây bị giới hạn HTTP 429",
+      "status": "PASS",
+      "details": "status: 429"
+    },
+    {
+      "id": "ADMIN-LOGIN-LOCKOUT",
+      "name": "Khóa rate limit đăng nhập admin sau 5 lần nhập sai liên tiếp (HTTP 429)",
+      "status": "PASS",
+      "details": "Locked out: true"
+    },
+    {
+      "id": "SECURITY-SQLI-PROTECTED",
+      "name": "Hệ thống an toàn tuyệt đối trước payload SQL Injection trong địa chỉ và tên",
+      "status": "PASS",
+      "details": "Safe response status: 200"
+    },
+    {
+      "id": "CHECKOUT-E2E-RESERVATION",
+      "name": "Đặt đơn COD thành công và giữ chỗ kho (reserved stock) chính xác",
+      "status": "PASS",
+      "details": "Reserved before: 0, after: 2"
+    },
+    {
+      "id": "CLEANUP-ZERO-RESIDUAL",
+      "name": "Xác nhận dọn sạch 100%, 0 bản ghi test tồn dư trong cơ sở dữ liệu",
+      "status": "PASS",
+      "details": "Remaining QA orders: 0"
+    }
+  ]
+}
