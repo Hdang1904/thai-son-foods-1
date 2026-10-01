@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     const endDate = searchParams.get('endDate');
 
     // Điều kiện lọc chung cho orders: không tính đơn CANCELLED
-    let whereClauses = ["o.status != 'CANCELLED'"];
+    const whereClauses = ["o.status != 'CANCELLED'"];
     const params: any[] = [];
 
     if (storeCode && storeCode !== 'ALL') {
