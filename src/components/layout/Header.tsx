@@ -770,7 +770,7 @@ export default function Header() {
             <div className="p-5 space-y-3.5">
               {/* Kênh 1: Hotline gọi trực tiếp */}
               <a
-                href="tel:0903050568"
+                href="tel:02862915024"
                 className="flex items-center justify-between p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 hover:bg-emerald-100/70 transition-all group"
               >
                 <div className="flex items-center gap-3">
@@ -780,7 +780,7 @@ export default function Header() {
                   <div>
                     <div className="text-xs font-semibold text-gray-600">{t('hotlineConsult')}</div>
                     <div className="text-base font-bold text-gray-900 group-hover:text-[#1B5E3B]">
-                      0903 050 568
+                      028 6291 5024
                     </div>
                   </div>
                 </div>

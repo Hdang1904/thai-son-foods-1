@@ -120,8 +120,17 @@ export default function ComboDetailView({ combo, productsDetail }: ComboDetailVi
   const galleryImages = useMemo(() => {
     const list: { id: string; url: string; alt: string; label?: string }[] = [];
 
-    // 1. Ảnh chính trọn bộ Combo
-    if (combo.image) {
+    // 1. Ảnh chính trọn bộ Combo & các ảnh combo được cấu hình từ Admin
+    if (combo.images && combo.images.length > 0) {
+      combo.images.forEach((cImg, idx) => {
+        list.push({
+          id: cImg.id || `combo-img-${idx}`,
+          url: cImg.url,
+          alt: cImg.alt || comboTitle,
+          label: cImg.isPrimary ? (language === 'en' ? 'Combo Set' : 'Trọn bộ Combo') : undefined,
+        });
+      });
+    } else if (combo.image) {
       list.push({
         id: `combo-main-${combo.id}`,
         url: combo.image,
@@ -851,10 +860,10 @@ export default function ComboDetailView({ combo, productsDetail }: ComboDetailVi
                   </span>
                 </div>
                 <a
-                  href="tel:19006725"
+                  href="tel:02862915024"
                   className="font-bold text-green-primary hover:underline"
                 >
-                  Hotline: 1900 6725
+                  Hotline: 028 6291 5024
                 </a>
               </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ShoppingBag } from 'lucide-react';
@@ -21,6 +21,13 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
   const addItem = useCartStore((s) => s.addItem);
   const { flyToCart } = useFlyToCart();
   const cardRef = useRef<HTMLElement>(null);
+
+  const fallbackImg = '/images/products/sua-bap-nep.png';
+  const [imgSrc, setImgSrc] = useState(product.thumbnail || fallbackImg);
+
+  useEffect(() => {
+    setImgSrc(product.thumbnail || fallbackImg);
+  }, [product.thumbnail]);
 
   const fullName = language === 'en' && product.nameEn ? product.nameEn : product.name;
   const displayUnit = language === 'en'
@@ -75,9 +82,10 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
             }`}
           >
             <Image
-              src={product.thumbnail}
+              src={imgSrc}
               alt={product.name}
               fill
+              onError={() => setImgSrc(fallbackImg)}
               className={`${
                 isBottle
                   ? 'object-contain p-2 sm:p-3'
@@ -156,9 +164,10 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
             }`}
           >
             <Image
-              src={product.thumbnail}
+              src={imgSrc}
               alt={fullName}
               fill
+              onError={() => setImgSrc(fallbackImg)}
               className={`${
                 isBottle
                   ? 'object-contain p-1.5 sm:p-4 md:p-5'
@@ -236,9 +245,10 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
           }`}
         >
           <Image
-            src={product.thumbnail}
+            src={imgSrc}
             alt={fullName}
             fill
+            onError={() => setImgSrc(fallbackImg)}
             className={`${
               isBottle
                 ? 'object-contain p-1.5 sm:p-4 md:p-6'

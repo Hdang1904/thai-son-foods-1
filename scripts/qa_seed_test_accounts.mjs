@@ -1,0 +1,44 @@
+import pg from 'pg';
+import bcrypt from 'bcryptjs';
+
+const DB_URL = 'postgresql://postgres:Tsf%40123@127.0.0.1:5432/WebTSF_staging?sslmode=disable';
+const pool = new pg.Pool({ connectionString: DB_URL });
+
+async function seedTestAccounts() {
+  const client = await pool.connect();
+  try {
+    const dummyHash = await bcrypt.hash('QaTest@2026!Password', 10);
+
+    // 1. Admin test accounts
+    await client.query(`
+      INSERT INTO admin_users (id, username, email, password_hash, full_name, role, store_code, is_active, must_change_password)
+      VALUES 
+        ('qa_admin_super_id', 'qa_super_admin', 'qa_super@example.com', $1, 'QA Super Admin', 'SUPER_ADMIN', NULL, true, false),
+        ('qa_admin_mkt_id', 'qa_marketing', 'qa_mkt@example.com', $1, 'QA Marketing Lead', 'MARKETING', NULL, true, false),
+        ('qa_admin_staff_ama_id', 'qa_staff_ama', 'qa_ama@example.com', $1, 'QA Staff Chi Nhánh AMA', 'STORE_STAFF', 'AMA', true, false),
+        ('qa_admin_staff_d1_id', 'qa_staff_d1', 'qa_d1@example.com', $1, 'QA Staff Chi Nhánh D1', 'STORE_STAFF', 'D1', true, false)
+      ON CONFLICT (username) DO UPDATE 
+      SET is_active = true, must_change_password = false;
+    `, [dummyHash]);
+    console.log('Seeded 4 QA Admin accounts.');
+
+    // 2. Customer test accounts
+    await client.query(`
+      INSERT INTO users (id, email, password_hash, full_name, phone, address, province, district, ward, is_active)
+      VALUES 
+        ('qa_user_cust_1_id', 'qa_test_cust1@example.com', $1, 'QA_TEST_Khách Hàng 1', '0900000001', '123 Đường Test 1', 'Hồ Chí Minh', 'Quận 1', 'Bến Nghé', true),
+        ('qa_user_cust_2_id', 'qa_test_cust2@example.com', $1, 'QA_TEST_Khách Hàng 2', '0900000002', '456 Đường Test 2', 'Hồ Chí Minh', 'Quận Tân Bình', 'Phường 2', true)
+      ON CONFLICT (email) DO UPDATE 
+      SET is_active = true;
+    `, [dummyHash]);
+    console.log('Seeded 2 QA Customer accounts.');
+
+  } catch (err) {
+    console.error('Error seeding test accounts:', err);
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+seedTestAccounts();

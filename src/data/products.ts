@@ -119,19 +119,19 @@ export const products: Product[] = [
   // ─── HÀNG 2: 2 SẢN PHẨM (SS - SL: Bộ đôi can sữa hạt Yoo Milk) ───
   {
     id: 'sua-hat-sen-lotus',
-    name: 'Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi, thức uống dinh dưỡng thơm bùi thanh mát, tiện lợi uống liền, chai 568ml, đạt chuẩn HACCP.',
+    name: "Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi, thức uống dinh dưỡng thơm bùi thanh mát, tiện lợi uống liền, chai 568ml, đạt chuẩn HACCP.",
     nameEn: 'Lotus Yoo Lotus Seed Milk, Fresh Lotus Seeds & Mung Beans, Convenient Drink, 568ml, Pack of 6',
     slug: 'sua-hat-sen-lotus-yoo',
-    sku: 'SS-01',
+    sku: "SS-01",
     volume: '330ml',
-    shortDescription: 'Từ hạt sen nguyên chất, sánh mịn đậm vị thơm bùi, bột kem không sữa êm bụng, chai lớn 568ml siêu tiết kiệm, nạp năng lượng dịu nhẹ mỗi ngày.',
+    shortDescription: "Từ hạt sen nguyên chất, sánh mịn đậm vị thơm bùi, bột kem không sữa êm bụng, chai lớn 568ml siêu tiết kiệm, nạp năng lượng dịu nhẹ mỗi ngày.",
     shortDescriptionEn: 'Lotus Yoo Lotus Seed Milk - Nutritious drink from fresh lotus seeds, providing wholesome nourishment.',
-    description: 'Sữa Hạt Sen Lotus Yoo - Thức uống từ hạt sen tươi tự nhiên, bổ sung dưỡng chất thanh lành mỗi ngày cho cơ thể. Mang đến hương vị thanh mát, nhẹ nhàng, giàu dinh dưỡng, thích hợp cho mọi lứa tuổi.',
+    description: "Sữa Hạt Sen Lotus Yoo - Thức uống từ hạt sen tươi tự nhiên, bổ sung dưỡng chất thanh lành mỗi ngày cho cơ thể. Mang đến hương vị thanh mát, nhẹ nhàng, giàu dinh dưỡng, thích hợp cho mọi lứa tuổi.",
     price: 25000,
-    unit: '1 chai',
+    unit: "1 chai",
     unitEn: '1 bottle',
     categoryId: 'sua-hat',
-    thumbnail: '/images/products/1200x900-ss1.jpg',
+    thumbnail: "/images/products/1200x900-ss1.jpg",
     imageFit: 'cover',
     images: [
       { id: 'ss-1', url: '/images/products/1200x900-ss1.jpg', alt: 'Sữa Hạt Sen Lotus Yoo', sortOrder: 1 },
@@ -145,9 +145,9 @@ export const products: Product[] = [
     isActive: true,
     isVegan: true,
     variants: [
-      { id: 'ss-5chai', name: '5 chai', quantity: 5, price: 125000, unit: 'lốc', volume: '5 x 568ml' },
-      { id: 'ss-7chai', name: '7 chai', quantity: 7, price: 175000, unit: 'lốc', volume: '7 x 568ml' },
-      { id: 'ss-10chai', name: '10 chai', quantity: 10, price: 250000, unit: 'thùng', volume: '10 x 568ml' },
+      { id: 'ss-5chai', name: "Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi, thức uống dinh dưỡng thơm bùi thanh mát, tiện lợi uống liền, chai 568ml, đạt chuẩn HACCP.", quantity: 5, price: 25000, unit: "1 chai", volume: '5 x 568ml' },
+      { id: 'ss-7chai', name: "Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi, thức uống dinh dưỡng thơm bùi thanh mát, tiện lợi uống liền, chai 568ml, đạt chuẩn HACCP.", quantity: 7, price: 25000, unit: "1 chai", volume: '7 x 568ml' },
+      { id: 'ss-10chai', name: "Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi, thức uống dinh dưỡng thơm bùi thanh mát, tiện lợi uống liền, chai 568ml, đạt chuẩn HACCP.", quantity: 10, price: 25000, unit: "1 chai", volume: '10 x 568ml' },
     ],
   },
   {

@@ -38,17 +38,23 @@ async function getLiveProduct(slug: string): Promise<Product | undefined> {
          p.*,
          c.name AS category_name,
          c.slug AS category_slug,
-         COALESCE(json_agg(
-           CASE WHEN pv.id IS NOT NULL 
-           THEN json_build_object('id', pv.id, 'name', pv.name, 'quantity', pv.quantity, 'price', pv.price, 'unit', pv.unit)
-           ELSE NULL END
-           ORDER BY pv.quantity ASC
-         ) FILTER (WHERE pv.id IS NOT NULL), '[]') AS variants
+         COALESCE((
+           SELECT json_agg(
+             json_build_object('id', pv.id, 'name', pv.name, 'quantity', pv.quantity, 'price', pv.price, 'unit', pv.unit)
+             ORDER BY pv.quantity ASC
+           )
+           FROM product_variants pv WHERE pv.product_id = p.id
+         ), '[]') AS variants,
+         COALESCE((
+           SELECT json_agg(
+             json_build_object('id', pi.id, 'url', pi.url, 'alt', pi.alt, 'sortOrder', pi.sort_order, 'isThumbnail', pi.is_thumbnail)
+             ORDER BY pi.sort_order ASC
+           )
+           FROM product_images pi WHERE pi.product_id = p.id AND pi.is_active = true
+         ), '[]') AS images
        FROM products p
        LEFT JOIN categories c ON p.category_id = c.id
-       LEFT JOIN product_variants pv ON pv.product_id = p.id
        WHERE p.slug = $1 OR p.id = $1 OR p.sku = $1 OR p.slug LIKE $1 || '%' OR $1 LIKE p.slug || '%'
-       GROUP BY p.id, c.name, c.slug
        LIMIT 1;`,
       [slug]
     );
@@ -74,6 +80,10 @@ async function getLiveProduct(slug: string): Promise<Product | undefined> {
         variants: [],
       };
 
+      const activeImages = Array.isArray(dbProd.images) && dbProd.images.length > 0 ? dbProd.images : [];
+      const thumbFromImages = activeImages.find((img: any) => img.isThumbnail)?.url || activeImages[0]?.url;
+      const finalThumbnail = dbProd.thumbnail || thumbFromImages || fallback.thumbnail;
+
       return {
         ...fallback,
         name: dbProd.name || fallback.name,
@@ -82,7 +92,15 @@ async function getLiveProduct(slug: string): Promise<Product | undefined> {
         unit: dbProd.unit || fallback.unit,
         shortDescription: dbProd.short_description || fallback.shortDescription,
         description: dbProd.description || fallback.description,
-        thumbnail: dbProd.thumbnail || fallback.thumbnail,
+        thumbnail: finalThumbnail,
+        images: activeImages.length > 0
+          ? activeImages.map((img: any) => ({
+              id: img.id,
+              url: img.url,
+              alt: img.alt || dbProd.name,
+              sortOrder: Number(img.sortOrder) || 1,
+            }))
+          : (fallback.images && fallback.images.length > 0 ? fallback.images : [{ id: 'img-1', url: finalThumbnail, alt: dbProd.name, sortOrder: 1 }]),
         categoryId: (dbProd.category_id ? dbProd.category_id.replace(/^cat-/, '') : fallback.categoryId),
         isFeatured: dbProd.is_featured !== null ? Boolean(dbProd.is_featured) : fallback.isFeatured,
         isNew: dbProd.is_new !== null ? Boolean(dbProd.is_new) : fallback.isNew,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import Image from 'next/image';
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { ChevronDown, Sparkles, Layers } from 'lucide-react';
@@ -39,10 +39,36 @@ export const defaultScrollBanners: ScrollBannerItem[] = [
 ];
 
 export default function ScrollBannerShowcase({
-  banners = defaultScrollBanners,
-}: ScrollBannerShowcaseProps) {
+  banners: customBanners,
+}: ScrollBannerShowcaseProps = {}) {
   const { language } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
+  const [banners, setBanners] = useState<ScrollBannerItem[]>(customBanners || defaultScrollBanners);
+
+  useEffect(() => {
+    if (customBanners && customBanners.length > 0) {
+      setBanners(customBanners);
+      return;
+    }
+    fetch('/api/banners?placement=scroll')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = data?.data || data?.banners;
+        if (Array.isArray(list) && list.length > 0) {
+          setBanners(
+            list.map((b: any) => ({
+              id: b.id,
+              image: b.image,
+              alt: b.alt || b.title || 'Thái Sơn Foods',
+              tag: b.tag || b.subtitle || 'Bản sắc & Tự nhiên',
+              title: b.title || 'UỐNG MỘT BỮA ĂN NGON LÀNH',
+              subtitle: b.subtitle || '',
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, [customBanners]);
 
   // Theo dõi tiến trình cuộn qua vùng 250vh
   const { scrollYProgress } = useScroll({

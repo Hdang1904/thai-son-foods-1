@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Phone, Mail, MapPin } from 'lucide-react';
+import { Phone, Mail, MapPin, Truck } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 function FacebookIcon({ className = 'w-5 h-5' }: { className?: string }) {
@@ -70,8 +70,8 @@ export default function Footer() {
                 </div>
                 <div className="flex items-center gap-3">
                   <Phone className="w-5 h-5 shrink-0 text-[#F4C542]" />
-                  <a href="tel:19006725" className="hover:text-[#F4C542] transition-colors font-medium">
-                    Hotline: 19006725
+                  <a href="tel:02862915024" className="hover:text-[#F4C542] transition-colors font-medium">
+                    Hotline: 028 6291 5024
                   </a>
                 </div>
                 <div className="flex items-center gap-3">
@@ -175,7 +175,7 @@ export default function Footer() {
 
           {/* Free shipping notice */}
           <div className="mt-8 p-4 sm:p-5 bg-white/10 rounded-xl text-[15px] sm:text-base text-white/95 flex items-center gap-3 border border-white/10">
-            <span className="text-xl shrink-0">🚚</span>
+            <Truck className="w-5 h-5 text-[#F4C542] shrink-0" />
             <span className="font-medium">
               {language === 'en'
                 ? 'Free shipping in HCMC, Bien Hoa, Long Thanh on orders from '

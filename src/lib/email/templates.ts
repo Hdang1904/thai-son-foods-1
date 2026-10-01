@@ -116,7 +116,7 @@ function wrapEmailLayout({
                 <tr>
                   <td align="center" style="font-size: 13px; color: #4A5568; line-height: 1.6;">
                     <strong style="color: #1A202C;">CÔNG TY TNHH THỰC PHẨM THÁI SƠN (THÁI SƠN FOODS)</strong><br>
-                    📞 Hotline CSKH / Giao nhanh: <strong style="color: #005A34;">0961 888 888</strong> • 📧 Email: <a href="mailto:cskh@thaisonfoods.vn" style="color: #005A34; text-decoration: none;">cskh@thaisonfoods.vn</a><br>
+                    📞 Hotline CSKH / Giao nhanh: <strong style="color: #005A34;">028 6291 5024</strong> • 📧 Email: <a href="mailto:cskh@thaisonfoods.vn" style="color: #005A34; text-decoration: none;">cskh@thaisonfoods.vn</a><br>
                     🌐 Website: <a href="https://thaisonfoods.vn" style="color: #005A34; text-decoration: none; font-weight: 700;">thaisonfoods.vn</a>
                   </td>
                 </tr>
@@ -457,7 +457,7 @@ export function renderOrderCompletedEmail(
           <td style="vertical-align: top; padding-top: 2px; font-size: 18px;">🛡️</td>
           <td>
             <strong style="color: #1A202C;">4. Đổi trả 1-1 miễn phí trong 24h:</strong><br>
-            <span style="color: #4A5568;">Nếu sản phẩm có bất kỳ vấn đề gì về móp méo, độ lạnh hoặc chất lượng do vận chuyển, hãy gọi ngay hotline <strong>0961 888 888</strong> để được đổi mới 100% miễn phí.</span>
+            <span style="color: #4A5568;">Nếu sản phẩm có bất kỳ vấn đề gì về móp méo, độ lạnh hoặc chất lượng do vận chuyển, hãy gọi ngay hotline <strong>028 6291 5024</strong> để được đổi mới 100% miễn phí.</span>
           </td>
         </tr>
       </table>

@@ -36,7 +36,7 @@ export default function BranchTopBar() {
             <span>Giao nhanh từ chi nhánh gần nhất</span>
           </span>
           <span className="text-gray-500">•</span>
-          <span>Hotline hỗ trợ: <strong className="text-white font-semibold">028 7100 0472</strong></span>
+          <span>Hotline hỗ trợ: <strong className="text-white font-semibold">028 6291 5024</strong></span>
         </div>
       </div>
     </div>

@@ -1,14 +1,33 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Award } from 'lucide-react';
 import { motion } from 'framer-motion';
 import BrandBadge from './BrandBadge';
 import { useLanguage } from '@/context/LanguageContext';
+import { brandSlides as defaultBrandSlides } from '@/data/brand-showcase';
+import { BrandSlide } from '@/types';
 
 export default function BrandShowcase() {
   const { language } = useLanguage();
+  const [slides, setSlides] = useState<BrandSlide[]>(defaultBrandSlides);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/brand-slides')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = data?.data || data?.slides;
+        if (Array.isArray(list) && list.length > 0) {
+          setSlides(list);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const currentSlide = slides[activeIdx] || slides[0] || defaultBrandSlides[0];
 
   return (
     <section id="ve-chung-toi" className="w-full bg-[#FAF7F0] py-10 lg:py-16">
@@ -202,8 +221,8 @@ export default function BrandShowcase() {
               className="relative w-full lg:w-[489.656px] h-[320px] sm:h-[400px] lg:h-auto lg:self-stretch shrink-0 overflow-hidden"
             >
               <Image
-                src="/images/banners/490x740-SGL.jpg"
-                alt="Thái Sơn Foods – Hương vị tự nhiên nguyên liệu chọn lọc"
+                src={currentSlide.image || '/images/banners/490x740-SGL.jpg'}
+                alt={currentSlide.title ? currentSlide.title.replace(/\n/g, ' ') : "Thái Sơn Foods – Hương vị tự nhiên nguyên liệu chọn lọc"}
                 fill
                 className="object-cover"
                 style={{ objectPosition: 'center top' }}

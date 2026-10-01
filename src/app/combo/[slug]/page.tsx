@@ -33,15 +33,21 @@ async function getLiveCombo(slug: string): Promise<Combo | undefined> {
     const dbRes = await query(
       `SELECT 
          c.*,
-         COALESCE(json_agg(
-           CASE WHEN ci.product_id IS NOT NULL 
-           THEN json_build_object('product_id', ci.product_id, 'quantity', ci.quantity)
-           ELSE NULL END
-         ) FILTER (WHERE ci.product_id IS NOT NULL), '[]') AS items
+         COALESCE((
+           SELECT json_agg(
+             json_build_object('product_id', ci.product_id, 'quantity', ci.quantity)
+           )
+           FROM combo_items ci WHERE ci.combo_id = c.id
+         ), '[]') AS items,
+         COALESCE((
+           SELECT json_agg(
+             json_build_object('id', cimg.id, 'url', cimg.url, 'alt', cimg.alt, 'sortOrder', cimg.sort_order, 'isPrimary', cimg.is_primary)
+             ORDER BY cimg.sort_order ASC
+           )
+           FROM combo_images cimg WHERE cimg.combo_id = c.id AND cimg.is_active = true
+         ), '[]') AS images
        FROM combos c
-       LEFT JOIN combo_items ci ON ci.combo_id = c.id
        WHERE c.slug = $1 OR c.id = $1
-       GROUP BY c.id
        LIMIT 1;`,
       [slug]
     );
@@ -62,6 +68,10 @@ async function getLiveCombo(slug: string): Promise<Combo | undefined> {
         isActive: true,
       };
 
+      const activeImages = Array.isArray(dbCombo.images) && dbCombo.images.length > 0 ? dbCombo.images : [];
+      const primaryFromImages = activeImages.find((img: any) => img.isPrimary)?.url || activeImages[0]?.url;
+      const finalImage = dbCombo.thumbnail || primaryFromImages || fallback.image;
+
       return {
         ...fallback,
         name: dbCombo.name || fallback.name,
@@ -69,7 +79,14 @@ async function getLiveCombo(slug: string): Promise<Combo | undefined> {
         salePrice: dbCombo.sale_price !== null && dbCombo.sale_price !== undefined ? Number(dbCombo.sale_price) : fallback.salePrice,
         totalItems: dbCombo.total_items !== null && dbCombo.total_items !== undefined ? Number(dbCombo.total_items) : fallback.totalItems,
         discount: dbCombo.discount !== null && dbCombo.discount !== undefined ? Number(dbCombo.discount) : fallback.discount,
-        image: dbCombo.thumbnail || fallback.image,
+        image: finalImage,
+        images: activeImages.map((img: any) => ({
+          id: img.id,
+          url: img.url,
+          alt: img.alt || dbCombo.name,
+          sortOrder: Number(img.sortOrder) || 1,
+          isPrimary: Boolean(img.isPrimary),
+        })),
         description: dbCombo.description || fallback.description,
         products: (Array.isArray(dbCombo.items) && dbCombo.items.length > 0)
           ? dbCombo.items.map((it: any) => ({

@@ -172,11 +172,11 @@ export default function WarehouseSection() {
               {/* Hotline & Liên hệ trực tiếp */}
               <div className="pt-4 border-t border-[#001A36]/10 flex items-center justify-between gap-3">
                 <a
-                  href="tel:19006725"
+                  href="tel:02862915024"
                   className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#1B5E3B] hover:text-[#14482D] transition-colors"
                 >
                   <Phone className="w-4 h-4" />
-                  <span>{language === 'en' ? 'Wholesale Hotline: 1900 6725' : 'Hotline sỉ: 1900 6725'}</span>
+                  <span>{language === 'en' ? 'Wholesale Hotline: 028 6291 5024' : 'Hotline sỉ: 028 6291 5024'}</span>
                 </a>
 
                 <Link

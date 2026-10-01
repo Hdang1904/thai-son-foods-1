@@ -65,7 +65,7 @@ export const translations = {
 
     // Warehouse & Why Choose Us
     whyChooseTitle: 'VÌ SAO THÁI SƠN FOODS ĐƯỢC TIN CHỌN?',
-    wholesaleHotline: 'Hotline sỉ: 1900 6725',
+    wholesaleHotline: 'Hotline sỉ: 028 6291 5024',
     viewProducts: 'Xem sản phẩm',
 
     // Footer
@@ -162,7 +162,7 @@ export const translations = {
 
     // Warehouse & Why Choose Us
     whyChooseTitle: 'WHY CHOOSE THAI SON FOODS?',
-    wholesaleHotline: 'Wholesale Hotline: 1900 6725',
+    wholesaleHotline: 'Wholesale Hotline: 028 6291 5024',
     viewProducts: 'Explore Products',
 
     // Footer

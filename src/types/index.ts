@@ -11,6 +11,9 @@ export interface Product {
   descriptionEn?: string;
   price: number;
   originalPrice?: number;
+  costPrice?: number;
+  cost_price?: number;
+  category_name?: string;
   unit: string;
   unitEn?: string;
   categoryId: string;
@@ -60,9 +63,14 @@ export interface Combo {
   description: string;
   descriptionEn?: string;
   image: string;
+  images?: { id: string; url: string; alt?: string; sortOrder?: number; isPrimary?: boolean }[];
   products: ComboItem[];
   originalPrice: number;
   salePrice: number;
+  costPrice?: number;
+  cost_price?: number;
+  original_price?: number;
+  sale_price?: number;
   totalItems: number;
   discount: number;
   isActive: boolean;

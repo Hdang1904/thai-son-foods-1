@@ -5,7 +5,39 @@ import WarehouseSection from '@/components/home/WarehouseSection';
 import CategorySidebar from '@/components/home/CategorySidebar';
 import StorePromotionSidebar from '@/components/home/StorePromotionSidebar';
 
-export default function HomePage() {
+import { query } from '@/lib/db';
+import { Banner } from '@/types';
+import { banners as defaultBanners } from '@/data/banners';
+
+export const dynamic = 'force-dynamic';
+
+async function getHeroBanners(): Promise<Banner[]> {
+  try {
+    const res = await query(
+      `SELECT * FROM banners WHERE placement = 'hero' AND is_active = true ORDER BY sort_order ASC`
+    );
+    if (res.rows.length > 0) {
+      return res.rows.map((r: any) => ({
+        id: r.id,
+        title: r.title || '',
+        titleEn: r.title_en || '',
+        subtitle: r.subtitle || '',
+        subtitleEn: r.subtitle_en || '',
+        image: r.image,
+        link: r.link || '',
+        alt: r.alt || r.title || 'Thái Sơn Foods',
+        sortOrder: Number(r.sort_order) || 1,
+        isActive: Boolean(r.is_active),
+      }));
+    }
+  } catch (err) {
+    console.error('Error fetching live hero banners:', err);
+  }
+  return defaultBanners;
+}
+
+export default async function HomePage() {
+  const heroBanners = await getHeroBanners();
   return (
     <>
       {/* 
@@ -44,7 +76,7 @@ export default function HomePage() {
         </aside>
 
         {/* 1. BANNER — Hero Banner Slider (Bố cục gốc giữ nguyên 100%, căn giữa section-container) */}
-        <HeroSlider />
+        <HeroSlider banners={heroBanners} />
 
         {/* 2. SẢN PHẨM — Product Grid (2 hàng x 6 sản phẩm nhỏ gọn) */}
         <ProductSection />
