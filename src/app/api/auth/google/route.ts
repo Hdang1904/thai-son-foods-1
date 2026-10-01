@@ -11,12 +11,17 @@ export async function GET(req: NextRequest) {
   const origin = getSafeAppOrigin(req);
   const redirectUri = `${origin}/api/auth/callback/google`;
 
-  // Nếu chưa cấu hình Client ID thực tế từ Google Cloud Console, chuyển qua trang xác thực thử nghiệm/mô phỏng
+  // Nếu chưa cấu hình Client ID thực tế từ Google Cloud Console
   if (!googleClientId || googleClientId.trim() === '' || googleClientId.includes('your_google_client_id')) {
-    const mockUrl = new URL('/api/auth/mock-oauth', origin);
-    mockUrl.searchParams.set('provider', 'google');
-    mockUrl.searchParams.set('returnUrl', returnUrl);
-    return NextResponse.redirect(mockUrl.toString());
+    if (process.env.NODE_ENV !== 'production' && process.env.ENABLE_MOCK_OAUTH === 'true') {
+      const mockUrl = new URL('/api/auth/mock-oauth', origin);
+      mockUrl.searchParams.set('provider', 'google');
+      mockUrl.searchParams.set('returnUrl', returnUrl);
+      return NextResponse.redirect(mockUrl.toString());
+    }
+    const errorUrl = new URL('/dang-nhap', origin);
+    errorUrl.searchParams.set('error', 'oauth_not_configured');
+    return NextResponse.redirect(errorUrl.toString());
   }
 
   // Luồng OAuth 2.0 Google chính thức

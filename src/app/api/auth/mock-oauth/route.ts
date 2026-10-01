@@ -5,6 +5,14 @@ import { signUserToken, USER_COOKIE_NAME, TOKEN_EXPIRY_DAYS, getSafeAppOrigin } 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  // Fail-closed: Chỉ cho phép chạy khi KHÔNG PHẢI production VÀ biến ENABLE_MOCK_OAUTH được bật rõ ràng là 'true'
+  if (process.env.NODE_ENV === 'production' || process.env.ENABLE_MOCK_OAUTH !== 'true') {
+    return NextResponse.json(
+      { success: false, error: 'Disabled' },
+      { status: 403 }
+    );
+  }
+
   const { searchParams } = new URL(req.url);
   const provider = searchParams.get('provider') || 'google';
   const returnUrl = searchParams.get('returnUrl') || '/tai-khoan';
@@ -203,6 +211,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Fail-closed: Chỉ cho phép chạy khi KHÔNG PHẢI production VÀ biến ENABLE_MOCK_OAUTH được bật rõ ràng là 'true'
+  if (process.env.NODE_ENV === 'production' || process.env.ENABLE_MOCK_OAUTH !== 'true') {
+    return NextResponse.json(
+      { success: false, error: 'Disabled' },
+      { status: 403 }
+    );
+  }
+
   try {
     await initDatabase();
     const formData = await req.formData();
@@ -259,7 +275,7 @@ export async function POST(req: NextRequest) {
       name: USER_COOKIE_NAME,
       value: token,
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: (process.env.NODE_ENV as string) === 'production',
       sameSite: 'lax',
       path: '/',
       maxAge: maxAgeSeconds,
