@@ -21,9 +21,18 @@ export async function GET(req: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    // Điều kiện lọc chung cho orders: không tính đơn CANCELLED
-    const whereClauses = ["o.status != 'CANCELLED'"];
+    // Điều kiện lọc chung cho orders: mặc định chỉ tính các đơn hàng đã hoàn tất (COMPLETED), loại bỏ hoàn toàn đơn hủy
+    const statusParam = searchParams.get('status');
+    const statusFilter = statusParam ? statusParam.toUpperCase() : 'COMPLETED';
+    const whereClauses: string[] = [];
     const params: any[] = [];
+
+    if (statusFilter !== 'ALL') {
+      params.push(statusFilter);
+      whereClauses.push(`o.status = $${params.length}`);
+    } else {
+      whereClauses.push(`o.status != 'CANCELLED'`);
+    }
 
     if (storeCode && storeCode !== 'ALL') {
       params.push(storeCode);

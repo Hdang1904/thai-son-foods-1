@@ -39,10 +39,12 @@ export async function GET(request: Request) {
     }
 
     const result = await cleanupExpiredReservations();
+    const timestamp = new Date().toISOString();
+    console.log(`[Cron Cleanup] ${timestamp} | Released: ${result.releasedReservationsCount} reservations | Cancelled: ${result.cancelledOrdersCount} orders`);
 
     return NextResponse.json({
       success: true,
-      timestamp: new Date().toISOString(),
+      timestamp,
       ...result,
     });
   } catch (error: any) {

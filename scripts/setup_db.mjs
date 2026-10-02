@@ -83,7 +83,8 @@ async function setup() {
         name VARCHAR(100) NOT NULL,
         quantity INTEGER DEFAULT 1,
         price INTEGER NOT NULL,
-        unit VARCHAR(50) DEFAULT 'chai'
+        unit VARCHAR(50) DEFAULT 'chai',
+        bottle_multiplier INTEGER NOT NULL DEFAULT 1 CHECK (bottle_multiplier > 0)
       );
 
       CREATE TABLE IF NOT EXISTS orders (

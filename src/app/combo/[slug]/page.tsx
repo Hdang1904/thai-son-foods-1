@@ -41,7 +41,7 @@ async function getLiveCombo(slug: string): Promise<Combo | undefined> {
          ), '[]') AS items,
          COALESCE((
            SELECT json_agg(
-             json_build_object('id', cimg.id, 'url', cimg.url, 'alt', cimg.alt, 'sortOrder', cimg.sort_order, 'isPrimary', cimg.is_primary)
+             json_build_object('id', cimg.id, 'url', cimg.url, 'alt', cimg.alt, 'sortOrder', cimg.sort_order, 'isPrimary', (cimg.image_type = 'primary' OR cimg.image_type = 'thumbnail'))
              ORDER BY cimg.sort_order ASC
            )
            FROM combo_images cimg WHERE cimg.combo_id = c.id AND cimg.is_active = true
@@ -88,6 +88,7 @@ async function getLiveCombo(slug: string): Promise<Combo | undefined> {
           isPrimary: Boolean(img.isPrimary),
         })),
         description: dbCombo.description || fallback.description,
+        isActive: dbCombo.is_active !== null && dbCombo.is_active !== undefined ? Boolean(dbCombo.is_active) : fallback.isActive,
         products: (Array.isArray(dbCombo.items) && dbCombo.items.length > 0)
           ? dbCombo.items.map((it: any) => ({
               productId: it.product_id,
@@ -109,7 +110,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const combo = await getLiveCombo(slug);
 
-  if (!combo) {
+  if (!combo || combo.isActive === false) {
     return { title: 'Combo không tìm thấy' };
   }
 
@@ -125,12 +126,36 @@ export async function generateMetadata({
   };
 }
 
+import { getAvailability } from '@/lib/inventory';
+
 export default async function ComboDetailPage({ params }: ComboPageProps) {
   const { slug } = await params;
   const combo = await getLiveCombo(slug);
 
-  if (!combo) {
+  if (!combo || combo.isActive === false) {
     notFound();
+  }
+
+  // Pre-fetch tồn kho khởi tạo cho chi nhánh mặc định trên Server Component
+  let initialStock: number | null = null;
+  let initialStockDetails: any[] = [];
+  try {
+    const invRes = await getAvailability('TTH', [{ productId: combo.id, quantity: 1 }]);
+    if (invRes.itemsDetail.length > 0) {
+      const enriched = invRes.itemsDetail.map((detail) => {
+        const bottlesPerUnit = detail.requested > 0 ? detail.requested : 1;
+        const maxCombos = bottlesPerUnit > 0 ? Math.floor(detail.available / bottlesPerUnit) : 0;
+        return {
+          ...detail,
+          bottlesPerUnit,
+          maxCombos,
+        };
+      });
+      initialStock = Math.max(0, Math.min(...enriched.map((d) => d.maxCombos)));
+      initialStockDetails = enriched;
+    }
+  } catch (err) {
+    console.error('Error fetching initial combo stock on server:', err);
   }
 
   // Lấy chi tiết từng chai trong combo từ danh sách products chính
@@ -154,6 +179,8 @@ export default async function ComboDetailPage({ params }: ComboPageProps) {
           <ComboDetailView
             combo={combo}
             productsDetail={comboProductsWithDetail}
+            initialStock={initialStock}
+            initialStockDetails={initialStockDetails}
           />
 
           {/* Hàng các sản phẩm bạn có thể thích */}

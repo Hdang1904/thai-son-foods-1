@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useBranchStore } from '@/store/branch';
-import { MapPin, AlertCircle } from 'lucide-react';
+import { MapPin, AlertCircle, Info } from 'lucide-react';
 
 interface ComboProductDetailItem {
   quantity: number;
@@ -40,9 +40,16 @@ interface ComboProductDetailItem {
 interface ComboDetailViewProps {
   combo: Combo;
   productsDetail: ComboProductDetailItem[];
+  initialStock?: number | null;
+  initialStockDetails?: any[];
 }
 
-export default function ComboDetailView({ combo, productsDetail }: ComboDetailViewProps) {
+export default function ComboDetailView({
+  combo,
+  productsDetail,
+  initialStock = null,
+  initialStockDetails = [],
+}: ComboDetailViewProps) {
   const { language } = useLanguage();
   const router = useRouter();
   const { flyToCart } = useFlyToCart();
@@ -59,7 +66,19 @@ export default function ComboDetailView({ combo, productsDetail }: ComboDetailVi
   const { selectedBranch, openBranchModal } = useBranchStore();
   const [isAvailable, setIsAvailable] = useState(true);
   const [checkingStock, setCheckingStock] = useState(false);
+  const [availableStock, setAvailableStock] = useState<number | null>(initialStock);
+  const [stockStatus, setStockStatus] = useState<'in_stock' | 'low' | 'out'>('in_stock');
   const [alternativeStores, setAlternativeStores] = useState<any[]>([]);
+
+  // Hàm chuyển đổi tên ngắn cho chai thành phần trong combo
+  const getShortBottleName = (fullName: string) => {
+    return fullName
+      .replace(/\s*Chai\s*330ml/gi, '')
+      .replace(/\s*330ml/gi, '')
+      .replace(/\s*Thức Uống\s*/gi, '')
+      .replace(/\s*Đóng Chai\s*/gi, '')
+      .trim();
+  };
 
   useEffect(() => {
     let active = true;
@@ -77,7 +96,14 @@ export default function ComboDetailView({ combo, productsDetail }: ComboDetailVi
         if (!active) return;
         if (res.success) {
           setIsAvailable(res.isAvailable);
+          const stock = typeof res.maxQuantity === 'number' ? res.maxQuantity : (typeof res.availableStock === 'number' ? res.availableStock : null);
+          setAvailableStock(stock);
+          setStockStatus(res.status || (stock === 0 ? 'out' : stock !== null && stock <= 10 ? 'low' : 'in_stock'));
           setAlternativeStores(res.alternativeStores || []);
+
+          if (stock !== null && stock > 0 && quantity > stock) {
+            setQuantity(stock);
+          }
         }
       })
       .catch((err) => console.error('Error checking combo stock:', err))
@@ -527,8 +553,8 @@ export default function ComboDetailView({ combo, productsDetail }: ComboDetailVi
                   <Award className="w-4 h-4 text-green-primary" />
                   <span>
                     {language === 'en'
-                      ? `Items in this Combo box (${combo.totalItems} bottles)`
-                      : `Thành phần trong hộp Combo (${combo.totalItems} chai)`}
+                      ? `Items in this Combo (${combo.totalItems} bottles)`
+                      : `Combo gồm (${combo.totalItems} chai)`}
                   </span>
                 </h3>
                 <span className="text-xs text-text-muted">
@@ -538,9 +564,10 @@ export default function ComboDetailView({ combo, productsDetail }: ComboDetailVi
 
               <div className="space-y-2.5">
                 {productsDetail.map((item, idx) => {
-                  const pName = (language === 'en' && item.product?.nameEn)
+                  const pFullName = (language === 'en' && item.product?.nameEn)
                     ? item.product.nameEn
                     : (item.product?.name || item.productId);
+                  const pShortName = getShortBottleName(pFullName);
                   const pDesc = (language === 'en' && item.product?.shortDescriptionEn)
                     ? item.product.shortDescriptionEn
                     : (item.product?.shortDescription || (language === 'en' ? 'Convenient 330ml bottled nutrition' : 'Thức uống dinh dưỡng đóng chai 330ml tiện lợi'));
@@ -549,30 +576,31 @@ export default function ComboDetailView({ combo, productsDetail }: ComboDetailVi
                     <div
                       key={`${item.productId}-${idx}`}
                       className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-[#FAF8F5] border border-gray-100/90 hover:border-emerald-600/30 transition-colors"
+                      title={pFullName}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         {/* Ảnh chai */}
                         <div className="relative w-12 h-12 rounded-lg bg-white overflow-hidden shrink-0 border border-gray-100 flex items-center justify-center p-1">
                           <Image
                             src={item.product?.thumbnail || combo.image}
-                            alt={pName}
+                            alt={pFullName}
                             fill
                             className="object-contain p-0.5"
                             sizes="48px"
                           />
                         </div>
 
-                        {/* Thông tin chai */}
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="px-1.5 py-0.2 text-[11px] font-bold bg-emerald-800 text-white rounded shrink-0">
-                              x{item.quantity} {language === 'en' ? 'bottles' : 'chai'}
-                            </span>
+                        {/* Thông tin chai: Tên ngắn × số chai, rê chuột xem tên đầy đủ */}
+                        <div className="min-w-0" title={`Tên đầy đủ: ${pFullName}`}>
+                          <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="text-xs sm:text-sm font-bold text-text-dark leading-snug">
-                              {pName}
+                              {pShortName}
                             </h4>
+                            <span className="px-2 py-0.5 text-xs font-bold bg-emerald-800 text-white rounded-md shrink-0">
+                              × {item.quantity} {language === 'en' ? 'bottles' : 'chai'}
+                            </span>
                           </div>
-                          <p className="text-[11px] text-text-muted leading-tight mt-0.5">
+                          <p className="text-[11px] text-text-muted leading-tight mt-0.5 truncate max-w-[260px] sm:max-w-none">
                             {pDesc}
                           </p>
                         </div>
@@ -583,7 +611,7 @@ export default function ComboDetailView({ combo, productsDetail }: ComboDetailVi
                         <Link
                           href={`/san-pham/${item.product.slug}`}
                           className="shrink-0 text-xs font-semibold text-green-primary hover:text-green-dark hover:underline flex items-center gap-0.5 ml-2"
-                          title={language === 'en' ? `View ${pName}` : `Xem chi tiết ${item.product.name}`}
+                          title={language === 'en' ? `View ${pFullName}` : `Xem chi tiết ${item.product.name}`}
                         >
                           <span className="hidden sm:inline">
                             {language === 'en' ? 'View' : 'Xem vị'}
@@ -635,13 +663,29 @@ export default function ComboDetailView({ combo, productsDetail }: ComboDetailVi
                   </button>
                 </div>
                 <span>•</span>
-                {isAvailable ? (
-                  <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded">
-                    {language === 'en' ? 'In stock' : 'Còn hàng'}
+                {checkingStock ? (
+                  <span className="inline-flex items-center gap-1.5 text-gray-600 font-medium bg-gray-100 px-2.5 py-0.5 rounded-full text-xs animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                    <span>{language === 'en' ? 'Checking stock...' : 'Đang kiểm kho...'}</span>
+                  </span>
+                ) : !isAvailable || availableStock === 0 ? (
+                  <span className="inline-flex items-center gap-1.5 text-red-700 font-bold bg-red-50 border border-red-200/80 px-2.5 py-0.5 rounded-full text-xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+                    <span>{language === 'en' ? 'Out of stock' : 'Hết hàng'}</span>
+                  </span>
+                ) : availableStock !== null && availableStock <= 10 ? (
+                  <span className="inline-flex items-center gap-1.5 text-amber-800 font-bold bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full text-xs shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span>
+                      {language === 'en'
+                        ? `Only ${availableStock} combos left`
+                        : `Chỉ còn ${availableStock} combo`}
+                    </span>
                   </span>
                 ) : (
-                  <span className="text-red-700 font-bold bg-red-50 px-2 py-0.5 rounded">
-                    {language === 'en' ? 'Out of stock' : 'Hết hàng tại chi nhánh này'}
+                  <span className="inline-flex items-center gap-1.5 text-emerald-800 font-bold bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full text-xs shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                    <span>{language === 'en' ? 'In stock' : 'Còn hàng'}</span>
                   </span>
                 )}
                 <span>•</span>
@@ -665,12 +709,41 @@ export default function ComboDetailView({ combo, productsDetail }: ComboDetailVi
                 </span>
               </div>
 
-              <div className="mt-2.5 pt-2.5 border-t border-gray-200/70 text-xs sm:text-sm text-text-muted">
+              <div className="mt-2.5 pt-2.5 border-t border-gray-200/70 text-xs sm:text-sm text-text-muted flex items-center justify-between flex-wrap gap-2">
                 <span>
                   {language === 'en'
                     ? <>Packaging: <strong>{combo.totalItems} bottles / carton</strong></>
                     : <>Quy cách: <strong>{combo.totalItems} chai / thùng</strong></>}
                 </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-500 font-medium">
+                    {language === 'en' ? 'Stock:' : 'Tồn kho:'}
+                  </span>
+                  <span className={cn(
+                    "font-extrabold px-2.5 py-0.5 rounded-full text-xs inline-flex items-center gap-1 shadow-2xs",
+                    availableStock === null
+                      ? "text-emerald-800 bg-emerald-100/90 border border-emerald-200"
+                      : !isAvailable || availableStock === 0
+                      ? "text-red-800 bg-red-100 border border-red-200"
+                      : availableStock <= 10
+                      ? "text-amber-800 bg-amber-100 border border-amber-200"
+                      : "text-emerald-800 bg-emerald-100/90 border border-emerald-200"
+                  )}>
+                    <span className={cn(
+                      "w-1.5 h-1.5 rounded-full",
+                      !isAvailable || availableStock === 0 ? "bg-red-600" : availableStock !== null && availableStock <= 10 ? "bg-amber-600 animate-pulse" : "bg-emerald-600"
+                    )}></span>
+                    <span>
+                      {checkingStock
+                        ? 'Đang kiểm tra...'
+                        : !isAvailable || availableStock === 0
+                        ? 'Hết hàng'
+                        : availableStock !== null && availableStock <= 10
+                        ? `Chỉ còn ${availableStock} combo`
+                        : 'Còn hàng'}
+                    </span>
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -739,15 +812,16 @@ export default function ComboDetailView({ combo, productsDetail }: ComboDetailVi
             ) : (
               <div className="space-y-4 pt-4 border-t border-gray-100">
                 {/* Chọn số lượng combo */}
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
                   <span className="text-sm font-bold text-gray-900">
                     {language === 'en' ? 'Quantity:' : 'Số lượng:'}
                   </span>
                   <div className="flex items-center border border-gray-300 rounded-xl overflow-hidden bg-white shadow-xs">
                     <button
                       type="button"
+                      disabled={quantity <= 1 || !isAvailable}
                       onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                      className="p-2 sm:px-3 hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer"
+                      className="p-2 sm:px-3 hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                       aria-label={language === 'en' ? 'Decrease quantity' : 'Giảm số lượng'}
                     >
                       <Minus className="w-4 h-4" />
@@ -757,8 +831,21 @@ export default function ComboDetailView({ combo, productsDetail }: ComboDetailVi
                     </span>
                     <button
                       type="button"
-                      onClick={() => setQuantity((q) => q + 1)}
-                      className="p-2 sm:px-3 hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer"
+                      disabled={
+                        !isAvailable ||
+                        (availableStock !== null && quantity >= availableStock)
+                      }
+                      onClick={() =>
+                        setQuantity((q) =>
+                          availableStock !== null ? Math.min(availableStock, q + 1) : q + 1
+                        )
+                      }
+                      className={cn(
+                        "p-2 sm:px-3 transition-colors cursor-pointer",
+                        !isAvailable || (availableStock !== null && quantity >= availableStock)
+                          ? "bg-gray-100 text-gray-300 cursor-not-allowed"
+                          : "hover:bg-gray-100 text-gray-700"
+                      )}
                       aria-label={language === 'en' ? 'Increase quantity' : 'Tăng số lượng'}
                     >
                       <Plus className="w-4 h-4" />
@@ -768,35 +855,69 @@ export default function ComboDetailView({ combo, productsDetail }: ComboDetailVi
                     {language === 'en' ? 'Total: ' : 'Tổng cộng: '}
                     <strong>{formatPrice(combo.salePrice * quantity)}đ</strong>
                   </span>
+                  <span className={cn(
+                    "text-xs font-semibold px-2.5 py-1 rounded-lg border shadow-2xs",
+                    !isAvailable || availableStock === 0
+                      ? "text-red-800 bg-red-50 border-red-200"
+                      : availableStock !== null && availableStock <= 10
+                      ? "text-amber-800 bg-amber-50 border-amber-200"
+                      : "text-emerald-800 bg-emerald-50 border-emerald-200"
+                  )}>
+                    {!isAvailable || availableStock === 0
+                      ? 'Hết hàng'
+                      : availableStock !== null && availableStock <= 10
+                      ? `Chỉ còn ${availableStock} combo`
+                      : 'Còn hàng'}
+                  </span>
                 </div>
 
-                {/* Cảnh báo thiếu hàng tại chi nhánh */}
-                {!isAvailable && (
-                  <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 space-y-1.5">
-                    <div className="flex items-center gap-1.5 font-bold text-red-900">
+                {/* Cảnh báo khi người dùng chạm trần số lượng */}
+                {availableStock !== null && quantity >= availableStock && availableStock > 0 && (
+                  <p className="text-xs text-amber-800 font-semibold bg-amber-50 px-3 py-2 rounded-xl border border-amber-200 flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Đã đạt số lượng tối đa của cửa hàng này</span>
+                  </p>
+                )}
+
+                {/* Hết hàng tại chi nhánh đã chọn: gợi ý cửa hàng khác còn hàng */}
+                {(!isAvailable || availableStock === 0) && (
+                  <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 space-y-2.5">
+                    <div className="flex items-center gap-2 font-bold text-red-900">
                       <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-                      <span>{selectedBranch?.name || 'Chi nhánh'} hiện không đủ hàng cho Combo này</span>
+                      <span>{selectedBranch?.name || 'Chi nhánh hiện tại'} hiện đã hết hàng cho Combo này</span>
                     </div>
+
                     {alternativeStores.length > 0 ? (
-                      <div className="pt-1 border-t border-red-200/60 flex items-center justify-between gap-1">
-                        <span className="text-[11px] text-gray-700">
-                          Kho <strong>{alternativeStores[0].name}</strong> đủ hàng
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            useBranchStore.getState().setSelectedBranch(alternativeStores[0]);
-                          }}
-                          className="text-[11px] font-bold text-emerald-800 underline hover:text-emerald-950 cursor-pointer"
-                        >
-                          Đổi sang kho này
-                        </button>
+                      <div className="pt-2 border-t border-red-200/70 space-y-2">
+                        <p className="text-slate-700 font-medium">
+                          Gợi ý chi nhánh khác còn hàng sẵn sàng giao:
+                        </p>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-white rounded-lg border border-red-100 shadow-2xs">
+                          <div>
+                            <p className="font-bold text-gray-900 text-xs">
+                              {alternativeStores[0].name}
+                            </p>
+                            <p className="text-[11px] text-gray-500">
+                              {alternativeStores[0].address}
+                              {typeof alternativeStores[0].distanceKm === 'number' && ` (~${alternativeStores[0].distanceKm.toFixed(1)} km)`}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              useBranchStore.getState().setSelectedBranch(alternativeStores[0]);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shrink-0 cursor-pointer transition-colors shadow-xs"
+                          >
+                            Chuyển sang cửa hàng này
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button
                         type="button"
                         onClick={openBranchModal}
-                        className="text-[11px] font-bold text-emerald-800 underline cursor-pointer block text-left"
+                        className="text-xs font-bold text-emerald-800 underline cursor-pointer hover:text-emerald-950 block text-left pt-1"
                       >
                         Chọn chi nhánh khác còn hàng
                       </button>

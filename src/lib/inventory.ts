@@ -26,6 +26,64 @@ export class InsufficientStockError extends Error {
   }
 }
 
+// Định nghĩa lỗi thiếu tồn kho khi xác nhận đơn (confirmStock)
+export class InsufficientStockConfirmError extends Error {
+  public insufficientItems: Array<{
+    productId: string;
+    productName?: string;
+    requested: number;
+    available: number;
+  }>;
+
+  constructor(
+    message: string,
+    insufficientItems: Array<{
+      productId: string;
+      productName?: string;
+      requested: number;
+      available: number;
+    }>
+  ) {
+    super(message);
+    this.name = 'InsufficientStockConfirmError';
+    this.insufficientItems = insufficientItems;
+  }
+}
+
+export interface ConfirmStockOptions {
+  allowOversellClamped?: boolean;
+}
+
+export interface ComboBottleBreakdown {
+  productId: string;
+  productName: string;
+  normQuantity: number;
+  unit: string;
+  stockQuantity: number;
+  reserved: number;
+  safetyStock: number;
+  available: number;
+  combosPossible: number;
+  isBottleneck: boolean;
+  bottlesNeededForNextLevel: number;
+  updatedAt?: string;
+}
+
+export interface UnifiedComboStock {
+  comboId: string;
+  comboSlug: string;
+  comboName: string;
+  storeCode: string;
+  status: 'in_stock' | 'low' | 'out';
+  maxCombos: number;
+  isAvailable: boolean;
+  lowCount: number | null;
+  bottlenecks: ComboBottleBreakdown[];
+  bottlesNeededToIncrease: number;
+  bottles: ComboBottleBreakdown[];
+  updatedAt: string;
+}
+
 export interface ExpandedBottleItem {
   productId: string; // Canonical DB product ID: 'prod-sb-01', etc.
   productName: string;
@@ -63,6 +121,8 @@ const PRODUCT_ALIAS_MAP: Record<string, string> = {
   'sua-bap-nep': 'prod-sb-01',
   'sua-bap-nep-thai-son': 'prod-sb-01',
   'prod-sb-01': 'prod-sb-01',
+  'prod-sbn-01': 'prod-sb-01',
+  'sbn-01': 'prod-sb-01',
   'sb-01': 'prod-sb-01',
 
   'sua-hat-sen-mekong': 'prod-shs-01',
@@ -124,7 +184,7 @@ export async function resolveProductCanonical(
   rawId: string | null | undefined,
   nameHint?: string,
   client?: PoolClient
-): Promise<{ id: string; name: string; price: number } | null> {
+): Promise<{ id: string; name: string; price: number; unit?: string } | null> {
   if (!rawId && !nameHint) return null;
 
   const rawClean = (rawId || '').toLowerCase().trim();
@@ -132,7 +192,7 @@ export async function resolveProductCanonical(
   // 1. Kiểm tra alias tĩnh
   if (PRODUCT_ALIAS_MAP[rawClean]) {
     const canonicalId = PRODUCT_ALIAS_MAP[rawClean];
-    const sql = `SELECT id, name, price FROM products WHERE id = $1 LIMIT 1;`;
+    const sql = `SELECT id, name, price, unit FROM products WHERE id = $1 LIMIT 1;`;
     const res = client ? await client.query(sql, [canonicalId]) : await query(sql, [canonicalId]);
     if (res.rows.length > 0) return res.rows[0];
   }
@@ -141,14 +201,14 @@ export async function resolveProductCanonical(
   const baseSuffixClean = rawClean.split('-standard')[0].replace(/-[a-z0-9]+chai.*$/i, '');
   if (PRODUCT_ALIAS_MAP[baseSuffixClean]) {
     const canonicalId = PRODUCT_ALIAS_MAP[baseSuffixClean];
-    const sql = `SELECT id, name, price FROM products WHERE id = $1 LIMIT 1;`;
+    const sql = `SELECT id, name, price, unit FROM products WHERE id = $1 LIMIT 1;`;
     const res = client ? await client.query(sql, [canonicalId]) : await query(sql, [canonicalId]);
     if (res.rows.length > 0) return res.rows[0];
   }
 
   // 3. Tìm trực tiếp trong bảng products
   const sqlDirect = `
-    SELECT id, name, price FROM products
+    SELECT id, name, price, unit FROM products
     WHERE id = $1 OR slug = $1 OR sku ILIKE $1 OR name ILIKE $2
     LIMIT 1;
   `;
@@ -163,7 +223,7 @@ export async function resolveProductCanonical(
   if (embeddedVarMatch) {
     const embeddedVariantId = embeddedVarMatch[0];
     const varEmbedSql = `
-      SELECT pv.product_id AS id, p.name, p.price
+      SELECT pv.product_id AS id, p.name, p.price, pv.unit
       FROM product_variants pv
       JOIN products p ON pv.product_id = p.id
       WHERE pv.id = $1
@@ -177,7 +237,7 @@ export async function resolveProductCanonical(
 
   // 4. Tra bảng product_variants bằng exact ID
   const pvExactSql = `
-    SELECT pv.product_id AS id, p.name, p.price
+    SELECT pv.product_id AS id, p.name, p.price, pv.unit
     FROM product_variants pv
     JOIN products p ON pv.product_id = p.id
     WHERE pv.id = $1
@@ -194,7 +254,7 @@ export async function resolveProductCanonical(
     candidate = candidate.replace(/-[^-]+$/, '');
     if (PRODUCT_ALIAS_MAP[candidate]) {
       const canonicalId = PRODUCT_ALIAS_MAP[candidate];
-      const sql = `SELECT id, name, price FROM products WHERE id = $1 LIMIT 1;`;
+      const sql = `SELECT id, name, price, unit FROM products WHERE id = $1 LIMIT 1;`;
       const res = client ? await client.query(sql, [canonicalId]) : await query(sql, [canonicalId]);
       if (res.rows.length > 0) return res.rows[0];
     }
@@ -205,25 +265,55 @@ export async function resolveProductCanonical(
 
 /**
  * Trích xuất hệ số số chai từ variant ID hoặc text đơn vị
+ * QUY TẮC NGHIÊM NGẶT: Không tự ý fallback về 1 nếu không có chỉ báo chai đơn lẻ rõ ràng.
  */
-function extractBottleMultiplier(rawId: string, unit?: string, name?: string): number {
-  const combined = `${rawId} ${unit || ''} ${name || ''}`.toLowerCase();
+export function extractBottleMultiplier(rawId: string, unit?: string, name?: string): number {
+  const cleanId = (rawId || '').toLowerCase().trim();
+  const cleanUnit = (unit || '').toLowerCase().trim();
+  const cleanName = (name || '').toLowerCase().trim();
+  const textDesc = `${cleanUnit} ${cleanName}`;
 
-  // Bắt mẫu "X chai"
-  const match = combined.match(/(\d+)\s*(chai|bottle)/);
-  if (match) {
-    const num = parseInt(match[1], 10);
+  // 1. Bắt mẫu số lượng từ text mô tả (unit và name): "7 chai", "12 chai", "Lốc 7", "Thùng 24", "Pack of 6", "6 lon"
+  const matchChai = textDesc.match(/(\d+)\s*(chai|bottle)/i);
+  if (matchChai) {
+    const num = parseInt(matchChai[1], 10);
     if (!isNaN(num) && num > 0) return num;
   }
 
-  // Bắt mẫu variant suffix như "-7chai", "-10chai", "-12chai", "-15chai", "-24chai"
-  const variantMatch = combined.match(/[-_](\d+)chai/);
-  if (variantMatch) {
-    const num = parseInt(variantMatch[1], 10);
+  // 2. Bắt các quy cách đóng gói từ text: lốc X, thùng X, pack X, X lon, X ly
+  const packMatch = textDesc.match(/(?:lốc|thùng|hộp|pack|set)\s*(\d+)/i) || 
+                    textDesc.match(/(\d+)\s*(?:lốc|thùng|hộp|pack|lon|ly)/i);
+  if (packMatch) {
+    const num = parseInt(packMatch[1], 10);
     if (!isNaN(num) && num > 0) return num;
   }
 
-  return 1;
+  // 3. Bắt mẫu từ variant ID suffix (như "sb-7chai", "-10chai", "-loc5", "-thung24")
+  // Phải có chỉ báo quy cách đóng gói rõ ràng (chai, loc, thung, pack, lon, ly) và hệ số thực tế (<= 1000)
+  if (!cleanId.match(/^prod-[a-z0-9]+-\d+$/i) && !cleanId.match(/^prod-\d+$/i)) {
+    const variantMatch = cleanId.match(/[-_](\d+)\s*(?:chai|loc|thung|pack|lon|ly)/i) || 
+                         cleanId.match(/[-_](?:loc|thung|pack|lon)(\d+)/i);
+    if (variantMatch) {
+      const num = parseInt(variantMatch[1], 10);
+      if (!isNaN(num) && num > 0 && num <= 1000) return num;
+    }
+  }
+
+  // 4. Nếu là đơn vị chai đơn lẻ đã xác định rõ ràng (chai, 1 chai, 330ml, 568ml, 270ml...)
+  if (cleanUnit === 'chai' || cleanUnit === '1 chai' || cleanUnit === 'bottle' || 
+      cleanUnit.endsWith('ml') || cleanUnit.endsWith('l')) {
+    return 1;
+  }
+  if (textDesc.includes('1 chai') || textDesc.includes('chai 330ml') || textDesc.includes('chai 568ml') || textDesc.includes('chai 270ml') || textDesc.includes('chai lẻ') || textDesc.includes('chai le')) {
+    return 1;
+  }
+
+  // KHÔNG CÒN FALLBACK VỀ 1 NỮA: Ném lỗi rõ ràng khi không xác định được hệ số chai
+  throw new Error(
+    `[INVENTORY_UNKNOWN_MULTIPLIER] Không thể xác định hệ số chai cho biến thể/sản phẩm: ` +
+    `id="${rawId}", unit="${unit || ''}", name="${name || ''}". ` +
+    `Hệ thống từ chối fallback về 1 để tránh sai lệch tồn kho.`
+  );
 }
 
 /**
@@ -233,6 +323,8 @@ function extractBottleMultiplier(rawId: string, unit?: string, name?: string): n
 export async function expandComboItems(
   items: Array<{
     productId?: string | null;
+    product_id?: string | null;
+    id?: string | null;
     name?: string;
     quantity: number;
     unit?: string;
@@ -248,7 +340,13 @@ export async function expandComboItems(
 
   for (let idx = 0; idx < items.length; idx++) {
     const item = items[idx];
-    const rawId = (item.productId || '').trim();
+    const rawId = ((item as any).productId || (item as any).product_id || (item as any).id || '').trim();
+    if (!rawId) {
+      throw new Error(
+        `[INVENTORY_MISSING_PRODUCT_ID] Dòng sản phẩm thứ ${idx + 1} thiếu productId: ` +
+        `${JSON.stringify(item)}. Không thể kiểm tra và bóc tách tồn kho.`
+      );
+    }
     const itemQty = Math.max(1, Math.round(Number(item.quantity) || 1));
 
     let isCombo = false;
@@ -472,7 +570,27 @@ export async function expandComboItems(
     if (!isCombo) {
       const prod = await resolveProductCanonical(rawId, item.name, client);
       if (prod) {
-        const multiplier = extractBottleMultiplier(rawId, item.unit, item.name);
+        // Thử lấy bottle_multiplier từ bảng product_variants nếu có
+        let dbMultiplier: number | null = null;
+        try {
+          const pvSql = `SELECT bottle_multiplier, quantity FROM product_variants WHERE id = $1 LIMIT 1;`;
+          const pvRes = client ? await client.query(pvSql, [rawId]) : await query(pvSql, [rawId]);
+          if (pvRes.rows.length > 0 && pvRes.rows[0].bottle_multiplier > 0) {
+            dbMultiplier = Number(pvRes.rows[0].bottle_multiplier);
+          }
+        } catch {
+          // Bỏ qua nếu query lỗi hoặc DB chưa có cột
+        }
+
+        const effectiveUnit = item.unit || prod.unit;
+        const multiplier = dbMultiplier || extractBottleMultiplier(rawId, effectiveUnit, item.name || prod.name);
+        if (!multiplier || isNaN(multiplier) || multiplier <= 0) {
+          throw new Error(
+            `[INVENTORY_UNKNOWN_MULTIPLIER] Thiếu hệ số chai hợp lệ cho sản phẩm/biến thể: ` +
+            `id="${rawId}", name="${item.name || prod.name}", unit="${item.unit || ''}". ` +
+            `Vui lòng kiểm tra cấu hình bottle_multiplier.`
+          );
+        }
         const totalBottles = multiplier * itemQty;
         expandedBottles.push({
           productId: prod.id,
@@ -498,12 +616,161 @@ export async function expandComboItems(
   return { expandedBottles, comboSnapshots };
 }
 
+export interface SellableItemInput {
+  productId?: string | null;
+  product_id?: string | null;
+  id?: string | null;
+  name?: string;
+  unit?: string;
+  quantity?: number;
+}
+
+/**
+ * Công thức tính tồn bán được duy nhất:
+ * sellable = max(0, stock - reserved - safety_stock)
+ */
+export function calculateSellable(
+  stock: number | string | null | undefined,
+  reserved: number | string | null | undefined,
+  safetyStock: number | string | null | undefined
+): number {
+  const s = Math.max(0, Number(stock) || 0);
+  const r = Math.max(0, Number(reserved) || 0);
+  const safe = Math.max(0, Number(safetyStock) || 0);
+  return Math.max(0, s - r - safe);
+}
+
+/**
+ * HÀM DUY NHẤT TÍNH TỒN BÁN ĐƯỢC (getSellableQuantity)
+ * Công thức: max(0, stock - reserved - safety_stock)
+ * Tự động bóc tách combo và quy đổi lốc/thùng theo bottle_multiplier.
+ * 
+ * Hỗ trợ 2 kiểu gọi:
+ * 1. Dạng tính toán trực tiếp: getSellableQuantity(stock, reserved, safetyStock) => number
+ * 2. Dạng tra cứu kho chi nhánh: getSellableQuantity(storeCode, target, client?) => Promise<number>
+ *    trong đó target có thể là productId (chai lẻ, lốc, combo), hoặc object item, hoặc mảng items (giỏ hàng).
+ */
+export function getSellableQuantity(stock: number, reserved: number, safetyStock: number): number;
+export function getSellableQuantity(
+  storeCode: string,
+  target: string | SellableItemInput | SellableItemInput[],
+  client?: PoolClient
+): Promise<number>;
+export function getSellableQuantity(
+  storeCodeOrStock: string | number,
+  targetOrReserved?: any,
+  clientOrSafety?: any
+): number | Promise<number> {
+  // 1. Quá tải dạng số trực tiếp: getSellableQuantity(stock, reserved, safetyStock)
+  if (typeof storeCodeOrStock === 'number') {
+    return calculateSellable(storeCodeOrStock, targetOrReserved, clientOrSafety);
+  }
+
+  const storeCode = storeCodeOrStock;
+  const target = targetOrReserved;
+  const client: PoolClient | undefined = clientOrSafety;
+
+  return (async () => {
+    if (!target) return 0;
+
+    // Chuẩn hóa input thành danh sách item
+    let inputItems: Array<{ productId: string; name?: string; unit?: string; quantity: number }> = [];
+
+    if (typeof target === 'string') {
+      const raw = target.trim();
+      if (!raw) return 0;
+      inputItems = [{ productId: raw, quantity: 1 }];
+    } else if (Array.isArray(target)) {
+      if (target.length === 0) return 0;
+      inputItems = target
+        .map((t) => ({
+          productId: (t.productId || t.product_id || t.id || '').trim(),
+          name: t.name,
+          unit: t.unit,
+          quantity: Math.max(1, Number(t.quantity) || 1),
+        }))
+        .filter((t) => Boolean(t.productId));
+      if (inputItems.length === 0) return 0;
+    } else {
+      const pId = (target.productId || target.product_id || target.id || '').trim();
+      if (!pId) return 0;
+      inputItems = [
+        {
+          productId: pId,
+          name: target.name,
+          unit: target.unit,
+          quantity: 1,
+        },
+      ];
+    }
+
+    // 1. Quét dọn reservation hết hạn có throttle 60s
+    await cleanupExpiredReservationsThrottled(client);
+
+    // 2. Bóc tách sản phẩm thành từng chai vật lý với bottle_multiplier và combo breakdown
+    let expandedBottles: ExpandedBottleItem[] = [];
+    try {
+      const res = await expandComboItems(inputItems, client);
+      expandedBottles = res.expandedBottles;
+    } catch (err: any) {
+      console.warn(`[getSellableQuantity] Lỗi expandComboItems cho target ${JSON.stringify(target)}:`, err?.message || err);
+      return 0;
+    }
+    if (expandedBottles.length === 0) return 0;
+
+    // 3. Gom nhóm tổng số chai vật lý yêu cầu cho mỗi canonical productId
+    const requiredMap = new Map<string, number>();
+    for (const b of expandedBottles) {
+      const cur = requiredMap.get(b.productId) || 0;
+      requiredMap.set(b.productId, cur + b.bottleQuantity);
+    }
+
+    const productIds = Array.from(requiredMap.keys());
+    if (productIds.length === 0) return 0;
+
+    // 4. Lấy tồn kho vật lý, đang giữ và tồn an toàn của các chai tại storeCode
+    const sql = `
+      SELECT product_id, stock_quantity, reserved, safety_stock
+      FROM store_inventory
+      WHERE store_code = $1 AND product_id = ANY($2);
+    `;
+    const res = client
+      ? await client.query(sql, [storeCode, productIds])
+      : await query(sql, [storeCode, productIds]);
+
+    const invMap = new Map<string, { stock: number; reserved: number; safety: number }>();
+    for (const row of res.rows) {
+      invMap.set(row.product_id, {
+        stock: Number(row.stock_quantity) || 0,
+        reserved: Number(row.reserved) || 0,
+        safety: Number(row.safety_stock) || 0,
+      });
+    }
+
+    // 5. Tính số đơn vị bán được tối đa:
+    //    Với mỗi chai canonical: sellable = calculateSellable(stock, reserved, safety)
+    //    Số đơn vị có thể đáp ứng = floor(sellable / requiredPerUnit)
+    //    Kết quả cuối cùng = min của tất cả các chai thành phần
+    const limits: number[] = [];
+    for (const [pId, requiredQty] of requiredMap.entries()) {
+      const inv = invMap.get(pId) || { stock: 0, reserved: 0, safety: 0 };
+      const sellableBottles = calculateSellable(inv.stock, inv.reserved, inv.safety);
+      if (requiredQty > 0) {
+        limits.push(Math.floor(sellableBottles / requiredQty));
+      }
+    }
+
+    if (limits.length === 0) return 0;
+    return Math.max(0, Math.min(...limits));
+  })();
+}
+
 /**
  * Kiểm tra tồn kho khả dụng tại một chi nhánh cho toàn bộ danh sách sản phẩm (đã bóc combo)
  */
 export async function getAvailability(
   storeCode: string,
-  items: Array<{ productId?: string | null; name?: string; quantity: number; unit?: string }>,
+  items: Array<{ productId?: string | null; product_id?: string | null; name?: string; quantity: number; unit?: string }>,
   client?: PoolClient
 ): Promise<AvailabilityResult> {
   // Bóc tách toàn bộ sản phẩm thành từng chai
@@ -550,7 +817,7 @@ export async function getAvailability(
 
   for (const [pId, req] of requiredMap.entries()) {
     const inv = invMap.get(pId) || { stock_quantity: 0, reserved: 0, safety_stock: 0 };
-    const available = Math.max(0, inv.stock_quantity - inv.reserved - inv.safety_stock);
+    const available = calculateSellable(inv.stock_quantity, inv.reserved, inv.safety_stock);
 
     itemsDetail.push({
       productId: pId,
@@ -575,6 +842,164 @@ export async function getAvailability(
     isAvailable: insufficientItems.length === 0,
     insufficientItems,
     itemsDetail,
+  };
+}
+
+// Module-level timestamp để throttle việc quét dọn reservation hết hạn
+let lastCleanupTimestamp = 0;
+const CLEANUP_THROTTLE_MS = 60_000; // 60 giây
+
+/**
+ * Quét dọn reservation hết hạn có throttle 60s để tránh spam query khi có nhiều traffic
+ */
+export async function cleanupExpiredReservationsThrottled(
+  client?: PoolClient
+): Promise<{ cleaned: boolean; releasedReservationsCount?: number; cancelledOrdersCount?: number }> {
+  const now = Date.now();
+  if (now - lastCleanupTimestamp < CLEANUP_THROTTLE_MS) {
+    return { cleaned: false };
+  }
+  lastCleanupTimestamp = now;
+  try {
+    const res = await cleanupExpiredReservations(client);
+    return {
+      cleaned: true,
+      releasedReservationsCount: res.releasedReservationsCount,
+      cancelledOrdersCount: res.cancelledOrdersCount,
+    };
+  } catch (err) {
+    console.error('[cleanupExpiredReservationsThrottled] Error:', err);
+    return { cleaned: false };
+  }
+}
+
+/**
+ * HÀM TÍNH TỒN COMBO CHUẨN DUY NHẤT (dùng chung cho cả hiển thị công khai, admin và chặn đặt hàng)
+ * Công thức:
+ * Mỗi chai thành phần:
+ *   khả dụng = max(0, stock_quantity - reserved - safety_stock)
+ *   combosPossible = floor(khả dụng / định mức riêng của chai đó trong combo_items)
+ * Kết quả combo = min(combosPossible của tất cả các chai)
+ */
+export async function getComboStockDetails(
+  storeCode: string,
+  comboIdOrSlug: string,
+  client?: PoolClient
+): Promise<UnifiedComboStock> {
+  // 1. Tự động dọn dẹp reservation hết hạn nếu đã qua 60s
+  await cleanupExpiredReservationsThrottled(client);
+
+  // 2. Bóc tách sản phẩm theo định mức riêng của 1 combo (quantity = 1)
+  const { expandedBottles } = await expandComboItems(
+    [{ productId: comboIdOrSlug, quantity: 1 }],
+    client
+  );
+
+  // 3. Gom nhóm theo productId để có định mức chính xác cho từng chai
+  const normMap = new Map<string, { name: string; normQuantity: number }>();
+  for (const b of expandedBottles) {
+    const cur = normMap.get(b.productId);
+    if (cur) {
+      cur.normQuantity += b.bottleQuantity;
+    } else {
+      normMap.set(b.productId, { name: b.productName, normQuantity: b.bottleQuantity });
+    }
+  }
+
+  const productIds = Array.from(normMap.keys());
+  if (productIds.length === 0) {
+    return {
+      comboId: comboIdOrSlug,
+      comboSlug: comboIdOrSlug,
+      comboName: comboIdOrSlug,
+      storeCode,
+      status: 'out',
+      maxCombos: 0,
+      isAvailable: false,
+      lowCount: null,
+      bottlenecks: [],
+      bottlesNeededToIncrease: 0,
+      bottles: [],
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  // 4. Lấy tồn kho thực tế của các chai thành phần tại chi nhánh
+  const sql = `
+    SELECT product_id, stock_quantity, reserved, safety_stock, updated_at
+    FROM store_inventory
+    WHERE store_code = $1 AND product_id = ANY($2);
+  `;
+  const invRes = client ? await client.query(sql, [storeCode, productIds]) : await query(sql, [storeCode, productIds]);
+  const invMap = new Map<string, { stock_quantity: number; reserved: number; safety_stock: number; updated_at?: string }>();
+  for (const row of invRes.rows) {
+    invMap.set(row.product_id, {
+      stock_quantity: Number(row.stock_quantity) || 0,
+      reserved: Number(row.reserved) || 0,
+      safety_stock: Number(row.safety_stock) || 0,
+      updated_at: row.updated_at,
+    });
+  }
+
+  // 5. Tính từng chai theo định mức riêng và tồn khả dụng:
+  //    khả dụng = max(0, stock - reserved - safety_stock)
+  //    combosPossible = floor(khả dụng / normQuantity)
+  const bottles: ComboBottleBreakdown[] = [];
+  for (const [pId, req] of normMap.entries()) {
+    const inv = invMap.get(pId) || { stock_quantity: 0, reserved: 0, safety_stock: 0 };
+    const stockQuantity = inv.stock_quantity;
+    const reserved = inv.reserved;
+    const safetyStock = inv.safety_stock;
+    const available = calculateSellable(stockQuantity, reserved, safetyStock);
+    const normQuantity = req.normQuantity;
+    const combosPossible = normQuantity > 0 ? Math.floor(available / normQuantity) : 0;
+
+    bottles.push({
+      productId: pId,
+      productName: req.name,
+      normQuantity,
+      unit: 'chai',
+      stockQuantity,
+      reserved,
+      safetyStock,
+      available,
+      combosPossible,
+      isBottleneck: false,
+      bottlesNeededForNextLevel: 0,
+      updatedAt: inv.updated_at,
+    });
+  }
+
+  // 6. Tồn combo tối đa = min(combosPossible) của tất cả các chai
+  const maxCombos = bottles.length > 0 ? Math.min(...bottles.map((b) => b.combosPossible)) : 0;
+
+  // 7. Xác định các chai nút thắt (chai có combosPossible == maxCombos)
+  //    và tính số chai cần nhập thêm để lên mức (maxCombos + 1)
+  for (const b of bottles) {
+    b.isBottleneck = b.combosPossible === maxCombos;
+    b.bottlesNeededForNextLevel = Math.max(0, (maxCombos + 1) * b.normQuantity - b.available);
+  }
+
+  const bottlenecks = bottles.filter((b) => b.isBottleneck);
+  const bottlesNeededToIncrease =
+    bottlenecks.length > 0 ? Math.max(...bottlenecks.map((b) => b.bottlesNeededForNextLevel)) : 0;
+
+  const status: 'in_stock' | 'low' | 'out' =
+    maxCombos === 0 ? 'out' : maxCombos <= 10 ? 'low' : 'in_stock';
+
+  return {
+    comboId: comboIdOrSlug,
+    comboSlug: comboIdOrSlug,
+    comboName: comboIdOrSlug,
+    storeCode,
+    status,
+    maxCombos,
+    isAvailable: maxCombos > 0,
+    lowCount: maxCombos <= 10 ? maxCombos : null,
+    bottlenecks,
+    bottlesNeededToIncrease,
+    bottles,
+    updatedAt: new Date().toISOString(),
   };
 }
 
@@ -626,7 +1051,7 @@ export async function reserveStock(
   for (const pId of sortedProductIds) {
     const req = bottleSummary.get(pId)!;
     const inv = lockedMap.get(pId) || { stock_quantity: 0, reserved: 0, safety_stock: 0 };
-    const available = Math.max(0, inv.stock_quantity - inv.reserved - inv.safety_stock);
+    const available = calculateSellable(inv.stock_quantity, inv.reserved, inv.safety_stock);
 
     if (available < req.quantity) {
       insufficientItems.push({
@@ -688,8 +1113,9 @@ export async function confirmStock(
   orderId: string,
   targetStoreCode: string,
   client: PoolClient,
-  adminUsername: string = 'admin'
-): Promise<{ success: boolean; alreadyConfirmed: boolean }> {
+  adminUsername: string = 'admin',
+  options?: ConfirmStockOptions
+): Promise<{ success: boolean; alreadyConfirmed: boolean; oversellClamped?: boolean }> {
   // 1. Kiểm tra trạng thái đơn hiện tại
   const orderRes = await client.query(
     `SELECT id, status, store_code, inventory_deducted FROM orders WHERE id = $1 FOR UPDATE;`,
@@ -706,6 +1132,7 @@ export async function confirmStock(
   }
 
   const storeCode = order.store_code || targetStoreCode;
+  let hadOversellClamped = false;
 
   // 2. Lấy các reservation đang active của đơn hàng này
   const resSql = `
@@ -727,6 +1154,17 @@ export async function confirmStock(
       const oldStock = Number(invOld.rows[0]?.stock_quantity) || 0;
       const oldReserved = Number(invOld.rows[0]?.reserved) || 0;
 
+      const isOversell = oldStock < r.quantity;
+      if (isOversell) {
+        if (!options?.allowOversellClamped) {
+          throw new InsufficientStockConfirmError(
+            `Không thể xuất kho đơn ${orderId}: Sản phẩm ${r.product_id} tại kho ${r.store_code} tồn kho thực tế (${oldStock} chai) không đủ để xuất (${r.quantity} chai).`,
+            [{ productId: r.product_id, requested: r.quantity, available: oldStock }]
+          );
+        }
+        hadOversellClamped = true;
+      }
+
       await client.query(
         `UPDATE store_inventory
          SET stock_quantity = GREATEST(0, stock_quantity - $1),
@@ -744,10 +1182,12 @@ export async function confirmStock(
         newStock: Math.max(0, oldStock - r.quantity),
         oldReserved,
         newReserved: Math.max(0, oldReserved - r.quantity),
-        changeType: 'order_confirmed',
+        changeType: isOversell ? 'oversell_clamped' : 'order_confirmed',
         orderId,
         actor: adminUsername,
-        note: `Xác nhận đơn ${orderId} - Trừ kho ${r.quantity} chai`,
+        note: isOversell
+          ? `[CẢNH BÁO THIẾU HÀNG - OVERSELL] Đơn ${orderId}: Tồn kho thực tế (${oldStock}) < Số lượng xuất (${r.quantity}). Đã kẹp về 0 theo lệnh admin.`
+          : `Xác nhận đơn ${orderId} - Trừ kho ${r.quantity} chai`,
       });
 
       await client.query(
@@ -773,7 +1213,7 @@ export async function confirmStock(
   } else {
     // Đơn cũ chưa có reservation (backward compatibility): Bóc tách items và trừ thẳng stock_quantity
     const itemsRes = await client.query(
-      `SELECT product_id, name, quantity, unit FROM order_items WHERE order_id = $1;`,
+      `SELECT product_id AS "productId", name, quantity, unit FROM order_items WHERE order_id = $1;`,
       [orderId]
     );
     const { expandedBottles } = await expandComboItems(itemsRes.rows, client);
@@ -794,6 +1234,17 @@ export async function confirmStock(
       const oldStockBc = Number(invOldBc.rows[0]?.stock_quantity) || 0;
       const oldReservedBc = Number(invOldBc.rows[0]?.reserved) || 0;
 
+      const isOversell = oldStockBc < b.bottleQuantity;
+      if (isOversell) {
+        if (!options?.allowOversellClamped) {
+          throw new InsufficientStockConfirmError(
+            `Không thể xuất kho đơn ${orderId}: Sản phẩm ${b.productId} tại kho ${storeCode} tồn kho thực tế (${oldStockBc} chai) không đủ để xuất (${b.bottleQuantity} chai).`,
+            [{ productId: b.productId, requested: b.bottleQuantity, available: oldStockBc }]
+          );
+        }
+        hadOversellClamped = true;
+      }
+
       await client.query(
         `UPDATE store_inventory
          SET stock_quantity = GREATEST(0, stock_quantity - $1),
@@ -810,10 +1261,12 @@ export async function confirmStock(
         newStock: Math.max(0, oldStockBc - b.bottleQuantity),
         oldReserved: oldReservedBc,
         newReserved: oldReservedBc,
-        changeType: 'order_confirmed',
+        changeType: isOversell ? 'oversell_clamped' : 'order_confirmed',
         orderId,
         actor: adminUsername,
-        note: `Xác nhận đơn ${orderId} (backward-compat) - Trừ kho ${b.bottleQuantity} chai`,
+        note: isOversell
+          ? `[CẢNH BÁO THIẾU HÀNG - OVERSELL] Đơn ${orderId}: Tồn kho thực tế (${oldStockBc}) < Số lượng xuất (${b.bottleQuantity}). Đã kẹp về 0 theo lệnh admin.`
+          : `Xác nhận đơn ${orderId} (backward-compat) - Trừ kho ${b.bottleQuantity} chai`,
       });
 
       await client.query(
@@ -838,7 +1291,7 @@ export async function confirmStock(
     [orderId]
   );
 
-  return { success: true, alreadyConfirmed: false };
+  return { success: true, alreadyConfirmed: false, oversellClamped: hadOversellClamped };
 }
 
 /**
@@ -906,7 +1359,7 @@ export async function releaseStock(
     } else {
       // Fallback cho đơn cũ chưa có reservations
       const itemsRes = await client.query(
-        `SELECT product_id, name, quantity, unit FROM order_items WHERE order_id = $1;`,
+        `SELECT product_id AS "productId", name, quantity, unit FROM order_items WHERE order_id = $1;`,
         [orderId]
       );
       const { expandedBottles } = await expandComboItems(itemsRes.rows, client);
@@ -1085,12 +1538,13 @@ export async function cleanupExpiredReservations(externalClient?: PoolClient): P
     // Chuyển các đơn PENDING tương ứng sang CANCELLED
     let cancelledOrders = 0;
     for (const orderId of ordersToCancel) {
+      const cancelNote = ` [Tự động hủy: Đơn hàng quá hạn giữ chỗ ${INVENTORY_CONFIG.RESERVATION_EXPIRY_HOURS}h]`;
       const cancelRes = await client.query(
         `UPDATE orders
          SET status = 'CANCELLED',
-             note = CONCAT(COALESCE(note, ''), ' [Tự động hủy: Đơn hàng quá hạn giữ chỗ 24h]')
+             note = CONCAT(COALESCE(note, ''), $2::TEXT)
          WHERE id = $1 AND status = 'PENDING';`,
-        [orderId]
+        [orderId, cancelNote]
       );
       if (cancelRes.rowCount && cancelRes.rowCount > 0) {
         cancelledOrders++;
@@ -1143,7 +1597,8 @@ export async function logInventoryChange(
       | 'order_transferred_out'
       | 'order_transferred_in'
       | 'return_restocked'
-      | 'return_damaged';
+      | 'return_damaged'
+      | 'oversell_clamped';
     orderId?: string | null;
     actor: string;
     note?: string | null;
@@ -1200,7 +1655,7 @@ export async function processOrderReturn(
 
   if (order.inventory_deducted) {
     const itemsRes = await client.query(
-      `SELECT product_id, name, quantity, unit, total_bottles FROM order_items WHERE order_id = $1;`,
+      `SELECT product_id AS "productId", name, quantity, unit, total_bottles FROM order_items WHERE order_id = $1;`,
       [orderId]
     );
     const { expandedBottles } = await expandComboItems(itemsRes.rows, client);

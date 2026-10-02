@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -13,13 +13,35 @@ import { useFlyToCart } from '@/context/FlyToCartContext';
 import { useLanguage } from '@/context/LanguageContext';
 import SectionTitle from '@/components/ui/SectionTitle';
 
-export default function ComboShowcase() {
+import { Combo } from '@/types';
+
+interface ComboShowcaseProps {
+  combos?: Combo[];
+}
+
+export default function ComboShowcase({ combos: initialCombos }: ComboShowcaseProps = {}) {
   const { language } = useLanguage();
   const { flyToCart } = useFlyToCart();
   const router = useRouter();
   const [addedId, setAddedId] = useState<string | null>(null);
+  const [comboList, setComboList] = useState<Combo[]>(initialCombos || combos);
 
-  const handleAddToCart = (combo: typeof combos[0], e: React.MouseEvent) => {
+  useEffect(() => {
+    if (initialCombos) {
+      setComboList(initialCombos);
+      return;
+    }
+    fetch('/api/combos')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && Array.isArray(data.data) && data.data.length > 0) {
+          setComboList(data.data);
+        }
+      })
+      .catch(() => {});
+  }, [initialCombos]);
+
+  const handleAddToCart = (combo: Combo, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -59,10 +81,11 @@ export default function ComboShowcase() {
     setTimeout(() => setAddedId(null), 2000);
   };
 
-  // Chia 12 combo thành 2 hàng x 6 cột (giống hệt bố cục Sản Phẩm Thái Sơn)
+  // Chia các combo đang hoạt động thành 2 hàng x 6 cột (giống hệt bố cục Sản Phẩm Thái Sơn)
+  const activeCombos = comboList.filter((c) => c.isActive);
   const rows = [
-    { id: 'combo-row-1', items: combos.slice(0, 6) },
-    { id: 'combo-row-2', items: combos.slice(6, 12) },
+    { id: 'combo-row-1', items: activeCombos.slice(0, 6) },
+    { id: 'combo-row-2', items: activeCombos.slice(6, 12) },
   ];
 
   return (

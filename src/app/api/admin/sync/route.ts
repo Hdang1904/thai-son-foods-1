@@ -10,6 +10,13 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { success: false, error: 'Chức năng đồng bộ Store -> DB bị vô hiệu hóa hoàn toàn trên môi trường production.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
     const session = await getAdminSession();
     if (!session || !hasPermission(session, 'system.sync')) {
       return NextResponse.json(
@@ -48,6 +55,13 @@ export async function GET() {
 
 export async function POST() {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { success: false, error: 'Chức năng đồng bộ Store -> DB bị vô hiệu hóa hoàn toàn trên môi trường production.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
     const session = await getAdminSession();
     if (!session || !hasPermission(session, 'system.sync')) {
       return NextResponse.json(

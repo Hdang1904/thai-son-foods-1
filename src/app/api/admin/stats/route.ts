@@ -33,7 +33,9 @@ export async function GET() {
       ? await query(
           `SELECT 
             COUNT(*) AS total_orders,
-            COALESCE(SUM(total), 0) AS total_revenue,
+            COALESCE(SUM(CASE WHEN status = 'COMPLETED' THEN total ELSE 0 END), 0) AS total_revenue,
+            COALESCE(SUM(CASE WHEN status = 'COMPLETED' THEN subtotal ELSE 0 END), 0) AS completed_subtotal,
+            COALESCE(SUM(CASE WHEN status != 'CANCELLED' THEN total ELSE 0 END), 0) AS gross_revenue,
             COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) AS completed_orders,
             COUNT(CASE WHEN status = 'PENDING' THEN 1 END) AS pending_orders,
             COUNT(CASE WHEN status = 'PROCESSING' THEN 1 END) AS processing_orders,
@@ -46,7 +48,9 @@ export async function GET() {
       : await query(`
           SELECT 
             COUNT(*) AS total_orders,
-            COALESCE(SUM(total), 0) AS total_revenue,
+            COALESCE(SUM(CASE WHEN status = 'COMPLETED' THEN total ELSE 0 END), 0) AS total_revenue,
+            COALESCE(SUM(CASE WHEN status = 'COMPLETED' THEN subtotal ELSE 0 END), 0) AS completed_subtotal,
+            COALESCE(SUM(CASE WHEN status != 'CANCELLED' THEN total ELSE 0 END), 0) AS gross_revenue,
             COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) AS completed_orders,
             COUNT(CASE WHEN status = 'PENDING' THEN 1 END) AS pending_orders,
             COUNT(CASE WHEN status = 'PROCESSING' THEN 1 END) AS processing_orders,
@@ -118,7 +122,7 @@ export async function GET() {
           LIMIT 8;
         `);
 
-    // 6. Top selling products
+    // 6. Top selling products (chỉ tính đơn COMPLETED)
     const topProductsRes = storeScope
       ? await query(
           `SELECT 
@@ -132,8 +136,8 @@ export async function GET() {
             COALESCE(SUM(oi.quantity * oi.price), 0) AS total_earned
           FROM products p
           LEFT JOIN categories c ON p.category_id = c.id
-          LEFT JOIN order_items oi ON oi.product_id = p.id
-          LEFT JOIN orders o ON o.id = oi.order_id
+          INNER JOIN order_items oi ON oi.product_id = p.id
+          INNER JOIN orders o ON o.id = oi.order_id AND o.status = 'COMPLETED'
           WHERE o.store_code = $1
           GROUP BY p.id, p.name, p.thumbnail, p.price, p.unit, c.name
           ORDER BY total_sold DESC, p.price DESC
@@ -152,13 +156,14 @@ export async function GET() {
             COALESCE(SUM(oi.quantity * oi.price), 0) AS total_earned
           FROM products p
           LEFT JOIN categories c ON p.category_id = c.id
-          LEFT JOIN order_items oi ON oi.product_id = p.id
+          INNER JOIN order_items oi ON oi.product_id = p.id
+          INNER JOIN orders o ON o.id = oi.order_id AND o.status = 'COMPLETED'
           GROUP BY p.id, p.name, p.thumbnail, p.price, p.unit, c.name
           ORDER BY total_sold DESC, p.price DESC
           LIMIT 5;
         `);
 
-    // 7. Last 7 days revenue trend
+    // 7. Last 7 days revenue trend (chỉ tính doanh thu đơn hoàn thành)
     const last7DaysRes = storeScope
       ? await query(
           `WITH dates AS (
@@ -170,10 +175,10 @@ export async function GET() {
           )
           SELECT 
             to_char(d.day, 'DD/MM') AS date_label,
-            COALESCE(COUNT(o.id), 0) AS order_count,
-            COALESCE(SUM(o.total), 0) AS daily_revenue
+            COALESCE(COUNT(CASE WHEN o.status = 'COMPLETED' THEN o.id END), 0) AS order_count,
+            COALESCE(SUM(CASE WHEN o.status = 'COMPLETED' THEN o.total ELSE 0 END), 0) AS daily_revenue
           FROM dates d
-          LEFT JOIN orders o ON date_trunc('day', o.created_at) = d.day AND o.status != 'CANCELLED' AND o.store_code = $1
+          LEFT JOIN orders o ON date_trunc('day', o.created_at) = d.day AND o.store_code = $1
           GROUP BY d.day
           ORDER BY d.day ASC;`,
           [storeScope]
@@ -188,15 +193,15 @@ export async function GET() {
           )
           SELECT 
             to_char(d.day, 'DD/MM') AS date_label,
-            COALESCE(COUNT(o.id), 0) AS order_count,
-            COALESCE(SUM(o.total), 0) AS daily_revenue
+            COALESCE(COUNT(CASE WHEN o.status = 'COMPLETED' THEN o.id END), 0) AS order_count,
+            COALESCE(SUM(CASE WHEN o.status = 'COMPLETED' THEN o.total ELSE 0 END), 0) AS daily_revenue
           FROM dates d
-          LEFT JOIN orders o ON date_trunc('day', o.created_at) = d.day AND o.status != 'CANCELLED'
+          LEFT JOIN orders o ON date_trunc('day', o.created_at) = d.day
           GROUP BY d.day
           ORDER BY d.day ASC;
         `);
 
-    // 8. Profit overview (CHỈ dành riêng cho SUPER_ADMIN với profit.view)
+    // 8. Profit overview (CHỈ dành riêng cho SUPER_ADMIN với profit.view, tính trên đơn COMPLETED)
     const canViewProfit = hasPermission(session, 'profit.view');
     let profitOverview: any = null;
     if (canViewProfit) {
@@ -208,7 +213,7 @@ export async function GET() {
           COUNT(CASE WHEN oi.cost_price IS NULL THEN 1 END) AS missing_cost_items
         FROM orders o
         JOIN order_items oi ON oi.order_id = o.id
-        WHERE o.status != 'CANCELLED';
+        WHERE o.status = 'COMPLETED';
       `);
       if (profitRes.rows.length > 0) {
         profitOverview = profitRes.rows[0];

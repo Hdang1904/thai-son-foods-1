@@ -47,7 +47,7 @@ async function getLiveProduct(slug: string): Promise<Product | undefined> {
          ), '[]') AS variants,
          COALESCE((
            SELECT json_agg(
-             json_build_object('id', pi.id, 'url', pi.url, 'alt', pi.alt, 'sortOrder', pi.sort_order, 'isThumbnail', pi.is_thumbnail)
+             json_build_object('id', pi.id, 'url', pi.url, 'alt', pi.alt, 'sortOrder', pi.sort_order, 'isThumbnail', (pi.image_type = 'thumbnail'))
              ORDER BY pi.sort_order ASC
            )
            FROM product_images pi WHERE pi.product_id = p.id AND pi.is_active = true
@@ -132,7 +132,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const product = await getLiveProduct(slug);
 
-  if (!product) {
+  if (!product || product.isActive === false) {
     return { title: 'Sản phẩm không tìm thấy' };
   }
 
@@ -152,7 +152,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
   const product = await getLiveProduct(slug);
 
-  if (!product) {
+  if (!product || product.isActive === false) {
     notFound();
   }
 

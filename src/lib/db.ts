@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Pool } from 'pg';
 
 export const pool = new Pool(
@@ -68,7 +69,8 @@ export async function initDatabase() {
         name VARCHAR(100) NOT NULL,
         quantity INTEGER DEFAULT 1,
         price INTEGER NOT NULL,
-        unit VARCHAR(50) DEFAULT 'chai'
+        unit VARCHAR(50) DEFAULT 'chai',
+        bottle_multiplier INTEGER NOT NULL DEFAULT 1 CHECK (bottle_multiplier > 0)
       );
     `);
 
@@ -99,11 +101,11 @@ export async function initDatabase() {
       CREATE TABLE IF NOT EXISTS order_items (
         id VARCHAR(50) PRIMARY KEY,
         order_id VARCHAR(50) REFERENCES orders(id) ON DELETE CASCADE,
-        product_id VARCHAR(50),
+        product_id VARCHAR(255),
         name VARCHAR(255) NOT NULL,
         price INTEGER NOT NULL,
         quantity INTEGER NOT NULL,
-        unit VARCHAR(50) DEFAULT '1 chai',
+        unit VARCHAR(255) DEFAULT '1 chai',
         thumbnail VARCHAR(500)
       );
     `);
@@ -186,6 +188,14 @@ export async function initDatabase() {
     // Ensure products table has stock_quantity
     await client.query(`
       ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_quantity INTEGER DEFAULT 100;
+      ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS bottle_multiplier INTEGER NOT NULL DEFAULT 1;
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'chk_product_variants_bottle_multiplier'
+        ) THEN
+          ALTER TABLE product_variants ADD CONSTRAINT chk_product_variants_bottle_multiplier CHECK (bottle_multiplier > 0);
+        END IF;
+      END $$;
     `);
 
     // Create store inventory table
@@ -209,6 +219,11 @@ export async function initDatabase() {
           SELECT 1 FROM pg_constraint WHERE conname = 'chk_store_inventory_reserved'
         ) THEN
           ALTER TABLE store_inventory ADD CONSTRAINT chk_store_inventory_reserved CHECK (reserved >= 0);
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'chk_store_inventory_stock_quantity'
+        ) THEN
+          ALTER TABLE store_inventory ADD CONSTRAINT chk_store_inventory_stock_quantity CHECK (stock_quantity >= 0);
         END IF;
       END $$;
     `);
@@ -271,7 +286,10 @@ export async function initDatabase() {
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS return_reason TEXT;
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS return_disposition VARCHAR(50);
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS return_at TIMESTAMP WITH TIME ZONE;
-      ALTER TABLE order_items ADD COLUMN IF NOT EXISTS canonical_product_id VARCHAR(50);
+      ALTER TABLE order_items ADD COLUMN IF NOT EXISTS canonical_product_id VARCHAR(255);
+      ALTER TABLE order_items ALTER COLUMN canonical_product_id TYPE VARCHAR(255);
+      ALTER TABLE order_items ALTER COLUMN product_id TYPE VARCHAR(255);
+      ALTER TABLE order_items ALTER COLUMN unit TYPE VARCHAR(255);
       ALTER TABLE order_items ADD COLUMN IF NOT EXISTS bottle_multiplier INTEGER DEFAULT 1;
       ALTER TABLE order_items ADD COLUMN IF NOT EXISTS total_bottles INTEGER DEFAULT 0;
     `);

@@ -15,6 +15,19 @@ const SAMPLE_CUSTOMERS = [
   { name: 'Đỗ Thùy Linh', phone: '0908889999', email: 'linh.do@gmail.com', province: 'Đồng Nai', district: 'Biên Hòa', ward: 'Tân Tiến', address: '55 Đồng Khởi' },
 ];
 
+export async function GET() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { success: false, error: 'Chức năng tạo đơn ảo bị vô hiệu hóa hoàn toàn trên môi trường production.', code: 'FORBIDDEN' },
+      { status: 403 }
+    );
+  }
+  return NextResponse.json(
+    { success: false, error: 'Phương thức không được hỗ trợ', code: 'METHOD_NOT_ALLOWED' },
+    { status: 405 }
+  );
+}
+
 export async function POST() {
   try {
     if (process.env.NODE_ENV === 'production') {

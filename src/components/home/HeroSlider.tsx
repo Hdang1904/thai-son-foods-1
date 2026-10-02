@@ -26,7 +26,7 @@ export default function HeroSlider({
   aspectRatioClass,
   className,
 }: HeroSliderProps = {}) {
-  const bannerList = customBanners || defaultBanners;
+  const bannerList = customBanners !== undefined ? customBanners : defaultBanners;
 
   if (!bannerList || bannerList.length === 0) return null;
 

@@ -107,6 +107,7 @@ export interface InventoryItem {
   stock_quantity: number;
   reserved?: number;
   available_quantity?: number;
+  sellable_quantity?: number;
   safety_stock?: number;
   updated_at?: string;
   updated_by?: string;
@@ -4716,7 +4717,7 @@ export default function AdminPage() {
                   <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">
                     {inventoryItems.reduce((acc, i) => {
                       const cur = editedStock[i.product_id] !== undefined ? editedStock[i.product_id] : i.stock_quantity;
-                      return acc + Math.max(0, cur - (Number(i.reserved) || 0));
+                      return acc + Math.max(0, cur - (Number(i.reserved) || 0) - (Number(i.safety_stock) || 0));
                     }, 0)} chai
                   </div>
                   <span className="text-[10px] text-emerald-400/80">Khách có thể đặt mua</span>
@@ -4759,9 +4760,10 @@ export default function AdminPage() {
                         <th className="py-3.5 px-4">Mặt hàng</th>
                         <th className="py-3.5 px-4">Danh mục</th>
                         <th className="py-3.5 px-4">Giá bán</th>
-                        <th className="py-3.5 px-4 text-center">Tồn thực</th>
-                        <th className="py-3.5 px-4 text-center">Đang giữ</th>
-                        <th className="py-3.5 px-4 text-center">Khả dụng</th>
+                        <th className="py-3.5 px-3 text-center">Tồn vật lý</th>
+                        <th className="py-3.5 px-3 text-center">Đang giữ</th>
+                        <th className="py-3.5 px-3 text-center">Tồn an toàn</th>
+                        <th className="py-3.5 px-3 text-center">Tồn bán được</th>
                         <th className="py-3.5 px-4 text-center">Trạng thái & Cập nhật</th>
                         <th className="py-3.5 px-4 text-right">Thao tác</th>
                       </tr>
@@ -4769,14 +4771,14 @@ export default function AdminPage() {
                     <tbody className="divide-y divide-slate-800/60">
                       {inventoryLoading ? (
                         <tr>
-                          <td colSpan={8} className="py-12 text-center text-slate-500">
+                          <td colSpan={9} className="py-12 text-center text-slate-500">
                             <RefreshCw className="w-6 h-6 animate-spin mx-auto text-amber-400 mb-2" />
                             <span>Đang nạp dữ liệu tồn kho...</span>
                           </td>
                         </tr>
                       ) : filteredInventory.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="py-12 text-center text-slate-500">
+                          <td colSpan={9} className="py-12 text-center text-slate-500">
                             Không tìm thấy mặt hàng nào phù hợp
                           </td>
                         </tr>
@@ -4784,7 +4786,8 @@ export default function AdminPage() {
                         filteredInventory.map((item) => {
                           const currentQty = editedStock[item.product_id] !== undefined ? editedStock[item.product_id] : item.stock_quantity;
                           const reservedQty = Number(item.reserved) || 0;
-                          const availableQty = Math.max(0, currentQty - reservedQty);
+                          const safetyQty = Number(item.safety_stock) || 0;
+                          const availableQty = Math.max(0, currentQty - reservedQty - safetyQty);
                           const isLow = availableQty > 0 && availableQty <= 5;
                           const isOut = availableQty === 0;
 
@@ -4825,15 +4828,15 @@ export default function AdminPage() {
                                 {formatVND(item.price)}
                               </td>
 
-                              {/* Cột 1: Tồn thực */}
-                              <td className="py-3 px-4 text-center">
+                              {/* Cột 1: Tồn vật lý */}
+                              <td className="py-3 px-3 text-center">
                                 <span className="inline-block px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 font-mono font-bold text-slate-200 text-xs shadow-xs">
                                   {currentQty} <span className="text-[10px] text-slate-500 font-normal">chai</span>
                                 </span>
                               </td>
 
                               {/* Cột 2: Đang giữ */}
-                              <td className="py-3 px-4 text-center">
+                              <td className="py-3 px-3 text-center">
                                 <span className={`inline-block px-2.5 py-1 rounded-xl font-mono font-bold text-xs border ${
                                   reservedQty > 0
                                     ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 shadow-xs'
@@ -4843,8 +4846,19 @@ export default function AdminPage() {
                                 </span>
                               </td>
 
-                              {/* Cột 3: Khả dụng */}
-                              <td className="py-3 px-4 text-center">
+                              {/* Cột 3: Tồn an toàn */}
+                              <td className="py-3 px-3 text-center">
+                                <span className={`inline-block px-2.5 py-1 rounded-xl font-mono font-bold text-xs border ${
+                                  safetyQty > 0
+                                    ? 'bg-blue-500/10 text-blue-300 border-blue-500/30 shadow-xs'
+                                    : 'bg-slate-950/60 text-slate-500 border-slate-800'
+                                }`}>
+                                  {safetyQty} <span className="text-[10px] font-normal">chai</span>
+                                </span>
+                              </td>
+
+                              {/* Cột 4: Tồn bán được */}
+                              <td className="py-3 px-3 text-center">
                                 <span className={`inline-block px-3 py-1 rounded-xl font-mono font-black text-xs border shadow-xs ${
                                   isOut
                                     ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'

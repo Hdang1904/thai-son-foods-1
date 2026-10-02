@@ -43,10 +43,10 @@ export default function ScrollBannerShowcase({
 }: ScrollBannerShowcaseProps = {}) {
   const { language } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [banners, setBanners] = useState<ScrollBannerItem[]>(customBanners || defaultScrollBanners);
+  const [banners, setBanners] = useState<ScrollBannerItem[] | null>(customBanners !== undefined ? customBanners : null);
 
   useEffect(() => {
-    if (customBanners && customBanners.length > 0) {
+    if (customBanners !== undefined) {
       setBanners(customBanners);
       return;
     }
@@ -54,7 +54,7 @@ export default function ScrollBannerShowcase({
       .then((res) => res.json())
       .then((data) => {
         const list = data?.data || data?.banners;
-        if (Array.isArray(list) && list.length > 0) {
+        if (Array.isArray(list)) {
           setBanners(
             list.map((b: any) => ({
               id: b.id,
@@ -65,10 +65,17 @@ export default function ScrollBannerShowcase({
               subtitle: b.subtitle || '',
             }))
           );
+        } else {
+          setBanners(defaultScrollBanners);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setBanners(defaultScrollBanners);
+      });
   }, [customBanners]);
+
+  // Nếu không có banner nào đang hoạt động (do admin tắt hiển thị), ẩn toàn bộ component
+  if (!banners || banners.length === 0) return null;
 
   // Theo dõi tiến trình cuộn qua vùng 250vh
   const { scrollYProgress } = useScroll({

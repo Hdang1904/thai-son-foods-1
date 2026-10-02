@@ -61,7 +61,8 @@ export async function syncStoreToDatabase() {
         quantity INTEGER DEFAULT 1,
         price INTEGER NOT NULL,
         unit VARCHAR(50) DEFAULT 'chai',
-        volume VARCHAR(50)
+        volume VARCHAR(50),
+        bottle_multiplier INTEGER NOT NULL DEFAULT 1 CHECK (bottle_multiplier > 0)
       );
       ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS volume VARCHAR(50);
 

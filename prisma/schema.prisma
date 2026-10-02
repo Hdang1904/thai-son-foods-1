@@ -64,14 +64,15 @@ model ProductImage {
 }
 
 model ProductVariant {
-  id        String  @id @default(cuid())
-  name      String
-  quantity  Int     @default(1)
-  price     Int
-  unit      String  @default("chai")
-  volume    String?
-  productId String  @map("product_id")
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id               String  @id @default(cuid())
+  name             String
+  quantity         Int     @default(1)
+  price            Int
+  unit             String  @default("chai")
+  volume           String?
+  bottleMultiplier Int     @default(1) @map("bottle_multiplier")
+  productId        String  @map("product_id")
+  product          Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("product_variants")
 }

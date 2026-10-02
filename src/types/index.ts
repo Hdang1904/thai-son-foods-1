@@ -45,6 +45,8 @@ export interface ProductVariant {
   unit: string;
   unitEn?: string;
   volume?: string;
+  bottle_multiplier?: number;
+  bottleMultiplier?: number;
 }
 
 export interface Category {

@@ -225,7 +225,9 @@ export async function PUT(request: Request) {
 
       if (status === 'CONFIRMED' || status === 'PROCESSING' || status === 'SHIPPING' || status === 'COMPLETED') {
         const { confirmStock } = await import('@/lib/inventory');
-        const confirmRes = await confirmStock(id, targetStoreCode, client, session.username);
+        const confirmRes = await confirmStock(id, targetStoreCode, client, session.username, {
+          allowOversellClamped: Boolean(body.allowOversell || body.forceConfirm),
+        });
         deductedNow = !confirmRes.alreadyConfirmed;
       } else if (status === 'CANCELLED') {
         const { releaseStock } = await import('@/lib/inventory');

@@ -8,6 +8,8 @@ import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
+import { Product } from '@/types';
+
 interface ProductSectionProps {
   title?: string;
   viewAllLink?: string;
@@ -16,6 +18,7 @@ interface ProductSectionProps {
   excludeProductId?: string;
   itemsPerRow?: number;
   className?: string;
+  products?: Product[];
 }
 
 export default function ProductSection({
@@ -26,6 +29,7 @@ export default function ProductSection({
   excludeProductId,
   itemsPerRow,
   className = '',
+  products: initialProducts,
 }: ProductSectionProps = {}) {
   const { language } = useLanguage();
   const sectionTitle = title === 'Sản phẩm Thái Sơn'
@@ -38,6 +42,23 @@ export default function ProductSection({
   const sectionViewAllText = viewAllText === 'Xem tất cả'
     ? (language === 'en' ? 'View all' : 'Xem tất cả')
     : viewAllText;
+
+  const [productList, setProductList] = useState<Product[]>(initialProducts || products);
+
+  useEffect(() => {
+    if (initialProducts) {
+      setProductList(initialProducts);
+      return;
+    }
+    fetch('/api/products')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && Array.isArray(data.data) && data.data.length > 0) {
+          setProductList(data.data);
+        }
+      })
+      .catch(() => {});
+  }, [initialProducts]);
 
   const sliderRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -73,12 +94,12 @@ export default function ProductSection({
 
   // Chế độ Slider / Carousel 7 sản phẩm 1 hàng (trang chi tiết sản phẩm)
   if (excludeProductId || itemsPerRow === 7) {
-    const currentProduct = products.find(
+    const currentProduct = productList.find(
       (p) => p.id === excludeProductId || p.slug === excludeProductId
     );
 
     // Lọc bỏ sản phẩm hiện tại để không bị trùng lặp
-    const availableProducts = products.filter(
+    const availableProducts = productList.filter(
       (p) => p.id !== excludeProductId && p.slug !== excludeProductId && p.isActive
     );
 
@@ -151,10 +172,11 @@ export default function ProductSection({
     );
   }
 
-  // Bố cục mặc định cho Trang chủ: 2 hàng, mỗi hàng 6 mã sản phẩm (kích thước nhỏ gọn)
+  // Bố cục mặc định cho Trang chủ: 2 hàng, mỗi hàng 6 mã sản phẩm (lọc chỉ hiển thị sản phẩm đang hoạt động)
+  const activeProducts = productList.filter((p) => p.isActive);
   const rows = [
-    { id: 'row-1', items: products.slice(0, 6) },
-    { id: 'row-2', items: products.slice(6, 12) },
+    { id: 'row-1', items: activeProducts.slice(0, 6) },
+    { id: 'row-2', items: activeProducts.slice(6, 12) },
   ];
 
   return (

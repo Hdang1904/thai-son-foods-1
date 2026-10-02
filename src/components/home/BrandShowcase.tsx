@@ -20,14 +20,16 @@ export default function BrandShowcase() {
       .then((res) => res.json())
       .then((data) => {
         const list = data?.data || data?.slides;
-        if (Array.isArray(list) && list.length > 0) {
+        if (Array.isArray(list)) {
           setSlides(list);
         }
       })
       .catch(() => {});
   }, []);
 
-  const currentSlide = slides[activeIdx] || slides[0] || defaultBrandSlides[0];
+  if (!slides || slides.length === 0) return null;
+
+  const currentSlide = slides[activeIdx] || slides[0];
 
   return (
     <section id="ve-chung-toi" className="w-full bg-[#FAF7F0] py-10 lg:py-16">

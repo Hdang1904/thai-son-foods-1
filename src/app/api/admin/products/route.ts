@@ -52,7 +52,15 @@ export async function GET(request: Request) {
         c.slug AS category_slug,
         COALESCE((
           SELECT json_agg(
-            json_build_object('id', pv.id, 'name', pv.name, 'quantity', pv.quantity, 'price', pv.price, 'unit', pv.unit)
+            json_build_object(
+              'id', pv.id,
+              'name', pv.name,
+              'quantity', pv.quantity,
+              'price', pv.price,
+              'unit', pv.unit,
+              'bottle_multiplier', pv.bottle_multiplier,
+              'bottleMultiplier', pv.bottle_multiplier
+            )
             ORDER BY pv.quantity ASC
           ) FROM product_variants pv WHERE pv.product_id = p.id
         ), '[]') AS variants,
@@ -203,11 +211,21 @@ export async function POST(request: Request) {
     if (Array.isArray(variants) && variants.length > 0) {
       for (const v of variants) {
         if (v.name && v.price) {
+          const mult = parseInt(v.bottle_multiplier ?? v.bottleMultiplier, 10);
+          if (isNaN(mult) || mult <= 0) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Biến thể "${v.name}" bắt buộc nhập hệ số quy đổi số chai (bottle_multiplier > 0).`,
+              },
+              { status: 400 }
+            );
+          }
           const varId = `var_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
           await query(
-            `INSERT INTO product_variants (id, product_id, name, quantity, price, unit)
-             VALUES ($1, $2, $3, $4, $5, $6);`,
-            [varId, id, String(v.name), parseInt(v.quantity || 1, 10), parseInt(v.price, 10), v.unit || 'chai']
+            `INSERT INTO product_variants (id, product_id, name, quantity, price, unit, bottle_multiplier)
+             VALUES ($1, $2, $3, $4, $5, $6, $7);`,
+            [varId, id, String(v.name), parseInt(v.quantity || 1, 10), parseInt(v.price, 10), v.unit || 'chai', mult]
           );
         }
       }
@@ -355,14 +373,30 @@ export async function PUT(request: Request) {
 
     // Cập nhật variants nếu có truyền vào
     if (Array.isArray(variants)) {
+      // Validate hệ số chai bắt buộc cho toàn bộ biến thể trước khi xóa/thêm
+      for (const v of variants) {
+        if (v.name && v.price) {
+          const mult = parseInt(v.bottle_multiplier ?? v.bottleMultiplier, 10);
+          if (isNaN(mult) || mult <= 0) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Biến thể "${v.name}" bắt buộc nhập hệ số quy đổi số chai (bottle_multiplier > 0).`,
+              },
+              { status: 400 }
+            );
+          }
+        }
+      }
       await query(`DELETE FROM product_variants WHERE product_id = $1;`, [id]);
       for (const v of variants) {
         if (v.name && v.price) {
+          const mult = parseInt(v.bottle_multiplier ?? v.bottleMultiplier, 10);
           const varId = `var_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
           await query(
-            `INSERT INTO product_variants (id, product_id, name, quantity, price, unit)
-             VALUES ($1, $2, $3, $4, $5, $6);`,
-            [varId, id, String(v.name), parseInt(v.quantity || 1, 10), parseInt(v.price, 10), v.unit || 'chai']
+            `INSERT INTO product_variants (id, product_id, name, quantity, price, unit, bottle_multiplier)
+             VALUES ($1, $2, $3, $4, $5, $6, $7);`,
+            [varId, id, String(v.name), parseInt(v.quantity || 1, 10), parseInt(v.price, 10), v.unit || 'chai', mult]
           );
         }
       }

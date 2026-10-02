@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -55,14 +56,59 @@ const productCategoryGroups: CategoryGroup[] = [
   },
 ];
 
+const PRODUCT_SHORT_NAMES: Record<string, { vi: string; en: string }> = {
+  'sua-bap-nep-thai-son': { vi: 'Sữa Bắp Nếp Thái Sơn', en: 'Thai Son Sticky Corn Milk' },
+  'sua-hat-sen-mekong-xanh': { vi: 'Sữa Hạt Sen Mekong Xanh', en: 'Mekong Green Lotus Seed Milk' },
+  'sua-gao-lut-mekong-xanh': { vi: 'Sữa Gạo Lứt Mekong Xanh', en: 'Mekong Green Brown Rice Milk' },
+  'sua-hat-sen-lotus-yoo': { vi: 'Sữa Hạt Sen Lotus Yoo', en: 'Lotus Yoo Lotus Seed Milk' },
+  'sua-gao-lut-ohsawa-yoo': { vi: 'Sữa Gạo Lứt Ohsawa Yoo', en: 'Ohsawa Yoo Brown Rice Milk' },
+  'nha-dam-mu-trom-thai-son': { vi: 'Nước Nha Đam Mủ Trôm', en: 'Aloe Vera & Karaya Gum' },
+  'tao-do-hat-chia-thai-son': { vi: 'Nước Táo Đỏ Hạt Chia', en: 'Red Apple & Chia Seed' },
+  'sam-la-han-hoa-cuc-thai-son': { vi: 'Nước Sâm La Hán Hoa Cúc', en: 'Monk Fruit & Chrysanthemum' },
+  'tra-sua-ciao': { vi: 'Ciao Trà Sữa', en: 'Ciao Milk Tea' },
+  'matcha-tra-sua-ciao': { vi: 'Ciao Matcha Trà Sữa', en: 'Ciao Matcha Milk Tea' },
+  'tra-sua-go': { vi: 'Trà Sữa GO', en: 'GO Milk Tea' },
+  'tra-xanh-go': { vi: 'Trà Xanh GO', en: 'GO Green Tea' },
+};
+
 export default function CategorySidebar() {
   const { language } = useLanguage();
+  const [groups, setGroups] = useState<CategoryGroup[]>(productCategoryGroups);
+
+  useEffect(() => {
+    fetch('/api/categories')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const liveGroups: CategoryGroup[] = json.data
+            .filter((c: any) => Array.isArray(c.items) && c.items.length > 0)
+            .map((c: any) => ({
+              title: c.name,
+              href: '/#san-pham',
+              items: c.items.map((it: any) => {
+                const short = PRODUCT_SHORT_NAMES[it.slug];
+                const cleanVi = short?.vi || (it.name.includes(',') ? it.name.split(',')[0].trim() : it.name);
+                const cleanEn = short?.en || (it.nameEn ? (it.nameEn.includes(',') ? it.nameEn.split(',')[0].trim() : it.nameEn) : cleanVi);
+                return {
+                  name: cleanVi,
+                  nameEn: cleanEn,
+                  slug: it.slug,
+                };
+              }),
+            }));
+          if (liveGroups.length > 0) {
+            setGroups(liveGroups);
+          }
+        }
+      })
+      .catch((err) => console.error('Failed to fetch categories in CategorySidebar:', err));
+  }, []);
 
   return (
     <nav aria-label={language === 'en' ? 'Product Categories' : 'Danh mục sản phẩm'} className="w-full select-none">
       {/* Danh sách 3 nhóm danh mục rõ ràng, tương phản cao */}
       <div className="space-y-6">
-        {productCategoryGroups.map((group) => (
+        {groups.map((group) => (
           <div key={group.title} className="group/cat">
             {/* Tiêu đề nhóm danh mục: Font đậm, sắc nét, tương phản cao */}
             <div className="flex items-center gap-2 pb-2 mb-2 border-b border-emerald-900/20">
@@ -80,9 +126,9 @@ export default function CategorySidebar() {
                     href={`/san-pham/${item.slug}`}
                     className="group/item flex items-center justify-between text-[14px] min-[1800px]:text-[14.5px] font-semibold leading-snug text-[#1C2826] hover:text-[#1B5E3B] py-2 px-2.5 rounded-xl hover:bg-white hover:shadow-xs hover:border hover:border-emerald-200/80 transition-all duration-200"
                   >
-                    <span className="flex items-center gap-2">
+                    <span className="flex items-center gap-2 min-w-0 flex-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-800/40 group-hover/item:bg-[#1B5E3B] group-hover/item:scale-125 transition-all shrink-0" />
-                      <span className="leading-snug">
+                      <span className="leading-snug truncate" title={language === 'en' ? item.nameEn : item.name}>
                         {language === 'en' ? item.nameEn : item.name}
                       </span>
                     </span>

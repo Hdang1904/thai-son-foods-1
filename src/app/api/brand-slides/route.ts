@@ -14,7 +14,12 @@ export async function GET() {
     );
 
     if (res.rows.length === 0) {
-      return NextResponse.json({ success: true, data: defaultBrandSlides });
+      const countRes = await query(`SELECT COUNT(*) AS total FROM brand_slides;`);
+      const totalInDb = Number(countRes.rows[0]?.total || 0);
+      if (totalInDb === 0) {
+        return NextResponse.json({ success: true, data: defaultBrandSlides });
+      }
+      return NextResponse.json({ success: true, data: [] });
     }
 
     return NextResponse.json({ success: true, data: res.rows });

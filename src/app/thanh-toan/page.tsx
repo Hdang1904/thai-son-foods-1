@@ -1,12 +1,27 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useCartStore } from '@/store/cart';
 import { formatPrice } from '@/lib/utils';
 import Image from 'next/image';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { CheckCircle, ArrowLeft, Banknote, ShieldCheck, AlertCircle, AlertTriangle, User, Store, MapPin, RefreshCw } from 'lucide-react';
+import {
+  CheckCircle,
+  ArrowLeft,
+  Banknote,
+  ShieldCheck,
+  AlertCircle,
+  AlertTriangle,
+  User,
+  Store,
+  MapPin,
+  RefreshCw,
+  Search,
+  Navigation,
+  Compass,
+  Loader2,
+} from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useUserAuth } from '@/context/UserAuthContext';
 import { products } from '@/data/products';
@@ -14,6 +29,13 @@ import { combos } from '@/data/combos';
 import { useBranchStore } from '@/store/branch';
 import { calculateShippingFee, INVENTORY_CONFIG } from '@/config/inventory';
 import { calculateHaversineDistance, estimateCoordinatesFromAddress, findNearestStore } from '@/lib/geo';
+import {
+  getProvinceNames,
+  getDistrictsByProvince,
+  getWardsByDistrict,
+  findPreciseCoordinates,
+} from '@/data/vietnam-addresses';
+import type { AutocompleteSuggestion } from '@/app/api/geo/autocomplete/route';
 
 const MIN_ORDER_THRESHOLD = 120000;
 
@@ -54,6 +76,13 @@ export default function CheckoutPage() {
   const [isStockAvailable, setIsStockAvailable] = useState(true);
   const [insufficientItems, setInsufficientItems] = useState<any[]>([]);
   const [alternativeStores, setAlternativeStores] = useState<any[]>([]);
+  const [suggestedCloserStore, setSuggestedCloserStore] = useState<{
+    code: string;
+    name: string;
+    address: string;
+    phone?: string;
+    distanceKm: number;
+  } | null>(null);
   const [stockConflictError, setStockConflictError] = useState<string | null>(null);
 
   // Tọa độ GPS khách hàng (hoặc ước tính từ địa chỉ) để tính khoảng cách & định tuyến kho
@@ -79,6 +108,7 @@ export default function CheckoutPage() {
 
   const handleSelectStore = (storeCode: string) => {
     setSelectedStoreCode(storeCode);
+    setSuggestedCloserStore(null);
     const matched = stores.find((s) => s.code === storeCode);
     if (matched) {
       setSelectedBranch(matched);
@@ -96,12 +126,6 @@ export default function CheckoutPage() {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setCustomerCoords(coords);
         setIsLocating(false);
-        if (stores.length > 0) {
-          const nearest = findNearestStore(stores, coords.lat, coords.lng);
-          if (nearest) {
-            handleSelectStore(nearest.store.code);
-          }
-        }
       },
       (err) => {
         setIsLocating(false);
@@ -126,17 +150,236 @@ export default function CheckoutPage() {
     note: '',
   });
 
-  // Tự động ước tính tọa độ khi khách nhập quận/huyện nếu chưa bật GPS
-  useEffect(() => {
-    if (!customerCoords && (form.province || form.district || form.address)) {
-      const estimated = estimateCoordinatesFromAddress(form.province, form.district, form.address);
-      if (estimated) {
-        setCustomerCoords(estimated);
-      }
-    }
-  }, [form.province, form.district, form.address, customerCoords]);
+  // Danh mục tỉnh / thành phố hành chính Việt Nam
+  const allProvinces = useMemo(() => getProvinceNames(), []);
+  const availableDistricts = useMemo(() => getDistrictsByProvince(form.province), [form.province]);
+  const availableWards = useMemo(() => getWardsByDistrict(form.province, form.district), [form.province, form.district]);
 
-  // Kiểm tra tồn kho toàn giỏ (đã bóc combo) mỗi khi đổi chi nhánh hoặc đổi giỏ hàng
+  // Trạng thái gợi ý địa chỉ Google Maps Places Autocomplete
+  const [suggestions, setSuggestions] = useState<AutocompleteSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearchingAddress, setIsSearchingAddress] = useState(false);
+  const [geoResolvedDesc, setGeoResolvedDesc] = useState<string | null>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Đóng dropdown gợi ý khi click ra ngoài
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Xử lý thay đổi Tỉnh / Thành phố
+  const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const provinceVal = e.target.value;
+    setForm((prev) => ({
+      ...prev,
+      province: provinceVal,
+      district: '',
+      ward: '',
+    }));
+    if (errors.province) {
+      setErrors((prev) => ({ ...prev, province: '' }));
+    }
+    const coords = findPreciseCoordinates(provinceVal);
+    if (coords) {
+      setCustomerCoords(coords);
+    }
+  };
+
+  // Xử lý thay đổi Quận / Huyện
+  const handleDistrictChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const districtVal = e.target.value;
+    setForm((prev) => ({
+      ...prev,
+      district: districtVal,
+      ward: '',
+    }));
+    if (errors.district) {
+      setErrors((prev) => ({ ...prev, district: '' }));
+    }
+    const coords = findPreciseCoordinates(form.province, districtVal);
+    if (coords) {
+      setCustomerCoords(coords);
+    }
+  };
+
+  // Xử lý thay đổi Phường / Xã
+  const handleWardChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const wardVal = e.target.value;
+    setForm((prev) => ({
+      ...prev,
+      ward: wardVal,
+    }));
+    if (errors.ward) {
+      setErrors((prev) => ({ ...prev, ward: '' }));
+    }
+    const coords = findPreciseCoordinates(form.province, form.district, wardVal);
+    if (coords) {
+      setCustomerCoords(coords);
+    }
+  };
+
+  // Xử lý nhập số nhà, tên đường
+  const handleAddressInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setForm((prev) => ({ ...prev, address: val }));
+    if (errors.address) {
+      setErrors((prev) => ({ ...prev, address: '' }));
+    }
+    // Xóa thông báo định vị cũ khi user gõ lại
+    if (geoResolvedDesc) {
+      setGeoResolvedDesc(null);
+    }
+  };
+
+  // Tìm kiếm gợi ý Google Maps khi người dùng gõ số nhà / tên đường
+  useEffect(() => {
+    if (!form.address || form.address.trim().length < 2) {
+      setSuggestions([]);
+      setIsSearchingAddress(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingAddress(true);
+      try {
+        // Truyền province/district/ward context để API trả kết quả chính xác theo khu vực
+        const params = new URLSearchParams({ input: form.address });
+        if (form.province) params.set('province', form.province);
+        if (form.district) params.set('district', form.district);
+        if (form.ward) params.set('ward', form.ward);
+
+        const res = await fetch(`/api/geo/autocomplete?${params.toString()}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.predictions)) {
+          setSuggestions(data.predictions);
+          if (data.predictions.length > 0) {
+            setShowSuggestions(true);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching address suggestions:', err);
+      } finally {
+        setIsSearchingAddress(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [form.address, form.ward, form.district, form.province]);
+
+  // Geocode ngầm địa chỉ nếu người dùng chọn dropdown + gõ số nhà mà không click gợi ý
+  useEffect(() => {
+    if (form.address && form.district && form.province) {
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(
+            `/api/geo/geocode?address=${encodeURIComponent(form.address)}&ward=${encodeURIComponent(
+              form.ward
+            )}&district=${encodeURIComponent(form.district)}&province=${encodeURIComponent(form.province)}`
+          );
+          const data = await res.json();
+          if (data.success && data.lat && data.lng) {
+            setCustomerCoords({ lat: data.lat, lng: data.lng });
+          }
+        } catch (e) {
+          // ignore
+        }
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [form.address, form.ward, form.district, form.province]);
+
+  // Chọn một địa chỉ từ gợi ý Google Maps / Nominatim
+  const handleSelectSuggestion = async (suggestion: AutocompleteSuggestion) => {
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setIsSearchingAddress(true);
+    try {
+      // Nếu suggestion đã có tọa độ sẵn (Nominatim) -> dùng trực tiếp, không cần geocode lại
+      if (suggestion.lat && suggestion.lng && suggestion.source === 'nominatim') {
+        setCustomerCoords({ lat: suggestion.lat, lng: suggestion.lng });
+
+        // Geocode để lấy thông tin hành chính chuẩn và street
+        const res = await fetch(
+          `/api/geo/geocode?place_id=${encodeURIComponent(suggestion.place_id)}&address=${encodeURIComponent(
+            suggestion.description
+          )}&province=${encodeURIComponent(form.province)}&district=${encodeURIComponent(form.district)}&ward=${encodeURIComponent(form.ward)}`
+        );
+        const data = await res.json();
+        if (data.success && data.components) {
+          setForm((prev) => ({
+            ...prev,
+            province: data.components.province || prev.province,
+            district: data.components.district || prev.district,
+            ward: data.components.ward || prev.ward,
+            address: data.components.street || suggestion.main_text || prev.address,
+          }));
+        } else {
+          setForm((prev) => ({
+            ...prev,
+            address: suggestion.main_text || prev.address,
+          }));
+        }
+        setGeoResolvedDesc(data?.formattedAddress || suggestion.description);
+      } else {
+        // Google Places hoặc Local -> cần geocode qua API
+        const res = await fetch(
+          `/api/geo/geocode?place_id=${encodeURIComponent(suggestion.place_id)}&address=${encodeURIComponent(
+            suggestion.description
+          )}&province=${encodeURIComponent(form.province)}&district=${encodeURIComponent(form.district)}&ward=${encodeURIComponent(form.ward)}`
+        );
+        const data = await res.json();
+        if (data.success) {
+          if (data.lat && data.lng) {
+            setCustomerCoords({ lat: data.lat, lng: data.lng });
+          }
+          if (data.components) {
+            setForm((prev) => ({
+              ...prev,
+              province: data.components.province || prev.province,
+              district: data.components.district || prev.district,
+              ward: data.components.ward || prev.ward,
+              address: data.components.street || suggestion.main_text || prev.address,
+            }));
+          } else {
+            setForm((prev) => ({
+              ...prev,
+              address: suggestion.main_text || prev.address,
+            }));
+          }
+          setGeoResolvedDesc(data.formattedAddress || suggestion.description);
+        }
+      }
+
+      setErrors((prev) => ({
+        ...prev,
+        province: '',
+        district: '',
+        ward: '',
+        address: '',
+      }));
+    } catch (err) {
+      console.error('Error geocoding selected suggestion:', err);
+      // Nếu có tọa độ sẵn thì vẫn set dù geocode fail
+      if (suggestion.lat && suggestion.lng) {
+        setCustomerCoords({ lat: suggestion.lat, lng: suggestion.lng });
+      }
+      setForm((prev) => ({
+        ...prev,
+        address: suggestion.main_text || prev.address,
+      }));
+      setGeoResolvedDesc(suggestion.description);
+    } finally {
+      setIsSearchingAddress(false);
+    }
+  };
+
+  // Kiểm tra tồn kho toàn giỏ (đã bóc combo) mỗi khi đổi chi nhánh hoặc đổi giỏ hàng / tọa độ
   const checkCartStock = useCallback(
     async (storeCode: string) => {
       if (items.length === 0) return;
@@ -161,6 +404,7 @@ export default function CheckoutPage() {
           setIsStockAvailable(data.isAvailable);
           setInsufficientItems(data.insufficientItems || []);
           setAlternativeStores(data.alternativeStores || []);
+          setSuggestedCloserStore(data.suggestedCloserStore || null);
         }
       } catch (e) {
         console.error('Error checking cart stock:', e);
@@ -204,6 +448,32 @@ export default function CheckoutPage() {
       Number(selectedStore.longitude)
     );
   }
+
+  // Sắp xếp các chi nhánh theo khoảng cách tăng dần khi có tọa độ khách hàng
+  const sortedStores = useMemo(() => {
+    if (!customerCoords) return stores;
+    return [...stores].sort((a, b) => {
+      const distA =
+        a.latitude && a.longitude
+          ? calculateHaversineDistance(
+              customerCoords.lat,
+              customerCoords.lng,
+              Number(a.latitude),
+              Number(a.longitude)
+            )
+          : 99999;
+      const distB =
+        b.latitude && b.longitude
+          ? calculateHaversineDistance(
+              customerCoords.lat,
+              customerCoords.lng,
+              Number(b.latitude),
+              Number(b.longitude)
+            )
+          : 99999;
+      return distA - distB;
+    });
+  }, [stores, customerCoords]);
 
   // Tính phí vận chuyển theo config (hỗ trợ cả bậc khoảng cách km khi bật cấu hình)
   const shippingInfo = calculateShippingFee(subtotal, currentStoreDistanceKm);
@@ -309,18 +579,46 @@ export default function CheckoutPage() {
 
       // Bắt lỗi 409 Conflict: Có người vừa mua mất hàng
       if (res.status === 409) {
-        const conflictData = await res.json();
-        let conflictMsg = language === 'en'
-          ? 'Sorry! Another customer just purchased the last items at this store.'
-          : 'Rất tiếc! Một khách hàng khác vừa đặt mua những chai cuối cùng tại chi nhánh này.';
-        if (Array.isArray(conflictData.insufficientItems) && conflictData.insufficientItems.length > 0) {
-          const detail = conflictData.insufficientItems
-            .map((it: any) => `• ${it.productName}: cần ${it.requested}, kho chỉ còn ${it.available}`)
-            .join('\n');
-          conflictMsg += `\n\n${detail}\n\nHệ thống đã tự động tìm chi nhánh khác còn đủ hàng bên dưới.`;
+        let friendlyMsg = language === 'en'
+          ? 'An item was just ordered by another customer. Your cart has been updated.'
+          : 'Combo vừa có người đặt, hiện không còn đủ số lượng.';
+
+        // Tự động kiểm tra lại tồn khả dụng cho từng món trong giỏ hàng và tự chỉnh số lượng
+        for (const item of items) {
+          try {
+            const checkRes = await fetch('/api/inventory/check', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                storeCode: selectedStoreCode,
+                items: [{ productId: item.productId, quantity: 1 }],
+              }),
+            });
+            const checkData = await checkRes.json();
+            if (checkData.success) {
+              const remaining = typeof checkData.maxQuantity === 'number' ? checkData.maxQuantity : 0;
+              if (item.quantity > remaining) {
+                if (remaining > 0) {
+                  useCartStore.getState().updateQuantity(item.productId, remaining);
+                  friendlyMsg = language === 'en'
+                    ? `Combo "${item.name}" was just purchased by another customer. Only ${remaining} left. Cart quantity adjusted.`
+                    : `Combo "${item.name}" vừa có người đặt, hiện còn ${remaining}. Số lượng trong giỏ đã được tự động điều chỉnh.`;
+                } else {
+                  useCartStore.getState().updateQuantity(item.productId, 0);
+                  useCartStore.getState().removeItem(item.productId);
+                  friendlyMsg = language === 'en'
+                    ? `Combo "${item.name}" was just purchased by another customer and is now out of stock at this store.`
+                    : `Combo "${item.name}" vừa có người đặt và hiện đã hết hàng tại chi nhánh này.`;
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Error re-checking item after 409:', err);
+          }
         }
-        setStockConflictError(conflictMsg);
-        alert(conflictMsg);
+
+        setStockConflictError(friendlyMsg);
+        alert(friendlyMsg);
         checkCartStock(selectedStoreCode);
         return;
       }
@@ -730,18 +1028,23 @@ export default function CheckoutPage() {
                 <label htmlFor="province" className="block text-sm font-medium text-text-dark mb-1.5">
                   {language === 'en' ? 'Province / City' : 'Tỉnh / Thành phố'} <span className="text-sale">*</span>
                 </label>
-                <input
+                <select
                   id="province"
                   name="province"
-                  type="text"
                   value={form.province}
-                  onChange={handleChange}
+                  onChange={handleProvinceChange}
                   className={cn(
-                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors',
+                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors cursor-pointer',
                     errors.province ? 'border-sale' : 'border-border'
                   )}
-                  placeholder={language === 'en' ? 'Ho Chi Minh City' : 'TP. Hồ Chí Minh'}
-                />
+                >
+                  <option value="">{language === 'en' ? '-- Select Province / City --' : '-- Chọn Tỉnh / Thành phố --'}</option>
+                  {allProvinces.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
                 {errors.province && (
                   <p className="mt-1 text-xs text-sale">{errors.province}</p>
                 )}
@@ -752,18 +1055,28 @@ export default function CheckoutPage() {
                 <label htmlFor="district" className="block text-sm font-medium text-text-dark mb-1.5">
                   {language === 'en' ? 'District' : 'Quận / Huyện'} <span className="text-sale">*</span>
                 </label>
-                <input
+                <select
                   id="district"
                   name="district"
-                  type="text"
                   value={form.district}
-                  onChange={handleChange}
+                  onChange={handleDistrictChange}
+                  disabled={!form.province}
                   className={cn(
-                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors',
+                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed',
                     errors.district ? 'border-sale' : 'border-border'
                   )}
-                  placeholder={language === 'en' ? 'Tan Binh District' : 'Quận Tân Bình'}
-                />
+                >
+                  <option value="">
+                    {!form.province
+                      ? (language === 'en' ? '-- Select Province first --' : '-- Vui lòng chọn Tỉnh/Thành trước --')
+                      : (language === 'en' ? '-- Select District --' : '-- Chọn Quận / Huyện --')}
+                  </option>
+                  {availableDistricts.map((d) => (
+                    <option key={d.name} value={d.name}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
                 {errors.district && (
                   <p className="mt-1 text-xs text-sale">{errors.district}</p>
                 )}
@@ -774,42 +1087,145 @@ export default function CheckoutPage() {
                 <label htmlFor="ward" className="block text-sm font-medium text-text-dark mb-1.5">
                   {language === 'en' ? 'Ward' : 'Phường / Xã'} <span className="text-sale">*</span>
                 </label>
-                <input
+                <select
                   id="ward"
                   name="ward"
-                  type="text"
                   value={form.ward}
-                  onChange={handleChange}
+                  onChange={handleWardChange}
+                  disabled={!form.district}
                   className={cn(
-                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors',
+                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed',
                     errors.ward ? 'border-sale' : 'border-border'
                   )}
-                  placeholder={language === 'en' ? 'Tan Son Hoa Ward' : 'Phường Tân Sơn Hòa'}
-                />
+                >
+                  <option value="">
+                    {!form.district
+                      ? (language === 'en' ? '-- Select District first --' : '-- Vui lòng chọn Quận/Huyện trước --')
+                      : (language === 'en' ? '-- Select Ward --' : '-- Chọn Phường / Xã --')}
+                  </option>
+                  {availableWards.map((w) => (
+                    <option key={w.name} value={w.name}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
                 {errors.ward && (
                   <p className="mt-1 text-xs text-sale">{errors.ward}</p>
                 )}
               </div>
 
               {/* Address */}
-              <div className="sm:col-span-2">
-                <label htmlFor="address" className="block text-sm font-medium text-text-dark mb-1.5">
-                  {language === 'en' ? 'Street Address' : 'Địa chỉ'} <span className="text-sale">*</span>
+              <div className="sm:col-span-2 relative" ref={suggestionsRef}>
+                <label htmlFor="address" className="block text-sm font-medium text-text-dark mb-1.5 flex items-center justify-between">
+                  <span>
+                    {language === 'en' ? 'House number & street name' : 'Số nhà, tên đường'}{' '}
+                    <span className="text-sale">*</span>
+                  </span>
+                  <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-emerald-600" />
+                    {language === 'en' ? 'Google Maps Autocomplete' : 'Gợi ý chuẩn Google Maps'}
+                  </span>
                 </label>
-                <input
-                  id="address"
-                  name="address"
-                  type="text"
-                  value={form.address}
-                  onChange={handleChange}
-                  className={cn(
-                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors',
-                    errors.address ? 'border-sale' : 'border-border'
-                  )}
-                  placeholder={language === 'en' ? 'House number, street name...' : 'Số nhà, tên đường...'}
-                />
+                <div className="relative">
+                  <input
+                    id="address"
+                    name="address"
+                    type="text"
+                    autoComplete="off"
+                    value={form.address}
+                    onChange={handleAddressInputChange}
+                    onFocus={() => {
+                      if (suggestions.length > 0) setShowSuggestions(true);
+                    }}
+                    className={cn(
+                      'w-full pl-4 pr-10 py-3 rounded-xl border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors',
+                      errors.address ? 'border-sale' : 'border-border'
+                    )}
+                    placeholder={
+                      language === 'en'
+                        ? 'Ex: 27 Van Chung or 123 Pho Quang...'
+                        : 'Ví dụ: 27 Văn Chung hoặc 123 Phổ Quang...'
+                    }
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-gray-400 pointer-events-none">
+                    {isSearchingAddress ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                    ) : (
+                      <Search className="w-4 h-4" />
+                    )}
+                  </div>
+                </div>
                 {errors.address && (
                   <p className="mt-1 text-xs text-sale">{errors.address}</p>
+                )}
+
+                {/* Dropdown Gợi ý từ Google Maps / OpenStreetMap */}
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl shadow-xl border border-emerald-100 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="px-3.5 py-2 bg-emerald-50/70 flex items-center justify-between text-[11px] font-semibold text-emerald-900 border-b border-emerald-100">
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                        {language === 'en' ? 'Address Suggestions' : 'Gợi ý địa điểm chính xác'}
+                      </span>
+                      <span className="text-[10px] text-emerald-600 font-normal">
+                        {language === 'en' ? 'Click to auto-fill & locate nearest store' : 'Nhấp để tự điền & tìm kho gần nhất'}
+                      </span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
+                      {suggestions.map((item, idx) => (
+                        <button
+                          key={item.place_id}
+                          type="button"
+                          onClick={() => handleSelectSuggestion(item)}
+                          className="w-full text-left px-3.5 py-2.5 hover:bg-emerald-50/60 transition-colors flex items-start gap-2.5 cursor-pointer group"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-emerald-100/80 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-emerald-200 transition-colors">
+                            <MapPin className="w-3.5 h-3.5 text-emerald-700" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <p className="text-xs font-bold text-gray-900 group-hover:text-emerald-800 truncate">
+                                {item.main_text}
+                              </p>
+                              <span className={cn(
+                                'text-[9px] font-semibold px-1.5 py-0.5 rounded-md border shrink-0',
+                                item.source === 'google'
+                                  ? 'text-blue-700 bg-blue-50 border-blue-200'
+                                  : item.source === 'nominatim'
+                                  ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                                  : 'text-gray-600 bg-gray-50 border-gray-200'
+                              )}>
+                                {item.source === 'google' ? 'Google' : item.source === 'nominatim' ? 'OSM' : 'Local'}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-gray-500 truncate leading-snug">
+                              {item.secondary_text || item.description}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Thông báo định vị thành công */}
+                {geoResolvedDesc && (
+                  <div className="mt-2 p-2.5 bg-emerald-50 rounded-xl border border-emerald-200/80 flex items-start gap-2 text-xs text-emerald-900">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-emerald-900 mb-0.5">
+                        {language === 'en' ? 'Location resolved' : 'Đã xác định vị trí'}
+                      </p>
+                      <p className="text-[11px] text-emerald-800 truncate leading-snug">
+                        {geoResolvedDesc}
+                      </p>
+                      {customerCoords && (
+                        <p className="text-[10px] text-emerald-600 mt-0.5">
+                          GPS: {customerCoords.lat.toFixed(6)}, {customerCoords.lng.toFixed(6)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -864,8 +1280,62 @@ export default function CheckoutPage() {
                     : 'Đơn hàng sẽ được nhân viên cửa hàng chi nhánh này tiếp nhận và xác nhận xuất kho.'}
                 </p>
 
+                {/* Gợi ý chi nhánh gần hơn & còn đủ hàng (nếu có) */}
+                {suggestedCloserStore && suggestedCloserStore.code !== selectedStoreCode && (
+                  <div className="mb-3.5 p-3.5 bg-blue-50/95 rounded-2xl border border-blue-200 flex items-center justify-between gap-3 flex-wrap text-xs text-blue-950 animate-in fade-in duration-200 shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0 text-blue-700">
+                        <Compass className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-blue-900">
+                          {language === 'en'
+                            ? 'Closer branch available with full stock:'
+                            : 'Phát hiện chi nhánh gần bạn hơn & còn đủ hàng:'}
+                        </p>
+                        <p className="text-blue-800 text-[11px] mt-0.5">
+                          <strong className="text-blue-950">{suggestedCloserStore.name}</strong>
+                          {typeof suggestedCloserStore.distanceKm === 'number' && (
+                            <span className="font-semibold text-blue-700 ml-1">
+                              (~ {suggestedCloserStore.distanceKm} km)
+                            </span>
+                          )}{' '}
+                          - {suggestedCloserStore.address}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectStore(suggestedCloserStore.code)}
+                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shrink-0 cursor-pointer transition-colors shadow-2xs"
+                    >
+                      {language === 'en' ? 'Switch to this branch' : 'Đổi sang chi nhánh này'}
+                    </button>
+                  </div>
+                )}
+
+                {customerCoords && selectedStore && (
+                  <div className="mb-3.5 p-3 bg-emerald-50/90 rounded-2xl border border-emerald-200 flex items-center justify-between gap-2 flex-wrap text-xs text-emerald-950 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-2">
+                      <Store className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>
+                        {language === 'en' ? 'Selected fulfillment store:' : 'Chi nhánh bạn đang chọn phục vụ:'}{' '}
+                        <strong className="text-emerald-900">{selectedStore.name}</strong>
+                        {currentStoreDistanceKm !== null && (
+                          <span className="font-semibold text-emerald-700 ml-1">
+                            (~ {currentStoreDistanceKm} km)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-white px-2 py-0.5 rounded-lg border border-emerald-200">
+                      {language === 'en' ? 'Selected' : 'Đang chọn'}
+                    </span>
+                  </div>
+                )}
+
                 <div className="space-y-2.5">
-                  {stores.map((st) => {
+                  {sortedStores.map((st) => {
                     const isChosen = selectedStoreCode === st.code;
                     const distanceVal =
                       customerCoords && st.latitude && st.longitude

@@ -50,6 +50,18 @@ export default function Header() {
   const mobileSearchRef = useRef<HTMLDivElement>(null);
   const langDropdownRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
+  const [liveProducts, setLiveProducts] = useState(products);
+
+  useEffect(() => {
+    fetch('/api/products')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setLiveProducts(json.data.filter((p: any) => p.isActive !== false));
+        }
+      })
+      .catch((err) => console.error('Failed to fetch live products in Header:', err));
+  }, []);
 
   const taskbagItems = useMemo(
     () => [
@@ -123,7 +135,7 @@ export default function Header() {
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase().trim();
-    return products
+    return liveProducts
       .filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
@@ -132,7 +144,7 @@ export default function Header() {
           p.slug.toLowerCase().includes(q)
       )
       .slice(0, 4);
-  }, [searchQuery]);
+  }, [searchQuery, liveProducts]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,7 +153,7 @@ export default function Header() {
     setIsMobileSearchOpen(false);
     // Nếu có kết quả tìm kiếm khớp chính xác, vào trang chi tiết luôn
     const q = searchQuery.trim().toLowerCase();
-    const match = products.find(
+    const match = liveProducts.find(
       (p) =>
         p.name.toLowerCase().includes(q) ||
         p.shortDescription.toLowerCase().includes(q) ||

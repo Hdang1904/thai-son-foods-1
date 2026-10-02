@@ -48,7 +48,8 @@ export async function GET(req: NextRequest) {
           c.name AS category_name,
           COALESCE(SUM(si.stock_quantity), 0) AS stock_quantity,
           COALESCE(SUM(si.reserved), 0) AS reserved,
-          GREATEST(0, COALESCE(SUM(si.stock_quantity), 0) - COALESCE(SUM(si.reserved), 0)) AS available_quantity,
+          GREATEST(0, COALESCE(SUM(si.stock_quantity), 0) - COALESCE(SUM(si.reserved), 0) - COALESCE(SUM(si.safety_stock), 0)) AS available_quantity,
+          GREATEST(0, COALESCE(SUM(si.stock_quantity), 0) - COALESCE(SUM(si.reserved), 0) - COALESCE(SUM(si.safety_stock), 0)) AS sellable_quantity,
           COALESCE(SUM(si.safety_stock), 0) AS safety_stock
         FROM products p
         LEFT JOIN categories c ON c.id = p.category_id
@@ -102,7 +103,8 @@ export async function GET(req: NextRequest) {
         c.name AS category_name,
         COALESCE(si.stock_quantity, 0) AS stock_quantity,
         COALESCE(si.reserved, 0) AS reserved,
-        GREATEST(0, COALESCE(si.stock_quantity, 0) - COALESCE(si.reserved, 0)) AS available_quantity,
+        GREATEST(0, COALESCE(si.stock_quantity, 0) - COALESCE(si.reserved, 0) - COALESCE(si.safety_stock, 0)) AS available_quantity,
+        GREATEST(0, COALESCE(si.stock_quantity, 0) - COALESCE(si.reserved, 0) - COALESCE(si.safety_stock, 0)) AS sellable_quantity,
         COALESCE(si.safety_stock, 0) AS safety_stock,
         si.updated_at,
         si.updated_by
@@ -161,18 +163,39 @@ export async function PUT(req: NextRequest) {
 
     // 1. Trường hợp cập nhật danh sách hàng loạt (batch update)
     if (Array.isArray(items) && items.length > 0) {
+      // Validate toàn bộ danh sách trước: không cho phép bất kỳ món nào giảm dưới số đang giữ chỗ
+      const validationErrors: string[] = [];
+      const preloadedData: Array<{ pId: string; qty: number; oldStock: number; oldReserved: number }> = [];
+
       for (const item of items) {
         const pId = item.productId;
         const qty = Math.max(0, parseInt(item.stockQuantity ?? '0', 10));
-        const invId = `inv_${storeCode}_${pId}`;
-
-        // Lấy giá trị cũ để ghi log
         const prevBatch = await query(
           `SELECT stock_quantity, reserved FROM store_inventory WHERE store_code = $1 AND product_id = $2;`,
           [storeCode, pId]
         );
         const oldStockBatch = prevBatch.rows.length > 0 ? Number(prevBatch.rows[0].stock_quantity) || 0 : 0;
         const oldReservedBatch = prevBatch.rows.length > 0 ? Number(prevBatch.rows[0].reserved) || 0 : 0;
+
+        if (qty < oldReservedBatch) {
+          validationErrors.push(`Mã ${pId}: tồn mới (${qty}) < đang giữ chỗ (${oldReservedBatch} chai)`);
+        }
+        preloadedData.push({ pId, qty, oldStock: oldStockBatch, oldReserved: oldReservedBatch });
+      }
+
+      if (validationErrors.length > 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Không thể giảm tồn kho xuống dưới số lượng đang giữ chỗ: ${validationErrors.join('; ')}. Vui lòng xử lý đơn giữ chỗ trước khi giảm tồn.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      for (const data of preloadedData) {
+        const { pId, qty, oldStock: oldStockBatch, oldReserved: oldReservedBatch } = data;
+        const invId = `inv_${storeCode}_${pId}`;
 
         await query(
           `INSERT INTO store_inventory (id, store_code, product_id, stock_quantity, updated_by, updated_at)
@@ -203,7 +226,7 @@ export async function PUT(req: NextRequest) {
           ]
         );
 
-        // Cập nhật tồn kho tổng của sản phẩm = TỔNG TỒN KHO CỦA TẤT CẢ CẢ CỬA HÀNG
+        // Cập nhật tồn kho tổng của sản phẩm = TỔNG TỒN KHO CỦA TẤT CẢ CỬA HÀNG
         await query(
           `UPDATE products 
            SET stock_quantity = (
@@ -240,13 +263,25 @@ export async function PUT(req: NextRequest) {
     const qty = Math.max(0, parseInt(stockQuantity ?? '0', 10));
     const invId = `inv_${storeCode}_${productId}`;
 
-    // Lấy số lượng tồn cũ để ghi log
+    // Lấy số lượng tồn cũ để ghi log và kiểm tra
     const prevRes = await query(
       `SELECT stock_quantity, reserved FROM store_inventory WHERE store_code = $1 AND product_id = $2;`,
       [storeCode, productId]
     );
     const oldStock = prevRes.rows.length > 0 ? Number(prevRes.rows[0].stock_quantity) || 0 : 0;
     const oldReserved = prevRes.rows.length > 0 ? Number(prevRes.rows[0].reserved) || 0 : 0;
+
+    // Chặn nghiêm ngặt không cho giảm tồn xuống dưới số lượng đang giữ chỗ
+    if (qty < oldReserved) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Không thể giảm tồn kho (${qty} chai) xuống dưới số lượng đang giữ chỗ (${oldReserved} chai). Đang có khách đặt giữ chỗ cho sản phẩm này.`,
+          reserved: oldReserved,
+        },
+        { status: 400 }
+      );
+    }
 
     await query(
       `INSERT INTO store_inventory (id, store_code, product_id, stock_quantity, updated_by, updated_at)

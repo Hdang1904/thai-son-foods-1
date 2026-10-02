@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
-import { query, pool } from '@/lib/db';
-import { getAvailability, expandComboItems } from '@/lib/inventory';
+import { query } from '@/lib/db';
+import {
+  getAvailability,
+  getComboStockDetails,
+  getSellableQuantity,
+  cleanupExpiredReservationsThrottled,
+} from '@/lib/inventory';
 import { calculateHaversineDistance, estimateCoordinatesFromAddress } from '@/lib/geo';
 
 export const dynamic = 'force-dynamic';
@@ -10,17 +15,23 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { storeCode, items, lat, lng, latitude, longitude, province, district, address } = body;
 
+    // 0. Quét dọn reservation quá hạn (tự throttle 60s)
+    await cleanupExpiredReservationsThrottled();
+
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({
         success: true,
+        status: 'in_stock',
+        maxQuantity: 999,
+        lowCount: null,
         isAvailable: true,
-        insufficientItems: [],
-        itemsDetail: [],
+        availableStock: 999,
         alternativeStores: [],
       });
     }
 
-    const targetStoreCode = storeCode || 'NH';
+    const rawCode = (storeCode || 'NH').trim();
+    const targetStoreCode = rawCode.startsWith('store_') ? rawCode.replace(/^store_/i, '') : rawCode;
 
     // Xác định tọa độ khách hàng (từ GPS hoặc ước tính từ địa chỉ)
     let customerCoords: { lat: number; lng: number } | null = null;
@@ -33,8 +44,25 @@ export async function POST(request: Request) {
       customerCoords = estimateCoordinatesFromAddress(province, district, address);
     }
 
-    // 1. Kiểm tra tồn khả dụng tại chi nhánh yêu cầu
-    const availability = await getAvailability(targetStoreCode, items);
+    let status: 'in_stock' | 'low' | 'out' = 'out';
+    let maxQuantity = 0;
+    let isAvailable = false;
+
+    // 1. Kiểm tra tồn bán được bằng hàm duy nhất getSellableQuantity (bóc tách combo, lốc và trừ safety_stock)
+    const isSingleItem = items.length === 1;
+    const singleReqQty = Math.max(1, Number(items[0]?.quantity) || 1);
+
+    maxQuantity = await getSellableQuantity(targetStoreCode, isSingleItem ? items[0] : items);
+    status = maxQuantity === 0 ? 'out' : maxQuantity <= 10 ? 'low' : 'in_stock';
+
+    if (isSingleItem) {
+      isAvailable = maxQuantity >= singleReqQty;
+    } else {
+      const avail = await getAvailability(targetStoreCode, items);
+      isAvailable = avail.isAvailable && maxQuantity >= 1;
+    }
+
+    const lowCount = maxQuantity <= 10 && maxQuantity > 0 ? maxQuantity : null;
 
     // Tính khoảng cách chi nhánh hiện tại nếu có tọa độ
     let currentStoreDistanceKm: number | null = null;
@@ -53,24 +81,28 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2. Nếu thiếu hàng tại chi nhánh này, tìm các chi nhánh khác ĐỦ HÀNG cho cả giỏ
+    // 2. Nếu chi nhánh hiện tại hết hàng hoặc không đủ số lượng, tìm các chi nhánh thay thế
     const alternativeStores: Array<{
       code: string;
       name: string;
       address: string;
       phone?: string;
+      status: 'in_stock' | 'low' | 'out';
       distanceKm?: number;
     }> = [];
 
-    if (!availability.isAvailable) {
+    if (!isAvailable || status === 'out') {
       const storesRes = await query(
         `SELECT code, name, address, phone, latitude, longitude FROM stores WHERE is_active = true AND code != $1 ORDER BY code ASC;`,
         [targetStoreCode]
       );
 
       for (const store of storesRes.rows) {
-        const checkOther = await getAvailability(store.code, items);
-        if (checkOther.isAvailable) {
+        const storeMax = await getSellableQuantity(store.code, isSingleItem ? items[0] : items);
+        const storeStatus: 'in_stock' | 'low' | 'out' =
+          storeMax === 0 ? 'out' : storeMax <= 10 ? 'low' : 'in_stock';
+
+        if (storeStatus !== 'out' && storeMax >= (isSingleItem ? singleReqQty : 1)) {
           let distKm: number | undefined = undefined;
           if (customerCoords && store.latitude && store.longitude) {
             distKm = calculateHaversineDistance(
@@ -85,6 +117,7 @@ export async function POST(request: Request) {
             name: store.name,
             address: store.address,
             phone: store.phone,
+            status: storeStatus,
             distanceKm: distKm,
           });
         }
@@ -101,14 +134,79 @@ export async function POST(request: Request) {
       });
     }
 
+    // 3. Nếu có tọa độ khách hàng, kiểm tra xem có chi nhánh nào GẦN HƠN và CÒN ĐỦ HÀNG để gợi ý
+    let suggestedCloserStore: {
+      code: string;
+      name: string;
+      address: string;
+      phone?: string;
+      distanceKm: number;
+    } | null = null;
+
+    if (customerCoords) {
+      const otherStoresRes = await query(
+        `SELECT code, name, address, phone, latitude, longitude
+         FROM stores
+         WHERE is_active = true AND code != $1 AND latitude IS NOT NULL AND longitude IS NOT NULL;`,
+        [targetStoreCode]
+      );
+
+      // Tính khoảng cách cho từng chi nhánh và sắp xếp từ gần nhất đến xa nhất
+      const candidates: Array<{
+        code: string;
+        name: string;
+        address: string;
+        phone?: string;
+        distanceKm: number;
+      }> = [];
+
+      for (const st of otherStoresRes.rows) {
+        const d = calculateHaversineDistance(
+          customerCoords.lat,
+          customerCoords.lng,
+          Number(st.latitude),
+          Number(st.longitude)
+        );
+        // Chỉ xét các chi nhánh gần hơn chi nhánh hiện tại (hoặc nếu chi nhánh hiện tại không có tọa độ)
+        if (currentStoreDistanceKm === null || d < currentStoreDistanceKm) {
+          candidates.push({
+            code: st.code,
+            name: st.name,
+            address: st.address,
+            phone: st.phone,
+            distanceKm: d,
+          });
+        }
+      }
+
+      candidates.sort((a, b) => a.distanceKm - b.distanceKm);
+
+      // Tìm chi nhánh gần nhất mà CÒN ĐỦ HÀNG cho giỏ hàng
+      for (const cand of candidates) {
+        const candMax = await getSellableQuantity(cand.code, isSingleItem ? items[0] : items);
+        const candAvail = isSingleItem
+          ? candMax >= singleReqQty
+          : candMax >= 1 && (await getAvailability(cand.code, items)).isAvailable;
+
+        if (candAvail) {
+          suggestedCloserStore = cand;
+          break; // Đã tìm thấy chi nhánh gần nhất và đủ hàng
+        }
+      }
+    }
+
+    // Response công khai: TUYỆT ĐỐI KHÔNG trả số chai thô, định mức hay chai nút thắt
     return NextResponse.json({
       success: true,
       storeCode: targetStoreCode,
       currentStoreDistanceKm,
-      isAvailable: availability.isAvailable,
-      insufficientItems: availability.insufficientItems,
-      itemsDetail: availability.itemsDetail,
-      alternativeStores,
+      status, // 'in_stock' | 'low' | 'out'
+      maxQuantity, // số lượng tối đa có thể đặt
+      lowCount, // chỉ trả số khi <= 10
+      isAvailable,
+      availableStock: maxQuantity, // Tương thích ngược cho các component hiện có
+      alternativeStores, // Chỉ tên, địa chỉ, trạng thái và khoảng cách khi kho hiện tại thiếu hàng
+      suggestedCloserStore, // Gợi ý chi nhánh gần hơn & còn đủ hàng (nếu có)
     });
   } catch (error: any) {
     console.error('[Inventory Check API] Error:', error);

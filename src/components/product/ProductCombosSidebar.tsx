@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { combos } from '@/data/combos';
+import { Combo } from '@/types';
 import { formatPrice, cn } from '@/lib/utils';
 import { useCartStore } from '@/store/cart';
 import { useFlyToCart } from '@/context/FlyToCartContext';
@@ -25,11 +26,23 @@ export default function ProductCombosSidebar({
 }: ProductCombosSidebarProps) {
   const { language } = useLanguage();
   const { flyToCart } = useFlyToCart();
+  const [comboList, setComboList] = useState<Combo[]>(combos);
   const [addedId, setAddedId] = useState<string | null>(null);
-  const maxDiscount = Math.max(...combos.map((c) => c.discount || 0), 0);
+  const maxDiscount = Math.max(...comboList.map((c) => c.discount || 0), 0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/combos')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setComboList(json.data.filter((c: Combo) => c.isActive !== false));
+        }
+      })
+      .catch((err) => console.error('Failed to fetch combos in ProductCombosSidebar:', err));
+  }, []);
 
   const sectionTitle = title === 'Combo tiết kiệm'
     ? (language === 'en' ? 'Value Combos' : 'Combo tiết kiệm')
@@ -66,7 +79,7 @@ export default function ProductCombosSidebar({
     });
   };
 
-  const handleQuickAdd = (combo: typeof combos[0], e?: React.MouseEvent) => {
+  const handleQuickAdd = (combo: Combo, e?: React.MouseEvent) => {
     const comboName = (language === 'en' && combo.nameEn) ? combo.nameEn : combo.name;
     const comboUnit = `${combo.totalItems} ${language === 'en' ? 'bottles' : 'chai'}`;
 
@@ -95,7 +108,7 @@ export default function ProductCombosSidebar({
   // ──────────────────────────────────────────────────────
   // Card layout ngang (7 combo 1 hàng trên desktop, chuẩn ProductSection)
   // ──────────────────────────────────────────────────────
-  const renderHorizontalCard = (combo: typeof combos[0], index: number) => {
+  const renderHorizontalCard = (combo: Combo, index: number) => {
     const isCombo01 = combo.id === 'combo-4-chai';
     const isCombo02 = combo.id === 'combo-van-phong';
     const isComboUuDai = combo.id === 'combo-uu-dai' || combo.id === 'combo-5-old';
@@ -231,7 +244,7 @@ export default function ProductCombosSidebar({
   // ──────────────────────────────────────────────────────
   // Card layout dọc (dùng cho sidebar)
   // ──────────────────────────────────────────────────────
-  const renderVerticalCard = (combo: typeof combos[0], index: number) => {
+  const renderVerticalCard = (combo: Combo, index: number) => {
     const isCombo01 = combo.id === 'combo-4-chai';
     const isCombo02 = combo.id === 'combo-van-phong';
     const isComboUuDai = combo.id === 'combo-uu-dai' || combo.id === 'combo-5-old';
@@ -384,7 +397,7 @@ export default function ProductCombosSidebar({
             className="flex gap-2 sm:gap-3 lg:gap-3.5 overflow-x-auto scroll-smooth scrollbar-none py-2 px-0.5 snap-x snap-mandatory"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {combos.map((combo, index) => renderHorizontalCard(combo, index))}
+            {comboList.map((combo, index) => renderHorizontalCard(combo, index))}
           </div>
 
           {/* Mũi tên lướt sang phải */}
@@ -431,7 +444,7 @@ export default function ProductCombosSidebar({
 
       {/* Danh sách 4 Combo đầy đủ thông tin */}
       <div className="flex flex-col gap-2.5">
-        {combos.map((combo, index) => renderVerticalCard(combo, index))}
+        {comboList.map((combo, index) => renderVerticalCard(combo, index))}
       </div>
 
       {/* Ghi chú chân sidebar */}

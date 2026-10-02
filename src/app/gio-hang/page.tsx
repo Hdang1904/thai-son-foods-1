@@ -100,8 +100,28 @@ export default function CartPage() {
     }, 1500);
   };
 
-  const shelfProducts = products.filter((p) => p.isActive !== false).slice(0, 12);
-  const promoCombos = combos.filter((c) => c.isActive !== false).slice(0, 12);
+  const [shelfProducts, setShelfProducts] = useState(products.filter((p) => p.isActive !== false).slice(0, 12));
+  const [promoCombos, setPromoCombos] = useState(combos.filter((c) => c.isActive !== false).slice(0, 12));
+
+  useEffect(() => {
+    fetch('/api/products')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setShelfProducts(json.data.filter((p: any) => p.isActive !== false).slice(0, 12));
+        }
+      })
+      .catch((err) => console.error('Failed to fetch shelf products:', err));
+
+    fetch('/api/combos')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setPromoCombos(json.data.filter((c: any) => c.isActive !== false).slice(0, 12));
+        }
+      })
+      .catch((err) => console.error('Failed to fetch promo combos:', err));
+  }, []);
 
   const totalQuantity = items.reduce((t, i) => t + i.quantity, 0);
   const subtotal = items.reduce((t, i) => t + i.price * i.quantity, 0);

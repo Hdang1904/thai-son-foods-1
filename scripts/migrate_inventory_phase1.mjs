@@ -2,6 +2,7 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
+import { INVENTORY_CONFIG } from '../src/config/inventory.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -84,9 +85,9 @@ async function migrate() {
       const ageHours = parseFloat(order.age_hours);
       console.log(`   - Đơn ${order.order_code} (ID: ${order.id}): tạo cách đây ${ageHours.toFixed(1)} giờ, chi nhánh: ${order.store_code || 'null'}`);
 
-      if (ageHours > 24) {
+      if (ageHours > INVENTORY_CONFIG.RESERVATION_EXPIRY_HOURS) {
         expiredOldCount++;
-        console.log(`     -> Đơn cũ quá 24h: Giữ nguyên trạng thái PENDING theo quy định, không tạo reservation giữ chỗ.`);
+        console.log(`     -> Đơn cũ quá ${INVENTORY_CONFIG.RESERVATION_EXPIRY_HOURS}h: Giữ nguyên trạng thái PENDING theo quy định, không tạo reservation giữ chỗ.`);
       } else if (!order.store_code) {
         missingStoreCount++;
         console.log(`     -> Đơn thiếu store_code: Không thể tự động gán kho, ghi log cho Admin gán thủ công.`);
@@ -136,9 +137,9 @@ async function migrate() {
               if (curStock - curReserved >= qty) {
                 await client.query(
                   `INSERT INTO stock_reservations (id, order_id, store_code, product_id, quantity, status, expires_at)
-                   VALUES ($1, $2, $3, $4, $5, 'active', CURRENT_TIMESTAMP + INTERVAL '24 hours')
+                   VALUES ($1, $2, $3, $4, $5, 'active', CURRENT_TIMESTAMP + ($6 || ' hours')::INTERVAL)
                    ON CONFLICT (id) DO NOTHING;`,
-                  [resId, order.id, order.store_code, canonicalProdId, qty]
+                  [resId, order.id, order.store_code, canonicalProdId, qty, INVENTORY_CONFIG.RESERVATION_EXPIRY_HOURS.toString()]
                 );
 
                 await client.query(
