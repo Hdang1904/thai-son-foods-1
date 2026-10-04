@@ -16,6 +16,7 @@ export const pool = new Pool(
     : {
         connectionString:
           process.env.DATABASE_URL ||
+          process.env.POSTGRES_URL ||
           'postgresql://postgres:Tsf%40123@127.0.0.1:5432/WebTSF?sslmode=disable',
         max: 10,
         idleTimeoutMillis: 30000,

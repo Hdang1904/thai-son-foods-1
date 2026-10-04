@@ -27,8 +27,8 @@ export function validateProductionEnvironment(): { isValid: boolean; errors: str
     if (process.env.ENABLE_MOCK_OAUTH === 'true') {
       errors.push('ENABLE_MOCK_OAUTH must NOT be true in production.');
     }
-    if (!process.env.DATABASE_URL) {
-      errors.push('DATABASE_URL is required in production.');
+    if (!process.env.DATABASE_URL && !process.env.POSTGRES_URL) {
+      errors.push('DATABASE_URL or POSTGRES_URL is required in production.');
     }
   }
 
