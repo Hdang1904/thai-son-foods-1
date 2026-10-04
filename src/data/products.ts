@@ -145,9 +145,9 @@ export const products: Product[] = [
     isActive: true,
     isVegan: true,
     variants: [
-      { id: 'ss-5chai', name: "Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi, thức uống dinh dưỡng thơm bùi thanh mát, tiện lợi uống liền, chai 568ml, đạt chuẩn HACCP.", quantity: 5, price: 25000, unit: "1 chai", volume: '5 x 568ml' },
-      { id: 'ss-7chai', name: "Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi, thức uống dinh dưỡng thơm bùi thanh mát, tiện lợi uống liền, chai 568ml, đạt chuẩn HACCP.", quantity: 7, price: 25000, unit: "1 chai", volume: '7 x 568ml' },
-      { id: 'ss-10chai', name: "Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi, thức uống dinh dưỡng thơm bùi thanh mát, tiện lợi uống liền, chai 568ml, đạt chuẩn HACCP.", quantity: 10, price: 25000, unit: "1 chai", volume: '10 x 568ml' },
+      { id: 'ss-5chai', name: '5 chai', quantity: 5, price: 125000, unit: 'lốc', volume: '5 x 568ml' },
+      { id: 'ss-7chai', name: '7 chai', quantity: 7, price: 175000, unit: 'lốc', volume: '7 x 568ml' },
+      { id: 'ss-10chai', name: '10 chai', quantity: 10, price: 250000, unit: 'thùng', volume: '10 x 568ml' },
     ],
   },
   {
@@ -387,10 +387,10 @@ export const products: Product[] = [
     isBestSeller: false,
     isActive: true,
     variants: [
-      { id: 'tsg-7chai', name: "Trà Sữa nấu từ trà nguyên bản, đậm vị trà béo vị sữa, thức uống tiện lợi dùng ngay, chai 330ml", quantity: 7, price: 18000, unit: "1 chai", volume: '7 x 330ml' },
-      { id: 'tsg-10chai', name: "Trà Sữa nấu từ trà nguyên bản, đậm vị trà béo vị sữa, thức uống tiện lợi dùng ngay, chai 330ml", quantity: 10, price: 18000, unit: "1 chai", volume: '10 x 330ml' },
-      { id: 'tsg-12chai', name: "Trà Sữa nấu từ trà nguyên bản, đậm vị trà béo vị sữa, thức uống tiện lợi dùng ngay, chai 330ml", quantity: 12, price: 18000, unit: "1 chai", volume: '12 x 330ml' },
-      { id: 'tsg-15chai', name: "Trà Sữa nấu từ trà nguyên bản, đậm vị trà béo vị sữa, thức uống tiện lợi dùng ngay, chai 330ml", quantity: 15, price: 18000, unit: "1 chai", volume: '15 x 330ml' },
+      { id: 'tsg-7chai', name: '7 chai', quantity: 7, price: 126000, unit: 'lốc', volume: '7 x 330ml' },
+      { id: 'tsg-10chai', name: '10 chai', quantity: 10, price: 180000, unit: 'lốc', volume: '10 x 330ml' },
+      { id: 'tsg-12chai', name: '12 chai', quantity: 12, price: 216000, unit: 'thùng', volume: '12 x 330ml' },
+      { id: 'tsg-15chai', name: '15 chai', quantity: 15, price: 270000, unit: 'thùng', volume: '15 x 330ml' },
     ],
   },
   {

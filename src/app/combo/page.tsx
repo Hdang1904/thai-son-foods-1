@@ -28,6 +28,7 @@ import { useFlyToCart } from '@/context/FlyToCartContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useBranchStore } from '@/store/branch';
 import { useBranchStockMap } from '@/hooks/useBranchStockMap';
+import CartStickySidebar from '@/components/cart/CartStickySidebar';
 
 // ==========================================
 // CẤU HÌNH COMBO 01 (TỰ DO 4 CHAI)
@@ -2895,96 +2896,110 @@ function ComboContent() {
 
   return (
     <div className="min-h-screen bg-[#FAF9F5] pb-32 pt-2">
-      <div className="section-container max-w-7xl mx-auto px-4 sm:px-6">
-        {/* Top bar: Nút quay lại */}
-        <div className="flex items-center justify-between py-3 mb-3">
-          <Link
-            href="/#combo"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-green-primary transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>{language === 'en' ? 'Back to Home' : 'Quay lại trang chủ'}</span>
-          </Link>
+      <div className="flex flex-row relative w-full items-start">
+        {/* Cột nội dung chính */}
+        <div className="flex-1 min-w-0">
+          <div className="section-container max-w-7xl mx-auto px-4 sm:px-6">
+            {/* Top bar: Nút quay lại */}
+            <div className="flex items-center justify-between py-3 mb-3">
+              <Link
+                href="/#combo"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-green-primary transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>{language === 'en' ? 'Back to Home' : 'Quay lại trang chủ'}</span>
+              </Link>
 
-          <span className="text-xs text-text-muted hidden sm:inline-block">
-            {language === 'en'
-              ? 'Thai Son Foods • Natural Nutritious Beverages'
-              : 'Thái Sơn Foods • Thức uống dinh dưỡng tự nhiên'}
-          </span>
-        </div>
+              <span className="text-xs text-text-muted hidden sm:inline-block">
+                {language === 'en'
+                  ? 'Thai Son Foods • Natural Nutritious Beverages'
+                  : 'Thái Sơn Foods • Thức uống dinh dưỡng tự nhiên'}
+              </span>
+            </div>
 
-        {/* Thanh chi nhánh đang chọn */}
-        <div className="flex items-center justify-between p-3.5 mb-6 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl text-xs sm:text-sm shadow-xs">
-          <div className="flex items-center gap-2 text-emerald-950 font-medium truncate">
-            <MapPin className="w-4 h-4 text-emerald-700 shrink-0" />
-            <span className="truncate">
-              Đang chọn món tại kho: <strong className="font-bold">{selectedBranch?.name || 'Chi nhánh'}</strong> {selectedBranch?.address ? `(${selectedBranch.address})` : ''}
-            </span>
+            {/* Thanh chi nhánh đang chọn */}
+            <div className="flex items-center justify-between p-3.5 mb-6 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl text-xs sm:text-sm shadow-xs">
+              <div className="flex items-center gap-2 text-emerald-950 font-medium truncate">
+                <MapPin className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span className="truncate">
+                  Đang chọn món tại kho: <strong className="font-bold">{selectedBranch?.name || 'Chi nhánh'}</strong> {selectedBranch?.address ? `(${selectedBranch.address})` : ''}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={openBranchModal}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs shrink-0 cursor-pointer transition-colors ml-2 shadow-xs"
+              >
+                Đổi chi nhánh
+              </button>
+            </div>
+
+            {/* TABS CHỌN GIỮA COMBO 02, COMBO 05 VÀ COMBO 06 */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-gray-200/80 rounded-2xl max-w-4xl mb-8 shadow-inner">
+              <button
+                type="button"
+                onClick={() => setActiveTab('combo-02')}
+                className={cn(
+                  'py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer leading-snug',
+                  activeTab === 'combo-02'
+                    ? 'bg-white text-[#11241C] shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                )}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>Combo khám phá thức uống đa dạng, trải nghiệm hương vị mới gồm sữa hạt, nước giải khát và trà sữa, 10 chai đồ uống kết hợp.</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('combo-05')}
+                className={cn(
+                  'py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer leading-snug',
+                  activeTab === 'combo-05'
+                    ? 'bg-white text-[#11241C] shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                )}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>Combo siêu hời tiết kiệm, tích trữ thông minh cho gia đình, 17 chai thức uống yêu thích.</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('combo-06')}
+                className={cn(
+                  'py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer leading-snug',
+                  activeTab === 'combo-06'
+                    ? 'bg-white text-[#11241C] shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                )}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>Combo giảm giá bậc thang mua nhiều giảm sâu, tùy chọn hương vị theo sở thích của mình.</span>
+              </button>
+            </div>
+
+            {/* HIỂN THỊ NỘI DUNG TƯƠNG ỨNG */}
+            {activeTab === 'combo-01' ? (
+              <Combo01View />
+            ) : activeTab === 'combo-02' ? (
+              <Combo02View />
+            ) : activeTab === 'combo-05' ? (
+              <Combo05View />
+            ) : (
+              <Combo06View />
+            )}
           </div>
-          <button
-            type="button"
-            onClick={openBranchModal}
-            className="px-3.5 py-1.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs shrink-0 cursor-pointer transition-colors ml-2 shadow-xs"
-          >
-            Đổi chi nhánh
-          </button>
         </div>
 
-        {/* TABS CHỌN GIỮA COMBO 02, COMBO 05 VÀ COMBO 06 */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-gray-200/80 rounded-2xl max-w-4xl mb-8 shadow-inner">
-          <button
-            type="button"
-            onClick={() => setActiveTab('combo-02')}
-            className={cn(
-              'py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer leading-snug',
-              activeTab === 'combo-02'
-                ? 'bg-white text-[#11241C] shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            )}
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            <span>Combo khám phá thức uống đa dạng, trải nghiệm hương vị mới gồm sữa hạt, nước giải khát và trà sữa, 10 chai đồ uống kết hợp.</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('combo-05')}
-            className={cn(
-              'py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer leading-snug',
-              activeTab === 'combo-05'
-                ? 'bg-white text-[#11241C] shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            )}
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            <span>Combo siêu hời tiết kiệm, tích trữ thông minh cho gia đình, 17 chai thức uống yêu thích.</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('combo-06')}
-            className={cn(
-              'py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer leading-snug',
-              activeTab === 'combo-06'
-                ? 'bg-white text-[#11241C] shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            )}
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            <span>Combo giảm giá bậc thang mua nhiều giảm sâu, tùy chọn hương vị theo sở thích của mình.</span>
-          </button>
-        </div>
-
-        {/* HIỂN THỊ NỘI DUNG TƯƠNG ỨNG */}
-        {activeTab === 'combo-01' ? (
-          <Combo01View />
-        ) : activeTab === 'combo-02' ? (
-          <Combo02View />
-        ) : activeTab === 'combo-05' ? (
-          <Combo05View />
-        ) : (
-          <Combo06View />
-        )}
+        {/* Giỏ hàng cố định cuộn dính bên phải trên desktop lớn */}
+        <aside
+          aria-label="Giỏ hàng cố định"
+          className="hidden min-[1440px]:flex flex-col w-[380px] shrink-0 sticky top-[114px] border-l border-border-light bg-white shadow-xl z-30 overflow-hidden"
+          style={{ height: 'calc(100vh - 114px)' }}
+        >
+          <CartStickySidebar />
+        </aside>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import FloatingCartWidget from '@/components/cart/FloatingCartWidget';
+import CartDrawer from '@/components/cart/CartDrawer';
 import { FlyToCartProvider } from '@/context/FlyToCartContext';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { UserAuthProvider } from '@/context/UserAuthContext';
@@ -35,6 +36,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             <Header />
             <main className="min-h-screen flex-1">{children}</main>
             <Footer />
+            <CartDrawer />
             {showFloatingCart && <FloatingCartWidget />}
             <AuthModal />
             <BranchSelectorModal />

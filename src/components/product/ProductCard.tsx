@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ShoppingBag } from 'lucide-react';
@@ -23,18 +23,42 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
   const cardRef = useRef<HTMLElement>(null);
 
   const fallbackImg = '/images/products/sua-bap-nep.png';
-  const [imgSrc, setImgSrc] = useState(product.thumbnail || fallbackImg);
+  const initialImg = product.thumbnail && product.thumbnail.trim() ? product.thumbnail.trim() : fallbackImg;
+  const [imgSrc, setImgSrc] = useState(initialImg);
 
   useEffect(() => {
-    setImgSrc(product.thumbnail || fallbackImg);
+    setImgSrc(product.thumbnail && product.thumbnail.trim() ? product.thumbnail.trim() : fallbackImg);
   }, [product.thumbnail]);
 
+  // Kiểm tra ảnh ngoài và dự phòng nếu URL chứa hostname lạ hoặc không hợp lệ
+  const isInvalidOrBlockedHost = !imgSrc || imgSrc.includes('example.com');
+  const safeImgSrc = isInvalidOrBlockedHost ? fallbackImg : imgSrc;
+  const isExternal = Boolean(safeImgSrc && (safeImgSrc.startsWith('http://') || safeImgSrc.startsWith('https://')));
+
   const fullName = language === 'en' && product.nameEn ? product.nameEn : product.name;
-  const displayUnit = language === 'en'
-    ? (product.unitEn || (product.unit === '1 chai' ? '1 bottle' : product.unit === 'chai' ? 'bottle' : product.unit))
-    : product.unit;
   const bestSellerText = language === 'en' ? 'Best Seller' : 'Bán chạy';
   const newText = language === 'en' ? 'New' : 'Mới';
+
+  // Lấy quy cách đóng gói tiêu chuẩn nhỏ nhất (Ví dụ: Lốc 7 chai hoặc Lốc 5 chai), không bao giờ bán/thêm 1 chai lẻ
+  const defaultVariant = useMemo(() => {
+    if (product.variants && product.variants.length > 0) {
+      return [...product.variants].sort((a, b) => (a.quantity || 0) - (b.quantity || 0))[0];
+    }
+    const isBigBottle = product.slug?.includes('yoo') || product.volume?.includes('568') || product.price === 25000;
+    const qty = isBigBottle ? 5 : 7;
+    return {
+      id: isBigBottle ? 'default-5chai' : 'default-7chai',
+      name: `${qty} chai`,
+      quantity: qty,
+      price: product.price * qty,
+      unit: 'lốc',
+      volume: `${qty} x ${product.volume || (isBigBottle ? '568ml' : '330ml')}`,
+    };
+  }, [product]);
+
+  const packDisplayUnit = language === 'en'
+    ? `Pack of ${defaultVariant.quantity}`
+    : `lốc ${defaultVariant.name}`;
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -48,13 +72,19 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
       imageSrc: product.thumbnail,
     });
 
+    const packUnit = language === 'en'
+      ? `Pack of ${defaultVariant.quantity} bottles`
+      : `Lốc ${defaultVariant.name}`;
+
     addItem({
-      productId: product.id,
-      name: fullName,
+      productId: `${product.id}-${defaultVariant.id}`,
+      name: `${fullName} (${defaultVariant.name})`,
       slug: product.slug,
-      price: product.price,
-      unit: displayUnit,
+      price: defaultVariant.price,
+      unit: packUnit,
       thumbnail: product.thumbnail,
+      variantId: defaultVariant.id,
+      variantName: defaultVariant.name,
     });
   };
 
@@ -82,9 +112,10 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
             }`}
           >
             <Image
-              src={imgSrc}
+              src={safeImgSrc}
               alt={product.name}
               fill
+              unoptimized={isExternal}
               onError={() => setImgSrc(fallbackImg)}
               className={`${
                 isBottle
@@ -128,17 +159,23 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
             </div>
 
             <div className="flex items-center justify-between gap-1 mt-auto pt-1.5 sm:pt-2 border-t border-gray-100">
-              <p className="text-xs sm:text-[13px] font-bold text-green-primary flex flex-col sm:flex-row sm:items-baseline">
-                <span>{formatPrice(product.price)}đ</span>
-                <span className="text-[8.5px] sm:text-[9.5px] font-normal text-text-muted sm:ml-0.5">
-                  /{displayUnit}
+              <div className="flex flex-col">
+                <p className="text-xs sm:text-[13px] font-bold text-green-primary flex flex-wrap items-baseline gap-x-0.5">
+                  <span>{formatPrice(defaultVariant.price)}đ</span>
+                  <span className="text-[8px] sm:text-[9px] font-semibold text-text-muted">
+                    /{packDisplayUnit}
+                  </span>
+                </p>
+                <span className="text-[7.5px] sm:text-[8.5px] text-text-muted font-normal">
+                  ~{formatPrice(product.price)}đ/{language === 'en' ? 'bottle' : 'chai'}
                 </span>
-              </p>
+              </div>
 
               <button
                 onClick={handleAddToCart}
                 className="shrink-0 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 flex items-center justify-center bg-green-primary text-white rounded-lg hover:bg-green-dark transition-colors active:scale-95 cursor-pointer shadow-xs"
-                aria-label={language === 'en' ? `Add ${fullName} to cart` : `Thêm ${fullName} vào giỏ hàng`}
+                aria-label={language === 'en' ? `Add ${fullName} (${defaultVariant.name}) to cart` : `Thêm ${fullName} (${defaultVariant.name}) vào giỏ hàng`}
+                title={language === 'en' ? `Add ${packDisplayUnit}` : `Thêm ${packDisplayUnit}`}
               >
                 <ShoppingBag className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               </button>
@@ -164,9 +201,10 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
             }`}
           >
             <Image
-              src={imgSrc}
+              src={safeImgSrc}
               alt={fullName}
               fill
+              unoptimized={isExternal}
               onError={() => setImgSrc(fallbackImg)}
               className={`${
                 isBottle
@@ -210,17 +248,23 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
             </div>
 
             <div className="flex items-center justify-between gap-1 sm:gap-2 mt-auto pt-1.5 sm:pt-2 md:pt-3 border-t border-gray-100">
-              <p className="text-xs sm:text-base md:text-lg font-bold text-green-primary flex flex-col sm:flex-row sm:items-baseline">
-                <span>{formatPrice(product.price)}đ</span>
-                <span className="text-[9px] sm:text-xs md:text-sm font-normal text-text-muted sm:ml-0.5">
-                  /{displayUnit}
+              <div className="flex flex-col">
+                <p className="text-xs sm:text-base md:text-lg font-bold text-green-primary flex flex-wrap items-baseline gap-x-1">
+                  <span>{formatPrice(defaultVariant.price)}đ</span>
+                  <span className="text-[9px] sm:text-xs md:text-sm font-semibold text-text-muted">
+                    /{packDisplayUnit}
+                  </span>
+                </p>
+                <span className="text-[9px] sm:text-xs text-text-muted font-normal">
+                  ~{formatPrice(product.price)}đ/{language === 'en' ? 'bottle' : 'chai'}
                 </span>
-              </p>
+              </div>
 
               <button
                 onClick={handleAddToCart}
                 className="shrink-0 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 flex items-center justify-center bg-green-primary text-white rounded-lg sm:rounded-xl hover:bg-green-dark transition-colors active:scale-95 cursor-pointer shadow-xs"
-                aria-label={language === 'en' ? `Add ${fullName} to cart` : `Thêm ${fullName} vào giỏ hàng`}
+                aria-label={language === 'en' ? `Add ${fullName} (${defaultVariant.name}) to cart` : `Thêm ${fullName} (${defaultVariant.name}) vào giỏ hàng`}
+                title={language === 'en' ? `Add ${packDisplayUnit}` : `Thêm ${packDisplayUnit}`}
               >
                 <ShoppingBag className="w-3 h-3 sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
               </button>
@@ -245,9 +289,10 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
           }`}
         >
           <Image
-            src={imgSrc}
+            src={safeImgSrc}
             alt={fullName}
             fill
+            unoptimized={isExternal}
             onError={() => setImgSrc(fallbackImg)}
             className={`${
               isBottle
@@ -291,17 +336,23 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
           </div>
 
           <div className="flex items-center justify-between gap-1 sm:gap-2 mt-auto pt-1.5 sm:pt-2 md:pt-3 border-t border-gray-100">
-            <p className="text-[11px] sm:text-base md:text-lg font-bold text-green-primary flex flex-col sm:flex-row sm:items-baseline">
-              <span>{formatPrice(product.price)}đ</span>
-              <span className="text-[8.5px] sm:text-xs md:text-sm font-normal text-text-muted sm:ml-0.5">
-                /{displayUnit}
+            <div className="flex flex-col">
+              <p className="text-[11.5px] sm:text-base md:text-lg font-bold text-green-primary flex flex-wrap items-baseline gap-x-1">
+                <span>{formatPrice(defaultVariant.price)}đ</span>
+                <span className="text-[8.5px] sm:text-xs md:text-sm font-semibold text-text-muted">
+                  /{packDisplayUnit}
+                </span>
+              </p>
+              <span className="text-[8.5px] sm:text-xs text-text-muted font-normal">
+                ~{formatPrice(product.price)}đ/{language === 'en' ? 'bottle' : 'chai'}
               </span>
-            </p>
+            </div>
 
             <button
               onClick={handleAddToCart}
               className="shrink-0 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 flex items-center justify-center bg-green-primary text-white rounded-lg sm:rounded-xl hover:bg-green-dark transition-colors active:scale-95 cursor-pointer shadow-xs"
-              aria-label={language === 'en' ? `Add ${fullName} to cart` : `Thêm ${fullName} vào giỏ hàng`}
+              aria-label={language === 'en' ? `Add ${fullName} (${defaultVariant.name}) to cart` : `Thêm ${fullName} (${defaultVariant.name}) vào giỏ hàng`}
+              title={language === 'en' ? `Add ${packDisplayUnit}` : `Thêm ${packDisplayUnit}`}
             >
               <ShoppingBag className="w-3 h-3 sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
             </button>

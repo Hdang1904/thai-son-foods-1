@@ -80,7 +80,7 @@ async function getLiveProducts(): Promise<Product[]> {
           slug: row.slug,
           sku: row.sku || row.id,
           price: Number(row.price) || 0,
-          unit: row.unit || '1 chai',
+          unit: row.unit || 'lốc',
           categoryId: (row.category_id ? row.category_id.replace(/^cat-/, '') : 'sua-hat'),
           thumbnail: row.thumbnail || '/images/products/sua-bap-nep.png',
           images: [{ id: 'img-1', url: row.thumbnail || '/images/products/sua-bap-nep.png', alt: row.name, sortOrder: 1 }],
@@ -118,7 +118,7 @@ async function getLiveProducts(): Promise<Product[]> {
                 name: v.name,
                 quantity: Number(v.quantity) || 1,
                 price: Number(v.price) || 0,
-                unit: v.unit || 'chai',
+                unit: v.unit || 'lốc',
               }))
             : base.variants,
         };

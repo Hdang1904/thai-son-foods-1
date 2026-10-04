@@ -269,37 +269,49 @@ export default function Header() {
 
                   {searchResults.length > 0 ? (
                     <div className="p-2 divide-y divide-gray-50">
-                      {searchResults.map((item) => (
-                        <div
-                          key={item.id}
-                          onClick={() => handleSelectProduct(item.slug)}
-                          className="flex items-center gap-3 p-2 rounded-xl hover:bg-emerald-50/50 transition-colors cursor-pointer group"
-                        >
-                          <div className="relative w-12 h-12 rounded-lg bg-[#FAF8F5] border border-gray-200/80 p-1 overflow-hidden shrink-0">
-                            <Image
-                              src={item.thumbnail}
-                              alt={language === 'en' && item.nameEn ? item.nameEn : item.name}
-                              fill
-                              className="object-contain group-hover:scale-105 transition-transform"
-                              sizes="48px"
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-xs sm:text-sm font-semibold text-gray-900 group-hover:text-[#1B5E3B] transition-colors leading-snug">
-                              {language === 'en' && item.nameEn ? item.nameEn : item.name}
-                            </h4>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-xs font-bold text-emerald-700">
-                                {formatPrice(item.price)} ₫
-                              </span>
-                              <span className="text-[10px] text-gray-400">
-                                /{language === 'en' ? (item.unitEn || (item.unit === '1 chai' ? '1 bottle' : item.unit === 'chai' ? 'bottle' : item.unit)) : item.unit}
-                              </span>
+                      {searchResults.map((item) => {
+                        const itemVariant = item.variants && item.variants.length > 0
+                          ? [...item.variants].sort((a, b) => (a.quantity || 0) - (b.quantity || 0))[0]
+                          : null;
+                        const isBigBottle = item.slug?.includes('yoo') || item.volume?.includes('568') || item.price === 25000;
+                        const itemQty = itemVariant ? itemVariant.quantity : (isBigBottle ? 5 : 7);
+                        const itemPrice = itemVariant ? itemVariant.price : (item.price * itemQty);
+                        const itemUnitStr = language === 'en'
+                          ? `Pack of ${itemQty}`
+                          : `lốc ${itemQty} chai`;
+
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => handleSelectProduct(item.slug)}
+                            className="flex items-center gap-3 p-2 rounded-xl hover:bg-emerald-50/50 transition-colors cursor-pointer group"
+                          >
+                            <div className="relative w-12 h-12 rounded-lg bg-[#FAF8F5] border border-gray-200/80 p-1 overflow-hidden shrink-0">
+                              <Image
+                                src={item.thumbnail}
+                                alt={language === 'en' && item.nameEn ? item.nameEn : item.name}
+                                fill
+                                className="object-contain group-hover:scale-105 transition-transform"
+                                sizes="48px"
+                              />
                             </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-xs sm:text-sm font-semibold text-gray-900 group-hover:text-[#1B5E3B] transition-colors leading-snug">
+                                {language === 'en' && item.nameEn ? item.nameEn : item.name}
+                              </h4>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-xs font-bold text-emerald-700">
+                                  {formatPrice(itemPrice)} ₫
+                                </span>
+                                <span className="text-[10px] text-gray-400">
+                                  /{itemUnitStr}
+                                </span>
+                              </div>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#1B5E3B] transition-colors" />
                           </div>
-                          <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#1B5E3B] transition-colors" />
-                        </div>
-                      ))}
+                        );
+                      })}
                       <div className="pt-2 px-2 pb-1">
                         <button
                           onClick={handleSearchSubmit}
@@ -486,8 +498,9 @@ export default function Header() {
               </div>
 
               {/* Giỏ hàng */}
-              <Link
-                href="/gio-hang"
+              <button
+                type="button"
+                onClick={openCart}
                 id="cart-target-header"
                 className="relative p-2.5 text-text-body hover:text-green-primary transition-colors rounded-lg hover:bg-ivory-dark/50 min-[1440px]:hidden transition-transform cursor-pointer"
                 aria-label={`Giỏ hàng, ${isMounted ? totalQuantity : 0} sản phẩm`}
@@ -501,7 +514,7 @@ export default function Header() {
                     {totalQuantity > 99 ? '99+' : totalQuantity}
                   </span>
                 )}
-              </Link>
+              </button>
 
               {/* Mobile Menu Toggle */}
               <button

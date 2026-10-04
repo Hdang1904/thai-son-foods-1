@@ -14,7 +14,7 @@ import {
   MapPin,
   AlertTriangle,
 } from 'lucide-react';
-import { useCartStore } from '@/store/cart';
+import { useCartStore, getItemMaxQuantity } from '@/store/cart';
 import { useFlyToCart } from '@/context/FlyToCartContext';
 import { formatPrice } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -293,20 +293,27 @@ export default function CartStickySidebar() {
                       <span className="px-2 text-xs font-bold text-text-dark min-w-[20px] text-center">
                         {item.quantity}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateQuantity(
-                            item.productId,
-                            item.quantity + 1,
-                            item.variantId
-                          )
-                        }
-                        className="p-1 text-gray-500 hover:text-text-dark hover:bg-gray-100 transition-colors cursor-pointer"
-                        aria-label="Tăng số lượng"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
+                      {(() => {
+                        const isAtMax = item.quantity >= getItemMaxQuantity(item);
+                        return (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateQuantity(
+                                item.productId,
+                                item.quantity + 1,
+                                item.variantId
+                              )
+                            }
+                            disabled={isAtMax}
+                            className="p-1 text-gray-500 hover:text-text-dark hover:bg-gray-100 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                            aria-label="Tăng số lượng"
+                            title={isAtMax ? 'Đã đạt giới hạn tối đa 1.000 chai' : undefined}
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        );
+                      })()}
                     </div>
 
                     <div className="flex items-center gap-2">

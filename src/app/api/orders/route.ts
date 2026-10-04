@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       const name = (item.name || item.productName || item.title || 'Sản phẩm').toString();
       const price = Math.round(Number(item.price) || 0);
       const quantity = Math.max(1, Math.round(Number(item.quantity) || 1));
-      const unit = item.unit || '1 chai';
+      const unit = item.unit || 'Lốc';
       const thumbnail = item.thumbnail || null;
       const productId = item.productId || item.id || null;
       itemsCalculatedSubtotal += price * quantity;
@@ -298,6 +298,18 @@ export async function POST(request: Request) {
 
       // 5. BÓC TÁCH COMBO VÀ CHUẨN BỊ ĐƠN HÀNG
       const { expandedBottles, comboSnapshots } = await expandComboItems(revalidatedItems, client);
+
+      // RÀNG BUỘC SỐ LƯỢNG TỐI ĐA 1.000 CHAI TRÊN TOÀN BỘ ĐƠN HÀNG
+      const totalBottlesInOrder = expandedBottles.reduce((sum: number, b: any) => sum + (Number(b.quantity) || 0), 0);
+      if (totalBottlesInOrder > 1000) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Số lượng đặt hàng (${totalBottlesInOrder.toLocaleString('vi-VN')} chai) vượt quá giới hạn tối đa cho phép là 1.000 chai trên một đơn hàng. Vui lòng giảm bớt số lượng hoặc liên hệ hotline để được hỗ trợ đơn hàng sỉ.`,
+          },
+          { status: 400 }
+        );
+      }
 
       let finalEmail = email;
       if ((!finalEmail || !finalEmail.includes('@')) && userId) {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useCartStore } from '@/store/cart';
+import { useCartStore, getItemBottleMultiplier, getItemMaxQuantity } from '@/store/cart';
 import { formatPrice } from '@/lib/utils';
 import {
   Trash2,
@@ -63,16 +63,35 @@ export default function CartPage() {
   };
 
   const handleQuickAddProduct = (product: (typeof products)[0]) => {
+    // Luôn chọn quy cách đóng gói tiêu chuẩn (Lốc 7 chai hoặc Lốc 5 chai), không bao giờ thêm chai lẻ
+    const minVariant = (product.variants && product.variants.length > 0)
+      ? [...product.variants].sort((a, b) => (a.quantity || 0) - (b.quantity || 0))[0]
+      : null;
+
+    const isBigBottle = product.slug?.includes('yoo') || product.volume?.includes('568') || product.price === 25000;
+    const fallbackQty = isBigBottle ? 5 : 7;
+    const effectiveVariant = minVariant || {
+      id: isBigBottle ? 'default-5chai' : 'default-7chai',
+      name: `${fallbackQty} chai`,
+      quantity: fallbackQty,
+      price: product.price * fallbackQty,
+      unit: 'lốc',
+    };
+
     const productName = language === 'en' && product.nameEn ? product.nameEn : product.name;
-    const unitText = language === 'en' && product.unitEn ? product.unitEn : (product.unit || '1 chai');
+    const packUnit = language === 'en'
+      ? `Pack of ${effectiveVariant.quantity} bottles`
+      : `Lốc ${effectiveVariant.name}`;
 
     addItem({
-      productId: product.id,
-      name: productName,
+      productId: `${product.id}-${effectiveVariant.id}`,
+      name: `${productName} (${effectiveVariant.name})`,
       slug: product.slug,
-      price: product.price,
-      unit: unitText,
+      price: effectiveVariant.price,
+      unit: packUnit,
       thumbnail: product.thumbnail,
+      variantId: effectiveVariant.id,
+      variantName: effectiveVariant.name,
     });
 
     setAddedIds((prev) => ({ ...prev, [product.id]: true }));
@@ -268,36 +287,67 @@ export default function CartPage() {
 
                 {/* Giá & Nút Tiện tay thêm nhỏ gọn */}
                 <div className="mt-auto pt-1.5 border-t border-gray-100 flex flex-col gap-1.5">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xs sm:text-[13.5px] font-extrabold text-emerald-700 font-heading">
-                      {formatPrice(prod.price)}đ
-                    </span>
-                    <span className="text-[9.5px] text-gray-400">
-                      /{prod.unit || (language === 'en' ? 'bottle' : 'chai')}
-                    </span>
-                  </div>
+                  {(() => {
+                    const minVariant = (prod.variants && prod.variants.length > 0)
+                      ? [...prod.variants].sort((a, b) => (a.quantity || 0) - (b.quantity || 0))[0]
+                      : null;
+                    const isBigBottle = prod.slug?.includes('yoo') || prod.volume?.includes('568') || prod.price === 25000;
+                    const fallbackQty = isBigBottle ? 5 : 7;
+                    const effectiveVariant = minVariant || {
+                      id: isBigBottle ? 'default-5chai' : 'default-7chai',
+                      name: `${fallbackQty} chai`,
+                      quantity: fallbackQty,
+                      price: prod.price * fallbackQty,
+                      unit: 'lốc',
+                    };
+                    const packLabel = language === 'en'
+                      ? `pack ${effectiveVariant.quantity}`
+                      : `lốc ${effectiveVariant.name}`;
 
-                  <button
-                    type="button"
-                    onClick={() => handleQuickAddProduct(prod)}
-                    className={`w-full py-1.5 px-2 rounded-lg font-bold text-[10.5px] sm:text-[11px] flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
-                      isJustAdded
-                        ? 'bg-emerald-600 text-white ring-1 ring-emerald-300'
-                        : 'bg-emerald-50 hover:bg-emerald-700 text-emerald-800 hover:text-white border border-emerald-200/80 hover:border-emerald-700'
-                    }`}
-                  >
-                    {isJustAdded ? (
+                    return (
                       <>
-                        <Check className="w-3 h-3 stroke-[3]" />
-                        <span>{language === 'en' ? 'Added!' : 'Đã thêm!'}</span>
+                        <div className="flex flex-col">
+                          <div className="flex items-baseline justify-between">
+                            <span className="text-xs sm:text-[13.5px] font-extrabold text-emerald-700 font-heading">
+                              {formatPrice(effectiveVariant.price)}đ
+                            </span>
+                            <span className="text-[9px] font-semibold text-gray-500">
+                              /{packLabel}
+                            </span>
+                          </div>
+                          <span className="text-[8px] sm:text-[8.5px] text-gray-400 font-normal">
+                            ~{formatPrice(prod.price)}đ/{language === 'en' ? 'bottle' : 'chai'}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleQuickAddProduct(prod)}
+                          className={`w-full py-1.5 px-2 rounded-lg font-bold text-[10.5px] sm:text-[11px] flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                            isJustAdded
+                              ? 'bg-emerald-600 text-white ring-1 ring-emerald-300'
+                              : 'bg-emerald-50 hover:bg-emerald-700 text-emerald-800 hover:text-white border border-emerald-200/80 hover:border-emerald-700'
+                          }`}
+                        >
+                          {isJustAdded ? (
+                            <>
+                              <Check className="w-3 h-3 stroke-[3]" />
+                              <span>{language === 'en' ? 'Added!' : 'Đã thêm!'}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-3 h-3" />
+                              <span>
+                                {inCartQty > 0
+                                  ? (language === 'en' ? '+1 pack' : '+1 lốc nữa')
+                                  : (language === 'en' ? `+ Add pack` : `+ Thêm lốc ${effectiveVariant.name}`)}
+                              </span>
+                            </>
+                          )}
+                        </button>
                       </>
-                    ) : (
-                      <>
-                        <Plus className="w-3 h-3" />
-                        <span>{inCartQty > 0 ? (language === 'en' ? '+1' : '+1 nữa') : (language === 'en' ? '+ Add' : '+ Tiện tay thêm')}</span>
-                      </>
-                    )}
-                  </button>
+                    );
+                  })()}
                 </div>
               </div>
             );
@@ -668,42 +718,57 @@ export default function CartPage() {
                         {formatPrice(item.price)}đ
                       </div>
 
-                      {/* 3. Bộ tăng giảm số lượng */}
-                      <div className="flex items-center justify-between md:justify-center mt-1 md:mt-0">
-                        <span className="text-xs text-gray-500 font-medium md:hidden">
-                          {language === 'en' ? 'Quantity:' : 'Số lượng:'}
-                        </span>
-                        <div className="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50/70 p-0.5 shadow-2xs">
-                          <button
-                            type="button"
-                            onClick={() => decreaseQuantity(item.productId)}
-                            className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-emerald-800 hover:bg-white active:scale-95 transition-all cursor-pointer"
-                            aria-label={language === 'en' ? 'Decrease 1' : 'Giảm 1'}
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value, 10);
-                              if (!isNaN(val) && val > 0) {
-                                setQuantity(item.productId, val);
-                              }
-                            }}
-                            className="w-10 sm:w-11 text-center font-bold text-xs sm:text-sm text-gray-900 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            aria-label={language === 'en' ? 'Product quantity' : 'Số lượng sản phẩm'}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => increaseQuantity(item.productId)}
-                            className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-emerald-800 hover:bg-white active:scale-95 transition-all cursor-pointer"
-                            aria-label={language === 'en' ? 'Increase 1' : 'Tăng 1'}
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
+                      {/* 3. Bộ tăng giảm số lượng (Ràng buộc tối đa 1.000 chai) */}
+                      {(() => {
+                        const itemMultiplier = getItemBottleMultiplier(item);
+                        const maxAllowed = getItemMaxQuantity(item);
+                        const totalBottles = item.quantity * itemMultiplier;
+                        const isAtMax = item.quantity >= maxAllowed;
+
+                        return (
+                          <div className="flex flex-col items-center justify-between md:justify-center mt-1 md:mt-0 gap-1">
+                            <span className="text-xs text-gray-500 font-medium md:hidden self-start">
+                              {language === 'en' ? 'Quantity:' : 'Số lượng:'}
+                            </span>
+                            <div className="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50/70 p-0.5 shadow-2xs">
+                              <button
+                                type="button"
+                                onClick={() => decreaseQuantity(item.productId)}
+                                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-emerald-800 hover:bg-white active:scale-95 transition-all cursor-pointer"
+                                aria-label={language === 'en' ? 'Decrease 1' : 'Giảm 1'}
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+                              <input
+                                type="number"
+                                min={1}
+                                max={maxAllowed}
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const raw = e.target.value;
+                                  if (raw === '') return;
+                                  const val = parseInt(raw, 10);
+                                  if (!isNaN(val) && val > 0) {
+                                    setQuantity(item.productId, Math.min(maxAllowed, val));
+                                  }
+                                }}
+                                className="w-12 sm:w-14 text-center font-bold text-xs sm:text-sm text-gray-900 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                aria-label={language === 'en' ? 'Product quantity' : 'Số lượng sản phẩm'}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => increaseQuantity(item.productId)}
+                                disabled={isAtMax}
+                                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-emerald-800 hover:bg-white active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                aria-label={language === 'en' ? 'Increase 1' : 'Tăng 1'}
+                                title={isAtMax ? (language === 'en' ? 'Reached 1,000 bottles limit' : 'Đã đạt giới hạn tối đa 1.000 chai') : undefined}
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* 4. Thành tiền (Desktop) */}
                       <div className="hidden md:block text-right text-sm sm:text-base font-black text-emerald-800">
@@ -902,7 +967,7 @@ export default function CartPage() {
                   </span>
                   <span className="text-[11px] text-emerald-800 font-semibold bg-emerald-100/70 px-2 py-0.5 rounded-md border border-emerald-200/60">
                     {activeImpulseTab === 'products'
-                      ? (language === 'en' ? '12 fresh drinks' : '12 chai mát lạnh')
+                      ? (language === 'en' ? '12 fresh packs' : '12 lốc mát lạnh')
                       : (language === 'en' ? '12 family bundles' : '12 combo tiết kiệm')}
                   </span>
                 </div>
@@ -928,7 +993,7 @@ export default function CartPage() {
                     }`}
                   >
                     <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{language === 'en' ? '12 Bottles' : '12 Chai mát'}</span>
+                    <span>{language === 'en' ? '12 Packs' : '12 Lốc mát'}</span>
                   </button>
 
                   <button
@@ -950,7 +1015,7 @@ export default function CartPage() {
               <div className="p-2.5 space-y-1.5 max-h-[440px] overflow-y-auto scrollbar-thin scrollbar-thumb-emerald-200/90 divide-y divide-gray-100/80">
                 {activeImpulseTab === 'products'
                   ? shelfProducts.map((prod) => {
-                      const inCartItem = items.find((i) => i.productId === prod.id);
+                      const inCartItem = items.find((i) => i.productId === prod.id || i.productId?.startsWith(`${prod.id}-`));
                       const inCartQty = inCartItem?.quantity || 0;
                       const isJustAdded = !!addedIds[prod.id];
                       const isPoster =
@@ -1003,14 +1068,39 @@ export default function CartPage() {
                             <p className="text-[10px] text-gray-400 font-medium truncate mt-0.5">
                               {prod.volume || '330ml'} • {language === 'en' ? 'Natural' : 'Tươi mát'}
                             </p>
-                            <div className="flex items-baseline gap-1 mt-0.5">
-                              <span className="text-xs sm:text-[12.5px] font-extrabold text-emerald-700 font-heading">
-                                {formatPrice(prod.price)}đ
-                              </span>
-                              <span className="text-[9px] text-gray-400">
-                                /{prod.unit || (language === 'en' ? 'btl' : 'chai')}
-                              </span>
-                            </div>
+                            {(() => {
+                              const minVariant = (prod.variants && prod.variants.length > 0)
+                                ? [...prod.variants].sort((a, b) => (a.quantity || 0) - (b.quantity || 0))[0]
+                                : null;
+                              const isBigBottle = prod.slug?.includes('yoo') || prod.volume?.includes('568') || prod.price === 25000;
+                              const fallbackQty = isBigBottle ? 5 : 7;
+                              const effectiveVariant = minVariant || {
+                                id: isBigBottle ? 'default-5chai' : 'default-7chai',
+                                name: `${fallbackQty} chai`,
+                                quantity: fallbackQty,
+                                price: prod.price * fallbackQty,
+                                unit: 'lốc',
+                              };
+                              const packLabel = language === 'en'
+                                ? `pack ${effectiveVariant.quantity}`
+                                : `lốc ${effectiveVariant.name}`;
+
+                              return (
+                                <div className="flex flex-col mt-0.5">
+                                  <div className="flex items-baseline gap-1">
+                                    <span className="text-xs sm:text-[12.5px] font-extrabold text-emerald-700 font-heading">
+                                      {formatPrice(effectiveVariant.price)}đ
+                                    </span>
+                                    <span className="text-[9px] text-gray-500 font-semibold">
+                                      /{packLabel}
+                                    </span>
+                                  </div>
+                                  <span className="text-[8px] text-gray-400">
+                                    ~{formatPrice(prod.price)}đ/{language === 'en' ? 'bottle' : 'chai'}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </div>
 
                           {/* Nút bấm thêm nhanh */}
@@ -1022,7 +1112,7 @@ export default function CartPage() {
                                 ? 'bg-emerald-600 text-white ring-1 ring-emerald-300'
                                 : 'bg-emerald-50 hover:bg-emerald-700 text-emerald-800 hover:text-white border border-emerald-200/80 hover:border-emerald-700'
                             }`}
-                            title={language === 'en' ? 'Add to cart' : 'Tiện tay thêm'}
+                            title={language === 'en' ? 'Add pack to cart' : 'Tiện tay thêm lốc'}
                           >
                             {isJustAdded ? (
                               <>
@@ -1032,7 +1122,7 @@ export default function CartPage() {
                             ) : (
                               <>
                                 <Plus className="w-3 h-3" />
-                                <span>{inCartQty > 0 ? (language === 'en' ? '+1' : '+1 nữa') : (language === 'en' ? '+ Thêm' : '+ Thêm')}</span>
+                                <span>{inCartQty > 0 ? (language === 'en' ? '+1 pack' : '+1 lốc') : (language === 'en' ? '+ Thêm lốc' : '+ Thêm lốc')}</span>
                               </>
                             )}
                           </button>

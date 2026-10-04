@@ -67,7 +67,7 @@ async function getLiveProduct(slug: string): Promise<Product | undefined> {
         slug: dbProd.slug,
         sku: dbProd.sku,
         price: Number(dbProd.price) || 0,
-        unit: dbProd.unit || '1 chai',
+        unit: dbProd.unit || 'lốc',
         categoryId: dbProd.category_id || 'sua-hat',
         thumbnail: dbProd.thumbnail || '/images/products/sua-bap-nep.png',
         images: [{ id: 'img-1', url: dbProd.thumbnail, alt: dbProd.name, sortOrder: 1 }],
@@ -112,7 +112,7 @@ async function getLiveProduct(slug: string): Promise<Product | undefined> {
               name: v.name || `${v.quantity} chai`,
               quantity: Number(v.quantity) || 1,
               price: Number(v.price) || 0,
-              unit: v.unit || 'chai',
+              unit: v.unit || 'lốc',
               volume: v.volume || `${v.quantity} x ${dbProd.volume || '330ml'}`
             }))
           .sort((a: any, b: any) => a.quantity - b.quantity)

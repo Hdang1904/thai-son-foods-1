@@ -74,9 +74,6 @@ export default function ScrollBannerShowcase({
       });
   }, [customBanners]);
 
-  // Nếu không có banner nào đang hoạt động (do admin tắt hiển thị), ẩn toàn bộ component
-  if (!banners || banners.length === 0) return null;
-
   // Theo dõi tiến trình cuộn qua vùng 250vh
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -111,6 +108,9 @@ export default function ScrollBannerShowcase({
   // Độ sáng / hiển thị của 2 nút pill chỉ số
   const pill1Active = useTransform(smoothProgress, [0, 0.49, 0.51, 1], [1, 1, 0.45, 0.45]);
   const pill2Active = useTransform(smoothProgress, [0, 0.49, 0.51, 1], [0.45, 0.45, 1, 1]);
+
+  // Nếu không có banner nào đang hoạt động (do admin tắt hiển thị), ẩn toàn bộ component
+  if (!banners || banners.length === 0) return null;
 
   const slide1 = banners[0] || defaultScrollBanners[0];
   const slide2 = banners[1] || defaultScrollBanners[1];

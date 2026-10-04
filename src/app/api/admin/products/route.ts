@@ -204,6 +204,24 @@ export async function POST(request: Request) {
       costPriceVal,
     ];
 
+    // Validate variants trước khi insert product vào DB để tránh rò rỉ bản ghi khi lỗi
+    if (Array.isArray(variants) && variants.length > 0) {
+      for (const v of variants) {
+        if (v.name && v.price) {
+          const mult = parseInt(v.bottle_multiplier ?? v.bottleMultiplier, 10);
+          if (isNaN(mult) || mult <= 0) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Biến thể "${v.name}" bắt buộc nhập hệ số quy đổi số chai (bottle_multiplier > 0).`,
+              },
+              { status: 400 }
+            );
+          }
+        }
+      }
+    }
+
     const result = await query(insertSql, values);
     const createdProduct = result.rows[0];
 

@@ -10,7 +10,7 @@ export function formatPrice(price: number): string {
  * Format price with unit
  * Example: 18000 → "18.000đ / 1 chai"
  */
-export function formatPriceWithUnit(price: number, unit: string = '1 chai'): string {
+export function formatPriceWithUnit(price: number, unit: string = 'lốc'): string {
   return `${formatPrice(price)}đ / ${unit}`;
 }
 

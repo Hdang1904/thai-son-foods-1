@@ -61,7 +61,7 @@ async function runVariantMultiplierTest() {
       name: 'Sản phẩm Test Thiếu Hệ Số',
       price: 100000,
       unit: '1 chai',
-      thumbnail: 'https://example.com/test.jpg',
+      thumbnail: '/images/products/sua-bap-nep.png',
       variants: [
         {
           name: 'Lốc không hệ số',
@@ -103,7 +103,7 @@ async function runVariantMultiplierTest() {
       name: 'Sản phẩm Test Có Hệ Số Chuẩn',
       price: 100000,
       unit: '1 chai',
-      thumbnail: 'https://example.com/test.jpg',
+      thumbnail: '/images/products/sua-bap-nep.png',
       variants: [
         {
           name: 'Lốc 6 chai',
@@ -216,6 +216,7 @@ async function runVariantMultiplierTest() {
         await client.query(`DELETE FROM product_variants WHERE product_id = $1;`, [pId]);
         await client.query(`DELETE FROM products WHERE id = $1;`, [pId]);
       }
+      await client.query(`DELETE FROM products WHERE slug = $1;`, [testProdSlug]);
       console.log('   ✓ Đã dọn dẹp sạch toàn bộ dữ liệu test.');
     } catch (cleanupErr) {
       console.error('Lỗi cleanup:', cleanupErr);

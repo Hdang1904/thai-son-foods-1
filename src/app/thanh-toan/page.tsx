@@ -1334,7 +1334,8 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                <div className="space-y-2.5">
+                {/* Lưới danh sách cửa hàng: 1 cột trên mobile, 2 cột trên tablet, 3 cột trên desktop */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
                   {sortedStores.map((st) => {
                     const isChosen = selectedStoreCode === st.code;
                     const distanceVal =
@@ -1348,103 +1349,126 @@ export default function CheckoutPage() {
                         : null;
 
                     return (
-                      <div key={st.code} className="space-y-2">
-                        <label
-                          onClick={() => handleSelectStore(st.code)}
-                          className={cn(
-                            'flex items-start gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all',
-                            isChosen
-                              ? (!isStockAvailable
-                                  ? 'border-red-500 bg-red-50/30 ring-1 ring-red-400'
-                                  : 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500/20')
-                              : 'border-border bg-white hover:border-gray-300'
-                          )}
-                        >
-                          <input
-                            type="radio"
-                            name="storeCodeSelection"
-                            checked={isChosen}
-                            onChange={() => handleSelectStore(st.code)}
-                            className="mt-1 text-emerald-600 focus:ring-emerald-500"
-                          />
-                          <div className="flex-1 text-xs">
-                            <div className="flex items-center justify-between flex-wrap gap-1">
-                              <span className="font-bold text-gray-900 text-sm">{st.name}</span>
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                {distanceVal !== null && (
-                                  <span className="text-[11px] text-emerald-800 font-semibold bg-emerald-100/90 px-2 py-0.5 rounded-full border border-emerald-300">
-                                    ~ {distanceVal} km
-                                  </span>
+                      <label
+                        key={st.code}
+                        onClick={() => handleSelectStore(st.code)}
+                        className={cn(
+                          'flex flex-col justify-between p-2.5 sm:p-3 rounded-xl border-2 cursor-pointer transition-all relative h-full text-left',
+                          isChosen
+                            ? (!isStockAvailable
+                                ? 'border-red-500 bg-red-50/40 ring-1 ring-red-400 shadow-2xs'
+                                : 'border-emerald-600 bg-emerald-50/50 ring-1 ring-emerald-500/20 shadow-2xs')
+                            : 'border-border bg-white hover:border-emerald-300 hover:bg-gray-50/60'
+                        )}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-1.5 mb-1">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              <input
+                                type="radio"
+                                name="storeCodeSelection"
+                                checked={isChosen}
+                                onChange={() => handleSelectStore(st.code)}
+                                className="w-3.5 h-3.5 text-emerald-600 focus:ring-emerald-500 shrink-0 cursor-pointer"
+                              />
+                              <span className="font-bold text-gray-900 text-xs sm:text-[13px] leading-snug line-clamp-1">
+                                {st.name}
+                              </span>
+                            </div>
+                            {isChosen && (
+                              <span
+                                className={cn(
+                                  'text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0',
+                                  !isStockAvailable ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-800'
                                 )}
-                                <span className="text-[11px] text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
-                                  Hotline: {st.phone}
-                                </span>
-                              </div>
-                            </div>
-                            <p className="text-gray-600 mt-1 leading-relaxed">{st.address}</p>
-                          </div>
-                        </label>
-
-                        {/* Cảnh báo thiếu hàng cho chi nhánh đang chọn */}
-                        {isChosen && !isStockAvailable && (
-                          <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-xs text-red-800 space-y-2 ml-4">
-                            <div className="flex items-center gap-2 font-bold text-red-900">
-                              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-                              <span>{st.name} hiện không đủ hàng cho các món trong giỏ:</span>
-                            </div>
-                            <ul className="list-disc pl-5 space-y-0.5 text-[11px]">
-                              {insufficientItems.map((it) => (
-                                <li key={it.productId}>
-                                  <strong>{it.productName}</strong>: cần {it.requested}, kho chỉ còn{' '}
-                                  <span className="text-red-700 font-bold">{it.available}</span> chai
-                                </li>
-                              ))}
-                            </ul>
-
-                            {alternativeStores.length > 0 ? (
-                              <div className="pt-2 border-t border-red-200/60">
-                                <span className="font-semibold text-emerald-950 block mb-1">
-                                  Gợi ý các chi nhánh ĐỦ HÀNG cho cả giỏ:
-                                </span>
-                                <div className="space-y-1">
-                                  {alternativeStores.map((alt) => (
-                                    <div
-                                      key={alt.code}
-                                      className="flex items-center justify-between bg-white p-2 rounded-xl border border-emerald-200"
-                                    >
-                                      <div className="truncate pr-2">
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="font-bold text-emerald-900 block text-xs">{alt.name}</span>
-                                          {typeof alt.distanceKm === 'number' && (
-                                            <span className="text-[10px] text-emerald-800 font-semibold bg-emerald-100/90 px-1.5 py-0.2 rounded border border-emerald-300">
-                                              ~ {alt.distanceKm} km
-                                            </span>
-                                          )}
-                                        </div>
-                                        <span className="text-gray-500 text-[10px] truncate block">{alt.address}</span>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleSelectStore(alt.code)}
-                                        className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold text-xs shrink-0 cursor-pointer transition-colors shadow-2xs"
-                                      >
-                                        Đổi sang kho này
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : (
-                              <p className="text-[11px] text-red-700 italic">
-                                Hiện không có chi nhánh nào khác đủ toàn bộ số lượng này. Quý khách vui lòng giảm bớt số lượng hoặc liên hệ hotline để được hỗ trợ.
-                              </p>
+                              >
+                                {!isStockAvailable
+                                  ? (language === 'en' ? 'Shortage' : 'Thiếu hàng')
+                                  : (language === 'en' ? 'Selected' : 'Đang chọn')}
+                              </span>
                             )}
                           </div>
-                        )}
-                      </div>
+
+                          <p className="text-gray-500 text-[11px] leading-snug line-clamp-2 pl-5" title={st.address}>
+                            {st.address}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-1.5 pt-2 mt-2 border-t border-gray-100 pl-5 text-[10px] sm:text-[11px]">
+                          {distanceVal !== null ? (
+                            <span className="text-emerald-800 font-semibold bg-emerald-100/90 px-1.5 py-0.5 rounded border border-emerald-300 shrink-0">
+                              ~ {distanceVal} km
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 truncate">
+                              {st.district || st.province || 'Hệ thống TSF'}
+                            </span>
+                          )}
+                          <span className="text-red-600 font-medium bg-red-50 px-1.5 py-0.5 rounded border border-red-200 shrink-0">
+                            {st.phone}
+                          </span>
+                        </div>
+                      </label>
                     );
                   })}
                 </div>
+
+                {/* Cảnh báo thiếu hàng cho chi nhánh đang chọn (hiển thị toàn chiều rộng bên dưới lưới) */}
+                {!isStockAvailable && selectedStore && (
+                  <div className="mt-3 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 space-y-2 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-2 font-bold text-red-900">
+                      <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                      <span>{selectedStore.name} hiện không đủ hàng cho các món trong giỏ:</span>
+                    </div>
+                    <ul className="list-disc pl-5 space-y-0.5 text-[11px]">
+                      {insufficientItems.map((it) => (
+                        <li key={it.productId}>
+                          <strong>{it.productName}</strong>: cần {it.requested}, kho chỉ còn{' '}
+                          <span className="text-red-700 font-bold">{it.available}</span> chai
+                        </li>
+                      ))}
+                    </ul>
+
+                    {alternativeStores.length > 0 ? (
+                      <div className="pt-2 border-t border-red-200/60">
+                        <span className="font-semibold text-emerald-950 block mb-1.5 text-xs">
+                          Gợi ý các chi nhánh ĐỦ HÀNG cho cả giỏ:
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {alternativeStores.map((alt) => (
+                            <div
+                              key={alt.code}
+                              className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-emerald-200 shadow-2xs gap-2"
+                            >
+                              <div className="truncate min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-emerald-900 block text-xs truncate">{alt.name}</span>
+                                  {typeof alt.distanceKm === 'number' && (
+                                    <span className="text-[10px] text-emerald-800 font-semibold bg-emerald-100/90 px-1.5 py-0.2 rounded border border-emerald-300 shrink-0">
+                                      ~ {alt.distanceKm} km
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-gray-500 text-[10px] truncate block mt-0.5">{alt.address}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleSelectStore(alt.code)}
+                                className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold text-xs shrink-0 cursor-pointer transition-colors shadow-2xs"
+                              >
+                                Đổi sang kho này
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-red-700 italic">
+                        Hiện không có chi nhánh nào khác đủ toàn bộ số lượng này. Quý khách vui lòng giảm bớt số lượng hoặc liên hệ hotline để được hỗ trợ.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

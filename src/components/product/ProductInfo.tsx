@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Product } from '@/types';
 import { formatPrice } from '@/lib/utils';
 import { cn } from '@/lib/utils';
-import { useCartStore } from '@/store/cart';
+import { useCartStore, getItemMaxQuantity } from '@/store/cart';
 import { useFlyToCart } from '@/context/FlyToCartContext';
 import { useRouter } from 'next/navigation';
 import {
@@ -25,6 +25,7 @@ import {
   Leaf,
   ChevronRight,
   MapPin,
+  AlertTriangle,
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useBranchStore } from '@/store/branch';
@@ -148,8 +149,10 @@ export default function ProductInfo({ product }: ProductInfoProps) {
   const [addedToast, setAddedToast] = useState(false);
 
   // Quản lý thông tin tồn kho theo chi nhánh đang chọn toàn site
-  const { selectedBranch, openBranchModal } = useBranchStore();
+  const { selectedBranch, openBranchModal, setSelectedBranch } = useBranchStore();
   const [branchStockStatus, setBranchStockStatus] = useState<'in_stock' | 'low_stock' | 'out_of_stock'>('in_stock');
+  const [branchSellableBottles, setBranchSellableBottles] = useState<number | null>(null);
+  const [bestAlternativeStore, setBestAlternativeStore] = useState<any | null>(null);
   const [hasOtherBranchInStock, setHasOtherBranchInStock] = useState(false);
 
   // Nạp dữ liệu tồn kho theo chi nhánh đang chọn cho sản phẩm này
@@ -161,15 +164,29 @@ export default function ProductInfo({ product }: ProductInfoProps) {
         if (!isMounted) return;
         if (data.success && Array.isArray(data.stores)) {
           const currentStore = data.stores.find((s: any) => s.code === selectedBranch?.code);
-          if (currentStore && currentStore.stockStatus) {
-            setBranchStockStatus(currentStore.stockStatus);
+          if (currentStore) {
+            setBranchStockStatus(currentStore.stockStatus || 'in_stock');
+            setBranchSellableBottles(
+              typeof currentStore.sellableQuantity === 'number' ? currentStore.sellableQuantity : null
+            );
           } else {
             setBranchStockStatus('in_stock');
+            setBranchSellableBottles(null);
           }
-          const otherInStock = data.stores.some(
-            (s: any) => s.code !== selectedBranch?.code && s.stockStatus !== 'out_of_stock'
+
+          // Lọc danh sách các chi nhánh khác còn hàng khả dụng
+          const otherStores = data.stores.filter(
+            (s: any) => s.code !== selectedBranch?.code && (s.sellableQuantity ?? 0) > 0
           );
-          setHasOtherBranchInStock(otherInStock);
+          setHasOtherBranchInStock(otherStores.length > 0);
+          if (otherStores.length > 0) {
+            const sortedAlternatives = [...otherStores].sort(
+              (a: any, b: any) => (b.sellableQuantity ?? 0) - (a.sellableQuantity ?? 0)
+            );
+            setBestAlternativeStore(sortedAlternatives[0]);
+          } else {
+            setBestAlternativeStore(null);
+          }
         }
       })
       .catch((err) => {
@@ -180,9 +197,6 @@ export default function ProductInfo({ product }: ProductInfoProps) {
       isMounted = false;
     };
   }, [product.id, selectedBranch?.code]);
-
-  const isOutOfStock = branchStockStatus === 'out_of_stock';
-  const isLowStock = branchStockStatus === 'low_stock';
 
   // Accordion state - Luôn luôn đóng mặc định, người xem muốn đọc sẽ bấm mở rộng
   const [openAccordions, setOpenAccordions] = useState<{ [key: string]: boolean }>({
@@ -196,12 +210,13 @@ export default function ProductInfo({ product }: ProductInfoProps) {
   };
 
   const addItem = useCartStore((s) => s.addItem);
+  const cartItems = useCartStore((s) => s.items);
   const router = useRouter();
 
   // Helper for variant names
   const getVariantName = (vName: string) => {
     if (language !== 'en') return vName;
-    if (vName.includes('1 chai')) return '1 Bottle';
+    if (vName.includes('5 chai')) return 'Pack of 5 bottles';
     if (vName.includes('7 chai')) return 'Pack of 7 bottles';
     if (vName.includes('10 chai')) return 'Pack of 10 bottles';
     if (vName.includes('12 chai')) return 'Carton of 12 bottles';
@@ -213,8 +228,8 @@ export default function ProductInfo({ product }: ProductInfoProps) {
     return vName;
   };
 
-  // Find selected variant
-  const currentVariant = product.variants?.find((v) => v.id === activeVariant);
+  // Find selected variant (luôn ưu tiên gói quy cách tiêu chuẩn, không bán lẻ 1 chai)
+  const currentVariant = product.variants?.find((v) => v.id === activeVariant) || sortedVariants[0] || product.variants?.[0];
   const currentPrice = currentVariant ? currentVariant.price : product.price;
   const currentUnit = currentVariant ? getVariantName(currentVariant.name) : (language === 'en' ? (product.unitEn || 'bottle') : product.unit);
   const currentVolume = currentVariant?.volume || product.volume || '330ml';
@@ -226,8 +241,49 @@ export default function ProductInfo({ product }: ProductInfoProps) {
   const bottleCount = currentVariant?.quantity || 1;
   const perBottlePrice = Math.round(currentPrice / bottleCount);
 
+  // PHƯƠNG ÁN 1: Tính toán tồn kho thông minh theo quy cách đóng gói & chi nhánh
+  const maxPacksAllowedByRule = getItemMaxQuantity({
+    productId: currentVariant ? `${product.id}-${currentVariant.id}` : product.id,
+    variantId: currentVariant?.id,
+    name: currentVariant ? `${displayName} (${getVariantName(currentVariant.name)})` : displayName,
+    unit: currentUnit,
+  });
+
+  const branchPacksAvailable = branchSellableBottles !== null
+    ? Math.max(0, Math.floor(branchSellableBottles / bottleCount))
+    : maxPacksAllowedByRule;
+
+  const maxAvailableInBranch = Math.min(maxPacksAllowedByRule, branchPacksAvailable);
+
+  // Món này đã có bao nhiêu gói trong giỏ hàng
+  const currentCartItem = cartItems.find(
+    (it) =>
+      (it.productId === (currentVariant ? `${product.id}-${currentVariant.id}` : product.id) ||
+        it.productId === product.id) &&
+      it.variantId === currentVariant?.id
+  );
+  const existingCartQty = currentCartItem?.quantity || 0;
+
+  // Số lượng tối đa có thể thêm vào giỏ hàng
+  const remainingCanAdd = Math.max(0, maxAvailableInBranch - existingCartQty);
+
+  const isOutOfStock = branchSellableBottles !== null
+    ? maxAvailableInBranch <= 0
+    : branchStockStatus === 'out_of_stock';
+
+  const isLowStock = !isOutOfStock && branchSellableBottles !== null
+    ? maxAvailableInBranch <= 10
+    : branchStockStatus === 'low_stock';
+
+  // Tự động điều chỉnh quantity nếu vượt quá số lượng tồn khả dụng
+  useEffect(() => {
+    if (remainingCanAdd > 0 && quantity > remainingCanAdd) {
+      setQuantity(Math.max(1, remainingCanAdd));
+    }
+  }, [remainingCanAdd, activeVariant]);
+
   const handleAddToCart = (e: React.MouseEvent) => {
-    if (isOutOfStock) return;
+    if (isOutOfStock || remainingCanAdd <= 0) return;
 
     // Tìm ảnh chính sản phẩm trong gallery hoặc fallback về nút bấm
     const mainImg = document.querySelector('[data-product-main-image]') as HTMLElement | null;
@@ -238,16 +294,19 @@ export default function ProductInfo({ product }: ProductInfoProps) {
       imageSrc: product.thumbnail,
     });
 
+    const qtyToAdd = Math.min(quantity, remainingCanAdd);
     addItem(
       {
         productId: currentVariant ? `${product.id}-${currentVariant.id}` : product.id,
-        name: currentVariant && currentVariant.name !== '1 chai' ? `${displayName} (${getVariantName(currentVariant.name)})` : displayName,
+        name: currentVariant ? `${displayName} (${getVariantName(currentVariant.name)})` : displayName,
         slug: product.slug,
         price: currentPrice,
         unit: currentUnit,
         thumbnail: product.thumbnail,
+        variantId: currentVariant?.id,
+        variantName: currentVariant?.name,
       },
-      quantity
+      qtyToAdd
     );
 
     setAddedToast(true);
@@ -257,17 +316,21 @@ export default function ProductInfo({ product }: ProductInfoProps) {
   const handleBuyNow = () => {
     if (isOutOfStock) return;
 
-    addItem(
-      {
-        productId: currentVariant ? `${product.id}-${currentVariant.id}` : product.id,
-        name: currentVariant && currentVariant.name !== '1 chai' ? `${displayName} (${getVariantName(currentVariant.name)})` : displayName,
-        slug: product.slug,
-        price: currentPrice,
-        unit: currentUnit,
-        thumbnail: product.thumbnail,
-      },
-      quantity
-    );
+    if (remainingCanAdd > 0) {
+      addItem(
+        {
+          productId: currentVariant ? `${product.id}-${currentVariant.id}` : product.id,
+          name: currentVariant ? `${displayName} (${getVariantName(currentVariant.name)})` : displayName,
+          slug: product.slug,
+          price: currentPrice,
+          unit: currentUnit,
+          thumbnail: product.thumbnail,
+          variantId: currentVariant?.id,
+          variantName: currentVariant?.name,
+        },
+        Math.min(quantity, remainingCanAdd)
+      );
+    }
 
     router.push('/thanh-toan');
   };
@@ -388,11 +451,21 @@ export default function ProductInfo({ product }: ProductInfoProps) {
             {hasOtherBranchInStock ? (
               <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-2 text-xs text-amber-900">
                 <span className="font-medium">
-                  {language === 'en' ? 'Available at other branches' : 'Chi nhánh khác còn hàng'}
+                  {bestAlternativeStore
+                    ? (language === 'en'
+                        ? `Available at ${bestAlternativeStore.name}`
+                        : `Còn hàng tại ${bestAlternativeStore.name}`)
+                    : (language === 'en' ? 'Available at other branches' : 'Chi nhánh khác còn hàng')}
                 </span>
                 <button
                   type="button"
-                  onClick={openBranchModal}
+                  onClick={() => {
+                    if (bestAlternativeStore) {
+                      setSelectedBranch(bestAlternativeStore);
+                    } else {
+                      openBranchModal();
+                    }
+                  }}
                   className="font-bold underline text-[#1B5E3B] hover:text-emerald-800 cursor-pointer shrink-0"
                 >
                   {language === 'en' ? 'Switch branch' : 'Đổi chi nhánh'}
@@ -423,11 +496,11 @@ export default function ProductInfo({ product }: ProductInfoProps) {
               >
                 {isLowStock
                   ? language === 'en'
-                    ? `Low stock at ${selectedBranch?.name || 'branch'}`
-                    : `Sắp hết tại ${selectedBranch?.name || 'chi nhánh'}`
+                    ? `Low stock: ${maxAvailableInBranch} ${currentUnit} available at ${selectedBranch?.name || 'branch'}`
+                    : `Sắp hết: Còn ${maxAvailableInBranch} ${currentUnit} tại ${selectedBranch?.name || 'chi nhánh'}`
                   : language === 'en'
-                  ? `In stock at ${selectedBranch?.name || 'branch'}`
-                  : `Còn hàng tại ${selectedBranch?.name || 'chi nhánh'}`}
+                  ? `In stock at ${selectedBranch?.name || 'branch'} (${maxAvailableInBranch} ${currentUnit} available)`
+                  : `Còn hàng tại ${selectedBranch?.name || 'chi nhánh'} (${maxAvailableInBranch} ${currentUnit} có sẵn)`}
               </span>
             </div>
             <span className="text-gray-500 text-xs flex items-center gap-1">
@@ -439,30 +512,96 @@ export default function ProductInfo({ product }: ProductInfoProps) {
 
         {/* Số lượng (Ẩn khi tạm thời hết hàng) */}
         {!isOutOfStock && (
-          <div className="flex items-center justify-between">
-            <label className="text-sm text-gray-700 font-medium">
-              {language === 'en' ? 'Quantity:' : 'Số lượng:'}
-            </label>
-            <div className="flex items-center border border-gray-300 rounded-lg bg-gray-50">
-              <button
-                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                className="px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors rounded-l-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                disabled={quantity <= 1}
-                aria-label={language === 'en' ? 'Decrease quantity' : 'Giảm số lượng'}
-              >
-                <Minus className="w-4 h-4" />
-              </button>
-              <span className="px-3 py-1.5 text-sm font-bold text-gray-900 min-w-[36px] text-center">
-                {quantity}
-              </span>
-              <button
-                onClick={() => setQuantity((q) => q + 1)}
-                className="px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors rounded-r-lg cursor-pointer"
-                aria-label={language === 'en' ? 'Increase quantity' : 'Tăng số lượng'}
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm text-gray-700 font-medium">
+                  {language === 'en' ? 'Quantity:' : 'Số lượng:'}
+                </label>
+                {existingCartQty > 0 && (
+                  <span className="block text-[11px] text-gray-500">
+                    {language === 'en'
+                      ? `(${existingCartQty} ${currentUnit} in cart)`
+                      : `(Đã có ${existingCartQty} ${currentUnit} trong giỏ)`}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center border border-gray-300 rounded-lg bg-gray-50">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                  className="px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors rounded-l-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={quantity <= 1 || remainingCanAdd <= 0}
+                  aria-label={language === 'en' ? 'Decrease quantity' : 'Giảm số lượng'}
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <span className="px-3 py-1.5 text-sm font-bold text-gray-900 min-w-[36px] text-center">
+                  {remainingCanAdd <= 0 ? 0 : quantity}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => Math.min(remainingCanAdd, q + 1))}
+                  className="px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors rounded-r-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={quantity >= remainingCanAdd || remainingCanAdd <= 0}
+                  aria-label={language === 'en' ? 'Increase quantity' : 'Tăng số lượng'}
+                  title={
+                    quantity >= remainingCanAdd
+                      ? language === 'en'
+                        ? `Maximum available stock reached (${maxAvailableInBranch} ${currentUnit})`
+                        : `Đã đạt số lượng khả dụng tối đa tại chi nhánh (${maxAvailableInBranch} ${currentUnit})`
+                      : undefined
+                  }
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
             </div>
+
+            {/* Cảnh báo nhẹ nhàng & Gợi ý đổi kho khi chạm ngưỡng tồn kho */}
+            {(quantity >= remainingCanAdd || remainingCanAdd <= 0) && maxAvailableInBranch > 0 && (
+              <div className="p-2.5 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-900 space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    {remainingCanAdd <= 0
+                      ? language === 'en'
+                        ? `All available ${maxAvailableInBranch} ${currentUnit} are in your cart!`
+                        : `Bạn đã thêm toàn bộ ${maxAvailableInBranch} ${currentUnit} có sẵn vào giỏ hàng!`
+                      : language === 'en'
+                      ? `This branch only has ${maxAvailableInBranch} ${currentUnit} in stock`
+                      : `Chi nhánh hiện chỉ còn ${maxAvailableInBranch} ${currentUnit} khả dụng`}
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-800 leading-snug">
+                  {language === 'en'
+                    ? 'Need more? Switch to another branch to fulfill your order now.'
+                    : 'Quý khách muốn mua số lượng nhiều hơn? Vui lòng đổi chi nhánh còn hàng để được phục vụ ngay.'}
+                </p>
+                {bestAlternativeStore ? (
+                  <div className="pt-1 border-t border-amber-200/70 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-gray-700 truncate">
+                      {language === 'en' ? 'Store ' : 'Kho '}<strong>{bestAlternativeStore.name}</strong> còn hàng
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedBranch(bestAlternativeStore)}
+                      className="text-[11px] font-bold text-emerald-800 underline hover:text-emerald-900 cursor-pointer shrink-0"
+                    >
+                      {language === 'en' ? 'Switch to this branch' : 'Đổi kho này'}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={openBranchModal}
+                    className="text-[11px] font-bold text-emerald-800 underline cursor-pointer block text-left"
+                  >
+                    {language === 'en' ? 'Choose another branch' : 'Chọn chi nhánh khác còn hàng'}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -476,6 +615,33 @@ export default function ProductInfo({ product }: ProductInfoProps) {
             >
               {language === 'en' ? 'Currently unavailable' : 'Hiện tạm thời hết hàng'}
             </button>
+          </div>
+        ) : remainingCanAdd <= 0 ? (
+          <div className="pt-1 space-y-2">
+            <button
+              type="button"
+              disabled
+              className="w-full py-3 px-4 bg-amber-50 text-amber-900 font-bold rounded-xl text-sm border border-amber-200 cursor-not-allowed text-center shadow-xs"
+            >
+              {language === 'en'
+                ? `Max stock reached in cart (${maxAvailableInBranch} ${currentUnit})`
+                : `Đã thêm tối đa tồn kho (${maxAvailableInBranch} ${currentUnit})`}
+            </button>
+            <div className="flex gap-2">
+              <Link
+                href="/gio-hang"
+                className="flex-1 py-2.5 px-3 bg-[#1B5E3B] text-white text-center font-bold rounded-xl text-xs sm:text-sm hover:bg-[#14482D] transition-colors"
+              >
+                {language === 'en' ? 'View Cart' : 'Xem giỏ hàng'}
+              </Link>
+              <button
+                type="button"
+                onClick={openBranchModal}
+                className="flex-1 py-2.5 px-3 bg-white border border-gray-300 text-gray-700 text-center font-bold rounded-xl text-xs sm:text-sm hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                {language === 'en' ? 'Switch Branch' : 'Đổi chi nhánh'}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 pt-1">

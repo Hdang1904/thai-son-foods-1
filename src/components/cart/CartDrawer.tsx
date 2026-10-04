@@ -3,13 +3,17 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MapPin, AlertTriangle } from 'lucide-react';
-import { useCartStore } from '@/store/cart';
+import { useCartStore, getItemMaxQuantity } from '@/store/cart';
 import { formatPrice } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '@/context/LanguageContext';
 import { useCartInventory } from '@/hooks/useCartInventory';
 
+import { usePathname } from 'next/navigation';
+
 export default function CartDrawer() {
+  const pathname = usePathname();
+  const isPageWithStickySidebar = Boolean(pathname?.startsWith('/san-pham/') || pathname?.startsWith('/combo'));
   const { language } = useLanguage();
   const {
     items,
@@ -47,7 +51,7 @@ export default function CartDrawer() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs"
+            className={`fixed inset-0 z-50 bg-black/40 backdrop-blur-xs ${isPageWithStickySidebar ? 'min-[1440px]:hidden' : ''}`}
             onClick={closeCart}
           />
 
@@ -57,7 +61,7 @@ export default function CartDrawer() {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 250 }}
-            className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-md bg-white shadow-2xl flex flex-col"
+            className={`fixed top-0 right-0 bottom-0 z-50 w-full max-w-md bg-white shadow-2xl flex flex-col ${isPageWithStickySidebar ? 'min-[1440px]:hidden' : ''}`}
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-border-light">
@@ -186,39 +190,48 @@ export default function CartDrawer() {
 
                       {/* Quantity + Remove */}
                       <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center border border-border rounded-lg overflow-hidden">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateQuantity(
-                                item.productId,
-                                Math.max(0, item.quantity - 1),
-                                item.variantId
-                              )
-                            }
-                            className="p-1 text-text-muted hover:text-text-dark hover:bg-ivory transition-colors cursor-pointer"
-                            aria-label={language === 'en' ? 'Decrease quantity' : 'Giảm số lượng'}
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="px-2.5 text-xs font-semibold text-text-dark min-w-[24px] text-center">
-                            {item.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateQuantity(
-                                item.productId,
-                                item.quantity + 1,
-                                item.variantId
-                              )
-                            }
-                            className="p-1 text-text-muted hover:text-text-dark hover:bg-ivory transition-colors cursor-pointer"
-                            aria-label={language === 'en' ? 'Increase quantity' : 'Tăng số lượng'}
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                        {(() => {
+                          const maxAllowed = getItemMaxQuantity(item);
+                          const isAtMax = item.quantity >= maxAllowed;
+
+                          return (
+                            <div className="flex items-center border border-border rounded-lg overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateQuantity(
+                                    item.productId,
+                                    Math.max(0, item.quantity - 1),
+                                    item.variantId
+                                  )
+                                }
+                                className="p-1 text-text-muted hover:text-text-dark hover:bg-ivory transition-colors cursor-pointer"
+                                aria-label={language === 'en' ? 'Decrease quantity' : 'Giảm số lượng'}
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+                              <span className="px-2.5 text-xs font-semibold text-text-dark min-w-[24px] text-center">
+                                {item.quantity}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateQuantity(
+                                    item.productId,
+                                    item.quantity + 1,
+                                    item.variantId
+                                  )
+                                }
+                                disabled={isAtMax}
+                                className="p-1 text-text-muted hover:text-text-dark hover:bg-ivory transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                aria-label={language === 'en' ? 'Increase quantity' : 'Tăng số lượng'}
+                                title={isAtMax ? (language === 'en' ? 'Reached 1,000 bottles limit' : 'Đã đạt giới hạn tối đa 1.000 chai') : undefined}
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })()}
 
                         <button
                           type="button"
