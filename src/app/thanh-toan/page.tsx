@@ -965,7 +965,7 @@ export default function CheckoutPage() {
                   value={form.fullName}
                   onChange={handleChange}
                   className={cn(
-                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors',
+                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors',
                     errors.fullName ? 'border-sale' : 'border-border'
                   )}
                   placeholder={language === 'en' ? 'John Doe' : 'Nguyễn Văn A'}
@@ -987,7 +987,7 @@ export default function CheckoutPage() {
                   value={form.phone}
                   onChange={handleChange}
                   className={cn(
-                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors',
+                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors',
                     errors.phone ? 'border-sale' : 'border-border'
                   )}
                   placeholder="0912 345 678"
@@ -1018,7 +1018,7 @@ export default function CheckoutPage() {
                   type="email"
                   value={form.email}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-xl border border-border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors"
+                  className="w-full px-4 py-3 rounded-xl border border-border bg-white text-text-dark text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors"
                   placeholder={user?.email || 'email@example.com'}
                 />
               </div>
@@ -1034,7 +1034,7 @@ export default function CheckoutPage() {
                   value={form.province}
                   onChange={handleProvinceChange}
                   className={cn(
-                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors cursor-pointer',
+                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors cursor-pointer',
                     errors.province ? 'border-sale' : 'border-border'
                   )}
                 >
@@ -1062,7 +1062,7 @@ export default function CheckoutPage() {
                   onChange={handleDistrictChange}
                   disabled={!form.province}
                   className={cn(
-                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed',
+                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed',
                     errors.district ? 'border-sale' : 'border-border'
                   )}
                 >
@@ -1094,7 +1094,7 @@ export default function CheckoutPage() {
                   onChange={handleWardChange}
                   disabled={!form.district}
                   className={cn(
-                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed',
+                    'w-full px-4 py-3 rounded-xl border bg-white text-text-dark text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed',
                     errors.ward ? 'border-sale' : 'border-border'
                   )}
                 >
@@ -1138,7 +1138,7 @@ export default function CheckoutPage() {
                       if (suggestions.length > 0) setShowSuggestions(true);
                     }}
                     className={cn(
-                      'w-full pl-4 pr-10 py-3 rounded-xl border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors',
+                      'w-full pl-4 pr-10 py-3 rounded-xl border bg-white text-text-dark text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors',
                       errors.address ? 'border-sale' : 'border-border'
                     )}
                     placeholder={
@@ -1240,7 +1240,7 @@ export default function CheckoutPage() {
                   value={form.note}
                   onChange={handleChange}
                   rows={3}
-                  className="w-full px-4 py-3 rounded-xl border border-border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors resize-none"
+                  className="w-full px-4 py-3 rounded-xl border border-border bg-white text-text-dark text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors resize-none"
                   placeholder={language === 'en' ? 'Optional order notes or delivery instructions...' : 'Ghi chú thêm cho đơn hàng...'}
                 />
               </div>

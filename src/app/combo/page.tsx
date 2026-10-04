@@ -1117,7 +1117,7 @@ function Combo02View() {
                         handleSelectStep1(item.id as 'sua-bap-nep' | 'nha-dam-mu-trom');
                       }}
                       className={cn(
-                        'px-4 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer',
+                        'px-4 py-3 rounded-xl font-bold text-xs transition-all cursor-pointer',
                         isSelected
                           ? 'bg-[#1B4D3E] text-white'
                           : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
@@ -2904,7 +2904,7 @@ function ComboContent() {
             <div className="flex items-center justify-between py-3 mb-3">
               <Link
                 href="/#combo"
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-green-primary transition-colors"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-green-primary transition-colors py-2 -my-2"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>{language === 'en' ? 'Back to Home' : 'Quay lại trang chủ'}</span>
@@ -2928,7 +2928,7 @@ function ComboContent() {
               <button
                 type="button"
                 onClick={openBranchModal}
-                className="px-3.5 py-1.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs shrink-0 cursor-pointer transition-colors ml-2 shadow-xs"
+                className="px-3.5 py-2.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs shrink-0 cursor-pointer transition-colors ml-2 shadow-xs"
               >
                 Đổi chi nhánh
               </button>

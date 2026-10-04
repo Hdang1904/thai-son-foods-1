@@ -504,7 +504,7 @@ function AccountContent() {
                       onChange={(e) =>
                         setProfileForm({ ...profileForm, fullName: e.target.value })
                       }
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-base sm:text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
                     />
                   </div>
 
@@ -516,7 +516,7 @@ function AccountContent() {
                       type="email"
                       disabled
                       value={user.email}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-500 text-sm cursor-not-allowed"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-500 text-base sm:text-sm cursor-not-allowed"
                     />
                   </div>
 
@@ -531,7 +531,7 @@ function AccountContent() {
                         setProfileForm({ ...profileForm, phone: e.target.value })
                       }
                       placeholder="0912 345 678"
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-base sm:text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
                     />
                   </div>
 
@@ -546,7 +546,7 @@ function AccountContent() {
                         setProfileForm({ ...profileForm, province: e.target.value })
                       }
                       placeholder={language === 'en' ? 'Ho Chi Minh City' : 'TP. Hồ Chí Minh'}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-base sm:text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
                     />
                   </div>
 
@@ -561,7 +561,7 @@ function AccountContent() {
                         setProfileForm({ ...profileForm, district: e.target.value })
                       }
                       placeholder={language === 'en' ? 'Tan Binh District' : 'Quận Tân Bình'}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-base sm:text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
                     />
                   </div>
 
@@ -574,7 +574,7 @@ function AccountContent() {
                       value={profileForm.ward}
                       onChange={(e) => setProfileForm({ ...profileForm, ward: e.target.value })}
                       placeholder={language === 'en' ? 'Tan Son Hoa Ward' : 'Phường Tân Sơn Hòa'}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-base sm:text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
                     />
                   </div>
 
@@ -589,7 +589,7 @@ function AccountContent() {
                         setProfileForm({ ...profileForm, address: e.target.value })
                       }
                       placeholder={language === 'en' ? '123 Le Van Sy...' : '123 Lê Văn Sỹ...'}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-base sm:text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10"
                     />
                   </div>
                 </div>

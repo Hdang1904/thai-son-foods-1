@@ -200,7 +200,7 @@ export default function ScrollBannerShowcase({
               type="button"
               onClick={() => handleScrollToSlide(0)}
               style={{ opacity: pill1Active }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white hover:bg-white/15 transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-white hover:bg-white/15 transition-all cursor-pointer flex items-center gap-1.5"
             >
               <span className="font-mono text-emerald-400">01</span>
               <span className="hidden sm:inline">
@@ -215,7 +215,7 @@ export default function ScrollBannerShowcase({
               type="button"
               onClick={() => handleScrollToSlide(1)}
               style={{ opacity: pill2Active }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white hover:bg-white/15 transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-white hover:bg-white/15 transition-all cursor-pointer flex items-center gap-1.5"
             >
               <span className="font-mono text-amber-400">02</span>
               <span className="hidden sm:inline">

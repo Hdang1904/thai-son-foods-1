@@ -752,7 +752,7 @@ export default function CartPage() {
                                     setQuantity(item.productId, Math.min(maxAllowed, val));
                                   }
                                 }}
-                                className="w-12 sm:w-14 text-center font-bold text-xs sm:text-sm text-gray-900 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                className="w-12 sm:w-14 text-center font-bold text-base sm:text-xs sm:text-sm text-gray-900 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 aria-label={language === 'en' ? 'Product quantity' : 'Số lượng sản phẩm'}
                               />
                               <button

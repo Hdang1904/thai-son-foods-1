@@ -70,7 +70,7 @@ export default function Footer() {
                 </div>
                 <div className="flex items-center gap-3">
                   <Phone className="w-5 h-5 shrink-0 text-[#F4C542]" />
-                  <a href="tel:02862915024" className="hover:text-[#F4C542] transition-colors font-medium">
+                  <a href="tel:02862915024" className="hover:text-[#F4C542] transition-colors font-medium py-2 -my-2 inline-block">
                     Hotline: 028 6291 5024
                   </a>
                 </div>
@@ -78,7 +78,7 @@ export default function Footer() {
                   <Mail className="w-5 h-5 shrink-0 text-[#F4C542]" />
                   <a
                     href="mailto:sbnts.htkd@tsf.com.vn"
-                    className="hover:text-[#F4C542] transition-colors break-all"
+                    className="hover:text-[#F4C542] transition-colors break-all py-2 -my-2 inline-block"
                   >
                     sbnts.htkd@tsf.com.vn
                   </a>
@@ -94,19 +94,19 @@ export default function Footer() {
               >
                 {language === 'en' ? 'Products' : 'Sản phẩm'}
               </h3>
-              <ul className="space-y-3 text-[15px] sm:text-base text-white/90">
+              <ul className="space-y-1 text-[15px] sm:text-base text-white/90">
                 <li>
-                  <Link href="/#san-pham" className="hover:text-[#F4C542] transition-colors font-medium hover:underline">
+                  <Link href="/#san-pham" className="hover:text-[#F4C542] transition-colors font-medium hover:underline py-2 -my-1 inline-block">
                     {language === 'en' ? 'Nut Milk' : 'Sữa hạt'}
                   </Link>
                 </li>
                 <li>
-                  <Link href="/#san-pham" className="hover:text-[#F4C542] transition-colors font-medium hover:underline">
+                  <Link href="/#san-pham" className="hover:text-[#F4C542] transition-colors font-medium hover:underline py-2 -my-1 inline-block">
                     {language === 'en' ? 'Refreshments' : 'Nước giải khát'}
                   </Link>
                 </li>
                 <li>
-                  <Link href="/#san-pham" className="hover:text-[#F4C542] transition-colors font-medium hover:underline">
+                  <Link href="/#san-pham" className="hover:text-[#F4C542] transition-colors font-medium hover:underline py-2 -my-1 inline-block">
                     {language === 'en' ? 'Milk Tea' : 'Trà sữa'}
                   </Link>
                 </li>
@@ -121,14 +121,14 @@ export default function Footer() {
               >
                 {language === 'en' ? 'Support' : 'Hỗ trợ'}
               </h3>
-              <ul className="space-y-3 text-[15px] sm:text-base text-white/90 mb-6">
+              <ul className="space-y-1 text-[15px] sm:text-base text-white/90 mb-6">
                 <li>
-                  <Link href="/#" className="hover:text-[#F4C542] transition-colors font-medium hover:underline">
+                  <Link href="/#" className="hover:text-[#F4C542] transition-colors font-medium hover:underline py-2 -my-1 inline-block">
                     {language === 'en' ? 'Shipping Policy' : 'Chính sách giao hàng'}
                   </Link>
                 </li>
                 <li>
-                  <Link href="/#" className="hover:text-[#F4C542] transition-colors font-medium hover:underline">
+                  <Link href="/#" className="hover:text-[#F4C542] transition-colors font-medium hover:underline py-2 -my-1 inline-block">
                     {language === 'en' ? 'Contact' : 'Liên hệ'}
                   </Link>
                 </li>

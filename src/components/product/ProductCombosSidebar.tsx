@@ -204,7 +204,7 @@ export default function ProductCombosSidebar({
               {isCustomizable ? (
                 <Link
                   href={`/combo/${combo.slug}`}
-                  className="w-full py-1.5 px-1.5 rounded-lg bg-emerald-50 hover:bg-green-primary text-emerald-900 hover:text-white font-bold text-[10px] sm:text-[11px] flex items-center justify-center gap-1 transition-all active:scale-95 shadow-2xs"
+                  className="w-full py-2.5 px-1.5 rounded-lg bg-emerald-50 hover:bg-green-primary text-emerald-900 hover:text-white font-bold text-[10px] sm:text-[11px] flex items-center justify-center gap-1 transition-all active:scale-95 shadow-2xs"
                 >
                   <Sparkles className="w-3 h-3 text-corn shrink-0" />
                   <span>{customText}</span>
@@ -215,7 +215,7 @@ export default function ProductCombosSidebar({
                   type="button"
                   onClick={(e) => handleQuickAdd(combo, e)}
                   className={cn(
-                    'w-full py-1.5 px-1.5 rounded-lg font-bold text-[10px] sm:text-[11px] flex items-center justify-center gap-1 transition-all active:scale-95 shadow-2xs cursor-pointer',
+                    'w-full py-2.5 px-1.5 rounded-lg font-bold text-[10px] sm:text-[11px] flex items-center justify-center gap-1 transition-all active:scale-95 shadow-2xs cursor-pointer',
                     isJustAdded
                       ? 'bg-green-primary text-white'
                       : 'bg-[#FAF8F5] hover:bg-green-primary text-gray-800 hover:text-white border border-gray-200/80 hover:border-green-primary'
@@ -405,7 +405,7 @@ export default function ProductCombosSidebar({
             <button
               type="button"
               onClick={() => handleScroll('right')}
-              className="absolute -right-2 sm:-right-3.5 md:-right-4 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white shadow-md hover:shadow-xl border border-gray-200/90 flex items-center justify-center text-gray-700 hover:text-white hover:bg-green-primary transition-all duration-200 cursor-pointer active:scale-90"
+              className="absolute -right-2 sm:-right-3.5 md:-right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white shadow-md hover:shadow-xl border border-gray-200/90 flex items-center justify-center text-gray-700 hover:text-white hover:bg-green-primary transition-all duration-200 cursor-pointer active:scale-90"
               aria-label={language === 'en' ? 'Next combos' : 'Lướt sang phải xem thêm combo'}
               title={language === 'en' ? 'Next combos' : 'Xem thêm combo'}
             >

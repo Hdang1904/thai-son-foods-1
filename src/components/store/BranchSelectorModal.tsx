@@ -261,7 +261,7 @@ export default function BranchSelectorModal({ productId, onSelect }: BranchSelec
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
                 placeholder="Tìm theo tên chi nhánh, đường, quận..."
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-hidden focus:border-[#1B5E3B]"
+                className="w-full pl-9 pr-3 py-2 text-base sm:text-sm border border-gray-200 rounded-xl focus:outline-hidden focus:border-[#1B5E3B]"
               />
             </div>
           </div>
@@ -286,7 +286,7 @@ export default function BranchSelectorModal({ productId, onSelect }: BranchSelec
                   setSelectedProvince(e.target.value);
                   setSelectedDistrict('ALL');
                 }}
-                className="w-full px-3 py-2 text-xs md:text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:outline-hidden focus:border-[#1B5E3B]"
+                className="w-full px-3 py-2 text-base sm:text-xs md:text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:outline-hidden focus:border-[#1B5E3B]"
               >
                 <option value="ALL">Tất cả Tỉnh/Thành</option>
                 {provinces.map((p) => (
@@ -304,7 +304,7 @@ export default function BranchSelectorModal({ productId, onSelect }: BranchSelec
               <select
                 value={selectedDistrict}
                 onChange={(e) => setSelectedDistrict(e.target.value)}
-                className="w-full px-3 py-2 text-xs md:text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:outline-hidden focus:border-[#1B5E3B]"
+                className="w-full px-3 py-2 text-base sm:text-xs md:text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:outline-hidden focus:border-[#1B5E3B]"
               >
                 <option value="ALL">Tất cả Quận/Huyện</option>
                 {districts.map((d) => (

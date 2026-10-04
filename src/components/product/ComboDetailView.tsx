@@ -367,7 +367,7 @@ export default function ComboDetailView({
                         e.stopPropagation();
                         setActiveIndex((prev) => (prev - 1 + galleryImages.length) % galleryImages.length);
                       }}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-white/85 hover:bg-white text-gray-800 shadow-md border border-gray-100 flex items-center justify-center transition-all opacity-85 group-hover:opacity-100 hover:scale-105 cursor-pointer"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/85 hover:bg-white text-gray-800 shadow-md border border-gray-100 flex items-center justify-center transition-all opacity-85 group-hover:opacity-100 hover:scale-105 cursor-pointer"
                       aria-label="Ảnh trước"
                     >
                       <ChevronLeft className="w-5 h-5" />
@@ -381,7 +381,7 @@ export default function ComboDetailView({
                         e.stopPropagation();
                         setActiveIndex((prev) => (prev + 1) % galleryImages.length);
                       }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-white/85 hover:bg-white text-gray-800 shadow-md border border-gray-100 flex items-center justify-center transition-all opacity-85 group-hover:opacity-100 hover:scale-105 cursor-pointer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/85 hover:bg-white text-gray-800 shadow-md border border-gray-100 flex items-center justify-center transition-all opacity-85 group-hover:opacity-100 hover:scale-105 cursor-pointer"
                       aria-label="Ảnh tiếp theo"
                     >
                       <ChevronRight className="w-5 h-5" />
@@ -657,7 +657,7 @@ export default function ComboDetailView({
                   <button
                     type="button"
                     onClick={openBranchModal}
-                    className="text-emerald-800 underline font-bold ml-1 hover:text-emerald-950 cursor-pointer"
+                    className="text-emerald-800 underline font-bold ml-1 hover:text-emerald-950 cursor-pointer py-2 -my-2 inline-block"
                   >
                     Đổi
                   </button>

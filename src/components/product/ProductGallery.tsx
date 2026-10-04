@@ -361,7 +361,7 @@ export default function ProductGallery({
         {/* Nút phóng to ảnh */}
         <button
           onClick={() => !isVideo && setIsZoomOpen(true)}
-          className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#1B5E3B] font-medium transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#1B5E3B] font-medium transition-colors cursor-pointer py-2 -my-2"
         >
           <ZoomIn className="w-3.5 h-3.5" />
           <span>
@@ -380,7 +380,7 @@ export default function ProductGallery({
           {/* Facebook */}
           <button
             onClick={handleShareFacebook}
-            className="w-7 h-7 rounded-full bg-blue-50 hover:bg-blue-100 text-[#1877F2] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer shadow-2xs"
+            className="w-10 h-10 sm:w-7 sm:h-7 rounded-full bg-blue-50 hover:bg-blue-100 text-[#1877F2] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer shadow-2xs"
             title={language === 'en' ? 'Share to Facebook' : 'Chia sẻ lên Facebook'}
             aria-label={language === 'en' ? 'Share to Facebook' : 'Chia sẻ lên Facebook'}
           >
@@ -392,7 +392,7 @@ export default function ProductGallery({
           {/* Zalo */}
           <button
             onClick={handleShareZalo}
-            className="w-7 h-7 rounded-full bg-blue-50 hover:bg-blue-100 text-[#0068FF] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer shadow-2xs font-extrabold text-[10px]"
+            className="w-10 h-10 sm:w-7 sm:h-7 rounded-full bg-blue-50 hover:bg-blue-100 text-[#0068FF] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer shadow-2xs font-extrabold text-[10px]"
             title={language === 'en' ? 'Share to Zalo' : 'Chia sẻ qua Zalo'}
             aria-label={language === 'en' ? 'Share to Zalo' : 'Chia sẻ qua Zalo'}
           >
@@ -403,7 +403,7 @@ export default function ProductGallery({
           <button
             onClick={() => copyToClipboard()}
             className={cn(
-              "h-7 px-2.5 rounded-full border text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-2xs",
+              "h-10 sm:h-7 px-3 sm:px-2.5 rounded-full border text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-2xs",
               copied
                 ? "bg-emerald-600 border-emerald-600 text-white"
                 : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300"
@@ -732,7 +732,7 @@ export default function ProductGallery({
                     type="text"
                     readOnly
                     value={shareUrl || (typeof window !== 'undefined' ? window.location.href : '')}
-                    className="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-xs text-gray-600 select-all focus:outline-none focus:ring-1 focus:ring-emerald-600 font-mono truncate"
+                    className="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-base sm:text-xs text-gray-600 select-all focus:outline-none focus:ring-1 focus:ring-emerald-600 font-mono truncate"
                   />
                   <button
                     onClick={() => copyToClipboard()}

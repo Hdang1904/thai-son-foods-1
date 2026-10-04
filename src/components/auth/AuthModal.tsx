@@ -249,7 +249,7 @@ export default function AuthModal() {
                     value={loginForm.email}
                     onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
                     placeholder="email@example.com"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-base sm:text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
                   />
                   <Mail className="absolute left-3.5 top-3 w-4 h-4 text-gray-400" />
                 </div>
@@ -266,7 +266,7 @@ export default function AuthModal() {
                     value={loginForm.password}
                     onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 text-base sm:text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
                   />
                   <Lock className="absolute left-3.5 top-3 w-4 h-4 text-gray-400" />
                   <button
@@ -322,7 +322,7 @@ export default function AuthModal() {
                     value={registerForm.fullName}
                     onChange={(e) => setRegisterForm({ ...registerForm, fullName: e.target.value })}
                     placeholder={language === 'en' ? 'Nguyen Van A' : 'Nguyễn Văn A'}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-base sm:text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
                   />
                   <UserIcon className="absolute left-3.5 top-3 w-4 h-4 text-gray-400" />
                 </div>
@@ -339,7 +339,7 @@ export default function AuthModal() {
                     value={registerForm.email}
                     onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
                     placeholder="email@example.com"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-base sm:text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
                   />
                   <Mail className="absolute left-3.5 top-3 w-4 h-4 text-gray-400" />
                 </div>
@@ -355,7 +355,7 @@ export default function AuthModal() {
                     value={registerForm.phone}
                     onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })}
                     placeholder="0912 345 678"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-base sm:text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
                   />
                   <Phone className="absolute left-3.5 top-3 w-4 h-4 text-gray-400" />
                 </div>
@@ -374,7 +374,7 @@ export default function AuthModal() {
                     value={registerForm.password}
                     onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 text-base sm:text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
                   />
                   <Lock className="absolute left-3.5 top-3 w-4 h-4 text-gray-400" />
                   <button

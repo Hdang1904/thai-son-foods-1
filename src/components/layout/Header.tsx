@@ -210,7 +210,7 @@ export default function Header() {
               className="flex items-center shrink-0 cursor-pointer"
               aria-label="Thái Sơn Foods - Trang chủ"
             >
-              <div className="relative h-12 w-44 sm:h-14 sm:w-52 md:h-16 md:w-[230px]">
+              <div className="relative h-12 w-[140px] sm:h-14 sm:w-52 md:h-16 md:w-[230px]">
                 <Image
                   src="/images/logo-vien-trang.png"
                   alt="Thái Sơn Foods - Món ngon quê Việt"
@@ -234,7 +234,7 @@ export default function Header() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onFocus={() => setIsSearchFocused(true)}
                     placeholder={t('searchPlaceholder')}
-                    className="w-full pl-10 pr-24 py-2.5 bg-gray-50/90 hover:bg-gray-100/70 focus:bg-white text-sm text-gray-800 rounded-full border border-gray-200/90 focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/15 focus:outline-none transition-all shadow-2xs placeholder:text-gray-400 font-medium"
+                    className="w-full pl-10 pr-24 py-2.5 bg-gray-50/90 hover:bg-gray-100/70 focus:bg-white text-base sm:text-sm text-gray-800 rounded-full border border-gray-200/90 focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/15 focus:outline-none transition-all shadow-2xs placeholder:text-gray-400 font-medium"
                   />
                   <Search className="absolute left-3.5 w-4 h-4 text-emerald-700 pointer-events-none" />
 
@@ -331,11 +331,11 @@ export default function Header() {
             </div>
 
             {/* 3. Tiện ích bên phải (Hotline, Language Switcher, Search mobile, User, Cart) */}
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1 min-[400px]:gap-1.5 sm:gap-2 min-w-0">
               {/* Nút tìm kiếm mobile */}
               <button
                 onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
-                className="md:hidden p-2 text-gray-700 hover:text-green-primary hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                className="md:hidden p-2.5 text-gray-700 hover:text-green-primary hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
                 aria-label={language === 'en' ? 'Open search' : 'Mở tìm kiếm'}
               >
                 <Search className="w-5 h-5" />
@@ -352,7 +352,7 @@ export default function Header() {
               </button>
 
               {/* Nút Chuyển ngữ Tiếng Anh / Tiếng Việt (Language Switcher) */}
-              <div ref={langDropdownRef} className="relative">
+              <div ref={langDropdownRef} className="relative hidden min-[400px]:block">
                 <button
                   type="button"
                   onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
@@ -543,12 +543,12 @@ export default function Header() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={language === 'en' ? 'Search products...' : 'Tìm kiếm sản phẩm...'}
-                className="w-full pl-9 pr-20 py-2 bg-gray-50 text-xs text-gray-800 rounded-full border border-gray-200 focus:border-[#1B5E3B] focus:outline-none"
+                className="w-full pl-9 pr-20 py-2.5 bg-gray-50 text-base text-gray-800 rounded-full border border-gray-200 focus:border-[#1B5E3B] focus:outline-none"
               />
               <Search className="absolute left-3 w-4 h-4 text-gray-400" />
               <button
                 type="submit"
-                className="absolute right-1 px-3 py-1 bg-[#1B5E3B] text-white text-[11px] font-bold rounded-full"
+                className="absolute right-1 px-4 py-2 bg-[#1B5E3B] text-white text-xs font-bold rounded-full"
               >
                 {language === 'en' ? 'Search' : 'Tìm'}
               </button>
@@ -559,7 +559,7 @@ export default function Header() {
         {/* TẦNG 2: THANH TASKBAG (Taskbag / Sub-navigation bar) */}
         <div className="border-t border-gray-100 bg-[#FAF9F5]/70 backdrop-blur-xs">
           <div className="section-container">
-            <div className="flex items-center justify-between h-10 md:h-11">
+            <div className="flex items-center justify-between h-11">
               {/* 4 Mục Taskbag chính */}
               <nav
                 className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-hide py-1 -mx-2 px-2"
@@ -573,7 +573,7 @@ export default function Header() {
                         key={item.id}
                         type="button"
                         onClick={() => setIsSupportModalOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs md:text-sm font-semibold text-gray-700 hover:text-[#1B5E3B] hover:bg-emerald-50/80 transition-colors whitespace-nowrap cursor-pointer shrink-0"
+                        className="flex items-center gap-1.5 px-3 py-3 md:py-1.5 rounded-lg text-xs md:text-sm font-semibold text-gray-700 hover:text-[#1B5E3B] hover:bg-emerald-50/80 transition-colors whitespace-nowrap cursor-pointer shrink-0"
                       >
                         <Icon className={cn('w-4 h-4', item.color)} />
                         <span>{item.label}</span>
@@ -584,7 +584,7 @@ export default function Header() {
                     <Link
                       key={item.id}
                       href={item.href}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs md:text-sm font-semibold text-gray-700 hover:text-green-primary hover:bg-ivory-dark/60 transition-colors whitespace-nowrap shrink-0"
+                      className="flex items-center gap-1.5 px-3 py-3 md:py-1.5 rounded-lg text-xs md:text-sm font-semibold text-gray-700 hover:text-green-primary hover:bg-ivory-dark/60 transition-colors whitespace-nowrap shrink-0"
                     >
                       <Icon className={cn('w-4 h-4', item.color)} />
                       <span>{item.label}</span>
@@ -676,7 +676,7 @@ export default function Header() {
                     setIsMobileMenuOpen(false);
                     openAuthModal('login');
                   }}
-                  className="px-3.5 py-1.5 bg-[#1B5E3B] hover:bg-[#14482D] text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+                  className="px-4 py-2.5 bg-[#1B5E3B] hover:bg-[#14482D] text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
                 >
                   {language === 'en' ? 'Sign In' : 'Đăng nhập'}
                 </button>
@@ -731,7 +731,7 @@ export default function Header() {
                   type="button"
                   onClick={() => setLanguage('vi')}
                   className={cn(
-                    'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer',
+                    'px-3 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
                     language === 'vi'
                       ? 'bg-white text-emerald-800 shadow-xs'
                       : 'text-gray-500 hover:text-gray-800'
@@ -743,7 +743,7 @@ export default function Header() {
                   type="button"
                   onClick={() => setLanguage('en')}
                   className={cn(
-                    'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer',
+                    'px-3 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
                     language === 'en'
                       ? 'bg-white text-emerald-800 shadow-xs'
                       : 'text-gray-500 hover:text-gray-800'

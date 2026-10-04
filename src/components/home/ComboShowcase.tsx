@@ -197,7 +197,7 @@ export default function ComboShowcase({ combos: initialCombos }: ComboShowcasePr
                         type="button"
                         onClick={(e) => handleAddToCart(combo, e)}
                         className={cn(
-                          'shrink-0 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 flex items-center justify-center rounded-lg transition-all active:scale-95 cursor-pointer shadow-xs',
+                          'shrink-0 w-10 h-10 sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center rounded-lg transition-all active:scale-95 cursor-pointer shadow-xs',
                           isJustAdded
                             ? 'bg-emerald-700 text-white'
                             : 'bg-green-primary hover:bg-green-dark text-white'

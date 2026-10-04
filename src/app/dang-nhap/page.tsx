@@ -106,7 +106,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="email@example.com"
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-base sm:text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
               />
               <Mail className="absolute left-3.5 top-3 w-4 h-4 text-gray-400" />
             </div>
@@ -123,13 +123,13 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
+                className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 text-base sm:text-sm focus:outline-none focus:border-[#1B5E3B] focus:ring-2 focus:ring-[#1B5E3B]/10 transition-colors"
               />
               <Lock className="absolute left-3.5 top-3 w-4 h-4 text-gray-400" />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-2 -mr-2"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -152,15 +152,15 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-6 text-center text-xs text-gray-500 space-y-2">
+        <div className="mt-6 text-center text-xs text-gray-500 space-y-1">
           <div>
             {language === 'en' ? "Don't have an account yet?" : 'Chưa có tài khoản Thái Sơn Foods?'}{' '}
-            <Link href="/dang-ky" className="font-bold text-[#1B5E3B] hover:underline">
+            <Link href="/dang-ky" className="font-bold text-[#1B5E3B] hover:underline py-2 -my-2 inline-block">
               {language === 'en' ? 'Register now' : 'Đăng ký ngay'}
             </Link>
           </div>
           <div>
-            <Link href="/" className="text-gray-400 hover:text-gray-600">
+            <Link href="/" className="text-gray-400 hover:text-gray-600 py-2 -my-2 inline-block">
               ← {language === 'en' ? 'Back to Home' : 'Quay về trang chủ'}
             </Link>
           </div>

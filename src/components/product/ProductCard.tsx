@@ -133,12 +133,12 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
               } flex flex-col gap-0.5 z-10`}
             >
               {product.isBestSeller && (
-                <span className="px-1.5 py-0.5 text-[8px] sm:text-[9px] font-semibold bg-green-primary text-white rounded shadow-xs">
+                <span className="px-1.5 py-0.5 text-[10px] sm:text-[9px] font-semibold bg-green-primary text-white rounded shadow-xs">
                   {bestSellerText}
                 </span>
               )}
               {product.isNew && (
-                <span className="px-1.5 py-0.5 text-[8px] sm:text-[9px] font-semibold bg-corn text-text-dark rounded shadow-xs">
+                <span className="px-1.5 py-0.5 text-[10px] sm:text-[9px] font-semibold bg-corn text-text-dark rounded shadow-xs">
                   {newText}
                 </span>
               )}
@@ -150,7 +150,7 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
             <div>
               <h3
                 title={fullName}
-                className={`text-xs sm:text-[13px] font-bold text-text-dark mb-1 leading-snug group-hover:text-green-primary transition-colors ${
+                className={`text-[13px] sm:text-[13px] font-bold text-text-dark mb-1 leading-snug group-hover:text-green-primary transition-colors ${
                   isHomepage ? 'line-clamp-2' : ''
                 }`}
               >
@@ -160,24 +160,24 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
 
             <div className="flex items-center justify-between gap-1 mt-auto pt-1.5 sm:pt-2 border-t border-gray-100">
               <div className="flex flex-col">
-                <p className="text-xs sm:text-[13px] font-bold text-green-primary flex flex-wrap items-baseline gap-x-0.5">
+                <p className="text-sm sm:text-[13px] font-bold text-green-primary flex flex-wrap items-baseline gap-x-0.5">
                   <span>{formatPrice(defaultVariant.price)}đ</span>
-                  <span className="text-[8px] sm:text-[9px] font-semibold text-text-muted">
+                  <span className="text-[10px] sm:text-[9px] font-semibold text-text-muted">
                     /{packDisplayUnit}
                   </span>
                 </p>
-                <span className="text-[7.5px] sm:text-[8.5px] text-text-muted font-normal">
+                <span className="text-[10px] sm:text-[8.5px] text-text-muted font-normal">
                   ~{formatPrice(product.price)}đ/{language === 'en' ? 'bottle' : 'chai'}
                 </span>
               </div>
 
               <button
                 onClick={handleAddToCart}
-                className="shrink-0 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 flex items-center justify-center bg-green-primary text-white rounded-lg hover:bg-green-dark transition-colors active:scale-95 cursor-pointer shadow-xs"
+                className="relative shrink-0 w-9 h-9 before:absolute before:-inset-1 before:content-[''] sm:before:hidden sm:w-7 sm:h-7 md:w-8 md:h-8 flex items-center justify-center bg-green-primary text-white rounded-lg hover:bg-green-dark transition-colors active:scale-95 cursor-pointer shadow-xs"
                 aria-label={language === 'en' ? `Add ${fullName} (${defaultVariant.name}) to cart` : `Thêm ${fullName} (${defaultVariant.name}) vào giỏ hàng`}
                 title={language === 'en' ? `Add ${packDisplayUnit}` : `Thêm ${packDisplayUnit}`}
               >
-                <ShoppingBag className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                <ShoppingBag className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               </button>
             </div>
           </div>
@@ -222,12 +222,12 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
               } flex flex-col gap-1 z-10`}
             >
               {product.isBestSeller && (
-                <span className="px-1.5 sm:px-2 py-0.5 text-[8.5px] sm:text-[10px] md:text-xs font-semibold bg-green-primary text-white rounded sm:rounded-md shadow-xs">
+                <span className="px-1.5 sm:px-2 py-0.5 text-[10px] md:text-xs font-semibold bg-green-primary text-white rounded sm:rounded-md shadow-xs">
                   {bestSellerText}
                 </span>
               )}
               {product.isNew && (
-                <span className="px-1.5 sm:px-2 py-0.5 text-[8.5px] sm:text-[10px] md:text-xs font-semibold bg-corn text-text-dark rounded sm:rounded-md shadow-xs">
+                <span className="px-1.5 sm:px-2 py-0.5 text-[10px] md:text-xs font-semibold bg-corn text-text-dark rounded sm:rounded-md shadow-xs">
                   {newText}
                 </span>
               )}
@@ -239,7 +239,7 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
             <div>
               <h3
                 title={fullName}
-                className={`text-xs sm:text-base md:text-lg font-bold text-text-dark mb-1 sm:mb-1.5 leading-snug group-hover:text-green-primary transition-colors ${
+                className={`text-[13px] sm:text-base md:text-lg font-bold text-text-dark mb-1 sm:mb-1.5 leading-snug group-hover:text-green-primary transition-colors ${
                   isHomepage ? 'line-clamp-2' : ''
                 }`}
               >
@@ -249,24 +249,24 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
 
             <div className="flex items-center justify-between gap-1 sm:gap-2 mt-auto pt-1.5 sm:pt-2 md:pt-3 border-t border-gray-100">
               <div className="flex flex-col">
-                <p className="text-xs sm:text-base md:text-lg font-bold text-green-primary flex flex-wrap items-baseline gap-x-1">
+                <p className="text-sm sm:text-base md:text-lg font-bold text-green-primary flex flex-wrap items-baseline gap-x-1">
                   <span>{formatPrice(defaultVariant.price)}đ</span>
-                  <span className="text-[9px] sm:text-xs md:text-sm font-semibold text-text-muted">
+                  <span className="text-[10px] sm:text-xs md:text-sm font-semibold text-text-muted">
                     /{packDisplayUnit}
                   </span>
                 </p>
-                <span className="text-[9px] sm:text-xs text-text-muted font-normal">
+                <span className="text-[10px] sm:text-xs text-text-muted font-normal">
                   ~{formatPrice(product.price)}đ/{language === 'en' ? 'bottle' : 'chai'}
                 </span>
               </div>
 
               <button
                 onClick={handleAddToCart}
-                className="shrink-0 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 flex items-center justify-center bg-green-primary text-white rounded-lg sm:rounded-xl hover:bg-green-dark transition-colors active:scale-95 cursor-pointer shadow-xs"
+                className="relative shrink-0 w-9 h-9 before:absolute before:-inset-1 before:content-[''] sm:before:hidden sm:w-8 sm:h-8 md:w-10 md:h-10 flex items-center justify-center bg-green-primary text-white rounded-lg sm:rounded-xl hover:bg-green-dark transition-colors active:scale-95 cursor-pointer shadow-xs"
                 aria-label={language === 'en' ? `Add ${fullName} (${defaultVariant.name}) to cart` : `Thêm ${fullName} (${defaultVariant.name}) vào giỏ hàng`}
                 title={language === 'en' ? `Add ${packDisplayUnit}` : `Thêm ${packDisplayUnit}`}
               >
-                <ShoppingBag className="w-3 h-3 sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
+                <ShoppingBag className="w-4 h-4 sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
               </button>
             </div>
           </div>
@@ -310,12 +310,12 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
             } flex flex-col gap-1 z-10`}
           >
             {product.isBestSeller && (
-              <span className="px-1.5 sm:px-2 py-0.5 text-[8.5px] sm:text-[10px] md:text-xs font-semibold bg-green-primary text-white rounded sm:rounded-md shadow-xs">
+              <span className="px-1.5 sm:px-2 py-0.5 text-[10px] md:text-xs font-semibold bg-green-primary text-white rounded sm:rounded-md shadow-xs">
                 {bestSellerText}
               </span>
             )}
             {product.isNew && (
-              <span className="px-1.5 sm:px-2 py-0.5 text-[8.5px] sm:text-[10px] md:text-xs font-semibold bg-corn text-text-dark rounded sm:rounded-md shadow-xs">
+              <span className="px-1.5 sm:px-2 py-0.5 text-[10px] md:text-xs font-semibold bg-corn text-text-dark rounded sm:rounded-md shadow-xs">
                 {newText}
               </span>
             )}
@@ -327,7 +327,7 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
           <div>
             <h3
               title={fullName}
-              className={`text-[11.5px] sm:text-base md:text-lg font-bold text-text-dark mb-1 sm:mb-1.5 leading-snug group-hover:text-green-primary transition-colors ${
+              className={`text-[13px] sm:text-base md:text-lg font-bold text-text-dark mb-1 sm:mb-1.5 leading-snug group-hover:text-green-primary transition-colors ${
                 isHomepage ? 'line-clamp-2' : ''
               }`}
             >
@@ -337,24 +337,24 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
 
           <div className="flex items-center justify-between gap-1 sm:gap-2 mt-auto pt-1.5 sm:pt-2 md:pt-3 border-t border-gray-100">
             <div className="flex flex-col">
-              <p className="text-[11.5px] sm:text-base md:text-lg font-bold text-green-primary flex flex-wrap items-baseline gap-x-1">
+              <p className="text-sm sm:text-base md:text-lg font-bold text-green-primary flex flex-wrap items-baseline gap-x-1">
                 <span>{formatPrice(defaultVariant.price)}đ</span>
-                <span className="text-[8.5px] sm:text-xs md:text-sm font-semibold text-text-muted">
+                <span className="text-[10px] sm:text-xs md:text-sm font-semibold text-text-muted">
                   /{packDisplayUnit}
                 </span>
               </p>
-              <span className="text-[8.5px] sm:text-xs text-text-muted font-normal">
+              <span className="text-[10px] sm:text-xs text-text-muted font-normal">
                 ~{formatPrice(product.price)}đ/{language === 'en' ? 'bottle' : 'chai'}
               </span>
             </div>
 
             <button
               onClick={handleAddToCart}
-              className="shrink-0 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 flex items-center justify-center bg-green-primary text-white rounded-lg sm:rounded-xl hover:bg-green-dark transition-colors active:scale-95 cursor-pointer shadow-xs"
+              className="relative shrink-0 w-9 h-9 before:absolute before:-inset-1 before:content-[''] sm:before:hidden sm:w-8 sm:h-8 md:w-10 md:h-10 flex items-center justify-center bg-green-primary text-white rounded-lg sm:rounded-xl hover:bg-green-dark transition-colors active:scale-95 cursor-pointer shadow-xs"
               aria-label={language === 'en' ? `Add ${fullName} (${defaultVariant.name}) to cart` : `Thêm ${fullName} (${defaultVariant.name}) vào giỏ hàng`}
               title={language === 'en' ? `Add ${packDisplayUnit}` : `Thêm ${packDisplayUnit}`}
             >
-              <ShoppingBag className="w-3 h-3 sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
+              <ShoppingBag className="w-4 h-4 sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
             </button>
           </div>
         </div>
