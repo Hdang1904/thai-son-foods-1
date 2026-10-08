@@ -43,9 +43,14 @@ export default function CheckoutPage() {
   const { language } = useLanguage();
   const { user, openAuthModal } = useUserAuth();
   const [isMounted, setIsMounted] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
 
   useEffect(() => {
     setIsMounted(true);
+    try {
+      const savedRef = sessionStorage.getItem('tsf_ref_code');
+      if (savedRef) setReferralCode(savedRef);
+    } catch (_) {}
   }, []);
 
   const { items, clearCart } = useCartStore();
@@ -574,6 +579,7 @@ export default function CheckoutPage() {
           storeAddress: targetStore?.address || null,
           latitude: customerCoords?.lat || null,
           longitude: customerCoords?.lng || null,
+          referralCode: referralCode.trim() || undefined,
         }),
       });
 
@@ -1242,6 +1248,29 @@ export default function CheckoutPage() {
                   rows={3}
                   className="w-full px-4 py-3 rounded-xl border border-border bg-white text-text-dark text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors resize-none"
                   placeholder={language === 'en' ? 'Optional order notes or delivery instructions...' : 'Ghi chú thêm cho đơn hàng...'}
+                />
+              </div>
+
+              {/* Referral Code (Mã đối tác / CTV) */}
+              <div className="sm:col-span-2">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="referralCode" className="block text-sm font-medium text-text-dark">
+                    {language === 'en' ? 'Partner Referral Code (Optional)' : 'Mã giới thiệu đối tác (Nếu có)'}
+                  </label>
+                  {referralCode && (
+                    <span className="text-xs text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full font-semibold border border-emerald-200">
+                      ✓ Đã ghi nhận mã giới thiệu
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  id="referralCode"
+                  name="referralCode"
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                  className="w-full px-4 py-2.5 rounded-xl border border-border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors font-mono uppercase tracking-wider"
+                  placeholder="VD: TSF-CTV-1234"
                 />
               </div>
             </div>

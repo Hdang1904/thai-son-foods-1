@@ -146,9 +146,64 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // 6. Protected Partner API routes
+  // 6. Protected Partner & Dealer API routes
+  if (pathname.startsWith('/api/partner/') || pathname.startsWith('/api/dealer/')) {
+    const isPublicPartnerRoute =
+      pathname.startsWith('/api/partner/register') ||
+      pathname.startsWith('/api/partner/otp/') ||
+      pathname.startsWith('/api/partner/click');
+
+    if (!isPublicPartnerRoute) {
+      let userToken = req.cookies.get('tsf_user_session')?.value;
+      if (!userToken) {
+        const authHeader = req.headers.get('authorization');
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          userToken = authHeader.substring(7).trim();
+        }
+      }
+      let isUserAuth = false;
+      if (userToken) {
+        try {
+          await jwtVerify(userToken, JWT_SECRET);
+          isUserAuth = true;
+        } catch {
+          isUserAuth = false;
+        }
+      }
+      if (!isUserAuth) {
+        return NextResponse.json(
+          { success: false, error: 'Yêu cầu đăng nhập tài khoản đối tác / đại lý', code: 'UNAUTHORIZED' },
+          { status: 401 }
+        );
+      }
+    }
+    return NextResponse.next();
+  }
+
+  // 7. Protected Partner Portal Pages (/doi-tac and sub-pages)
+  if (pathname.startsWith('/doi-tac')) {
+    const userToken = req.cookies.get('tsf_user_session')?.value;
+    let isUserAuth = false;
+    if (userToken) {
+      try {
+        await jwtVerify(userToken, JWT_SECRET);
+        isUserAuth = true;
+      } catch {
+        isUserAuth = false;
+      }
+    }
+    if (!isUserAuth) {
+      const loginUrl = new URL('/dang-ky-doi-tac', req.url);
+      loginUrl.searchParams.set('from', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    return NextResponse.next();
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/api/admin/:path*'],
+  matcher: ['/admin/:path*', '/api/admin/:path*', '/doi-tac/:path*', '/api/partner/:path*', '/api/dealer/:path*'],
 };

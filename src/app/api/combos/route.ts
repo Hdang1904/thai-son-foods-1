@@ -37,7 +37,7 @@ export async function GET(request: Request) {
       const countRes = await query(`SELECT COUNT(*) AS total FROM combos;`);
       const totalInDb = Number(countRes.rows[0]?.total || 0);
       if (totalInDb === 0) {
-        let filtered = defaultCombos.filter((c) => c.isActive);
+        const filtered = defaultCombos.filter((c) => c.isActive);
         return NextResponse.json({ success: true, data: filtered, fallback: true });
       }
       return NextResponse.json({ success: true, data: [] });

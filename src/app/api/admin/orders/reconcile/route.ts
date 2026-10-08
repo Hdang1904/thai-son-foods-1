@@ -56,6 +56,14 @@ export async function POST(req: NextRequest) {
           note,
         });
 
+        // Đồng bộ đối soát doanh thu và hoa hồng đối tác
+        const { processPartnerOrderEvent } = await import('@/lib/partner/orderEvent');
+        await processPartnerOrderEvent(orderId, 'COD_RECONCILED', {
+          client,
+          actor: session.username,
+          reconciledAmount: amount,
+        });
+
         await client.query('COMMIT;');
 
         await writeAuditLog({
@@ -82,6 +90,14 @@ export async function POST(req: NextRequest) {
           disposition,
           reason,
           actor: session.username,
+        });
+
+        // Đồng bộ thu hồi / hủy hoa hồng đối tác khi hoàn đơn
+        const { processPartnerOrderEvent } = await import('@/lib/partner/orderEvent');
+        await processPartnerOrderEvent(orderId, 'ORDER_RETURNED', {
+          client,
+          actor: session.username,
+          note: reason,
         });
 
         await client.query('COMMIT;');

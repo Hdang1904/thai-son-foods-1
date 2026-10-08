@@ -2648,6 +2648,33 @@ export default function AdminPage() {
                   </span>
                 </button>
               )}
+
+              {/* PHÂN HỆ ĐỐI TÁC THÁI SƠN FOODS: CTV & ĐẠI LÝ */}
+              <Link
+                href="/admin/partners"
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
+              >
+                <div className="flex items-center gap-3">
+                  <Users className="w-4 h-4 text-emerald-400" />
+                  <span>Đối tác CTV & Đại lý</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
+                  Partner
+                </span>
+              </Link>
+
+              <Link
+                href="/admin/payouts"
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
+              >
+                <div className="flex items-center gap-3">
+                  <DollarSign className="w-4 h-4 text-amber-400" />
+                  <span>Duyệt chi trả (Payouts)</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+                  Ví
+                </span>
+              </Link>
             </div>
 
             {/* Quick Summary Card */}

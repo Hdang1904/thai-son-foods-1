@@ -123,6 +123,11 @@ export default function Footer() {
               </h3>
               <ul className="space-y-1 text-[15px] sm:text-base text-white/90 mb-6">
                 <li>
+                  <Link href="/dai-ly" className="hover:text-[#F4C542] transition-colors font-medium hover:underline py-2 -my-1 inline-block">
+                    {language === 'en' ? 'Partner & Dealer Program' : 'Hợp tác CTV & Đại lý'}
+                  </Link>
+                </li>
+                <li>
                   <Link href="/#" className="hover:text-[#F4C542] transition-colors font-medium hover:underline py-2 -my-1 inline-block">
                     {language === 'en' ? 'Shipping Policy' : 'Chính sách giao hàng'}
                   </Link>

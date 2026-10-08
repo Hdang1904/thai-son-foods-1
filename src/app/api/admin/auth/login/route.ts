@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, initDatabase } from '@/lib/db';
 import { verifyPassword, signAdminToken, ADMIN_COOKIE_NAME, ADMIN_TOKEN_MAX_AGE_SECONDS } from '@/lib/auth';
 import { writeAuditLog } from '@/lib/audit';
 import { checkRateLimit, recordFailedLogin, resetLoginRateLimit } from '@/lib/rateLimit';
@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    await initDatabase();
     const body = await req.json();
     const { identifier, password } = body;
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || undefined;

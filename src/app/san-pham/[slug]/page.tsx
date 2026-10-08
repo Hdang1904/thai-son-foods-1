@@ -244,8 +244,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
         {/* Giỏ hàng cố định: Chỉ cuộn dính trong phạm vi VÙNG 1, đến hết Combo tiết kiệm thì DỪNG LẠI */}
         <aside
           aria-label="Giỏ hàng cố định"
-          className="hidden min-[1440px]:flex flex-col w-[380px] shrink-0 sticky top-[114px] border-l border-border-light bg-white shadow-xl z-30 overflow-hidden"
-          style={{ height: 'calc(100vh - 114px)' }}
+          className="hidden min-[1440px]:flex flex-col w-[380px] shrink-0 sticky top-[146px] border-l border-border-light bg-white shadow-xl z-30 overflow-hidden"
+          style={{ height: 'calc(100vh - 146px)' }}
         >
           <CartStickySidebar />
         </aside>

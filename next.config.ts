@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+// Route manifest reload trigger for dealer module v3
+
 const cspReportOnly = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.google.com https://maps.google.com https://sp.zalo.me https://connect.facebook.net",

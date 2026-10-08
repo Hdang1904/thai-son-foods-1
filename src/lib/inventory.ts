@@ -1395,6 +1395,13 @@ export async function releaseStock(
          WHERE id = $1;`,
         [orderId]
       );
+
+      try {
+        const { processPartnerOrderEvent } = await import('@/lib/partner/orderEvent');
+        await processPartnerOrderEvent(orderId, 'ORDER_CANCELLED', { client, note: reason, actor: adminUsername });
+      } catch (err) {
+        console.error('[Inventory] Error syncing partner order event on cancel:', err);
+      }
     }
 
     return { success: true, action: 'restored_stock' };
@@ -1457,6 +1464,13 @@ export async function releaseStock(
          WHERE id = $1;`,
         [orderId]
       );
+
+      try {
+        const { processPartnerOrderEvent } = await import('@/lib/partner/orderEvent');
+        await processPartnerOrderEvent(orderId, 'ORDER_CANCELLED', { client, note: reason, actor: adminUsername });
+      } catch (err) {
+        console.error('[Inventory] Error syncing partner order event on cancel:', err);
+      }
     }
 
     return { success: true, action: 'released_reserved' };
@@ -1465,6 +1479,12 @@ export async function releaseStock(
   // Đã ở trạng thái CANCELLED hoặc không còn reservation nào active
   if (updateOrderStatus) {
     await client.query(`UPDATE orders SET status = 'CANCELLED' WHERE id = $1;`, [orderId]);
+    try {
+      const { processPartnerOrderEvent } = await import('@/lib/partner/orderEvent');
+      await processPartnerOrderEvent(orderId, 'ORDER_CANCELLED', { client, note: reason, actor: adminUsername });
+    } catch (err) {
+      console.error('[Inventory] Error syncing partner order event on cancel:', err);
+    }
   }
   return { success: true, action: 'already_cancelled' };
 }

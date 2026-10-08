@@ -34,7 +34,14 @@ export type Permission =
   | 'system.sync'
   | 'system.seed'
   | 'upload.use'
-  | 'audit.view';
+  | 'audit.view'
+  | 'partners.view'
+  | 'partners.review'
+  | 'partners.suspend'
+  | 'partners.policy_manage'
+  | 'payouts.view'
+  | 'payouts.approve'
+  | 'dealer.manage';
 
 export const ALL_PERMISSIONS: readonly Permission[] = [
   'dashboard.view_company',
@@ -71,6 +78,13 @@ export const ALL_PERMISSIONS: readonly Permission[] = [
   'system.seed',
   'upload.use',
   'audit.view',
+  'partners.view',
+  'partners.review',
+  'partners.suspend',
+  'partners.policy_manage',
+  'payouts.view',
+  'payouts.approve',
+  'dealer.manage',
 ] as const;
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {

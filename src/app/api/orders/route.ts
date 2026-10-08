@@ -323,6 +323,93 @@ export async function POST(request: Request) {
         }
       }
 
+      // 5.5. NHẬN DIỆN VÀ XỬ LÝ ATTRIBUTION ĐỐI TÁC (CTV / ĐẠI LÝ)
+      let partnerAttribution: {
+        partnerId: string;
+        partnerCode: string;
+        isSelfReferral: boolean;
+        fraudFlags: any;
+        policyId: string;
+        policyName: string;
+        rate: number;
+        commissionAmount: number;
+        attributionMethod: string;
+      } | null = null;
+
+      try {
+        let detectedRefCode: string | null = (body.referralCode || body.ref || '').toString().trim() || null;
+        let attributionMethod = 'MANUAL_CODE';
+
+        if (!detectedRefCode) {
+          const cookieHeader = request.headers.get('cookie') || '';
+          const match = cookieHeader.match(/tsf_partner_ref=([^;]+)/);
+          if (match) {
+            const rawCookie = decodeURIComponent(match[1]);
+            const { verifyReferralCookie } = await import('@/lib/partner/referral');
+            const verified = verifyReferralCookie(rawCookie);
+            if (verified) {
+              detectedRefCode = verified;
+              attributionMethod = 'LAST_CLICK_COOKIE';
+            }
+          }
+        }
+
+        if (detectedRefCode) {
+          const pRes = await client.query(
+            `SELECT pp.id, pp.user_id, pp.partner_code, pp.phone, pp.email, pp.lifecycle_status,
+                    u.phone AS user_phone, u.email AS user_email
+             FROM partner_profiles pp
+             LEFT JOIN users u ON pp.user_id = u.id
+             WHERE UPPER(pp.partner_code) = UPPER($1)
+             LIMIT 1;`,
+            [detectedRefCode]
+          );
+
+          if (pRes.rows.length > 0) {
+            const partner = pRes.rows[0];
+            const isSelfReferral = Boolean(
+              (userId && partner.user_id && userId === partner.user_id) ||
+              (cleanPhone && (cleanPhone === partner.phone || cleanPhone === partner.user_phone)) ||
+              (finalEmail && (
+                finalEmail.toLowerCase() === (partner.email || '').toLowerCase() ||
+                finalEmail.toLowerCase() === (partner.user_email || '').toLowerCase()
+              ))
+            );
+
+            const polRes = await client.query(
+              `SELECT id, name, rate, base_type FROM partner_commission_policies WHERE is_active = true ORDER BY created_at DESC LIMIT 1;`
+            );
+            const policy = polRes.rows[0] || {
+              id: 'pol_default_ctv',
+              name: 'Chính sách CTV Mặc định (10%)',
+              rate: 0.10,
+              base_type: 'SUBTOTAL_EXCLUDING_SHIPPING',
+            };
+
+            const commissionRate = Number(policy.rate) || 0.10;
+            const commissionAmount = isSelfReferral ? 0 : Math.round(serverCalculatedSubtotal * commissionRate);
+
+            partnerAttribution = {
+              partnerId: partner.id,
+              partnerCode: partner.partner_code,
+              isSelfReferral,
+              fraudFlags: isSelfReferral ? { reason: 'SELF_PURCHASE_DETECTED', cleanPhone, finalEmail } : null,
+              policyId: policy.id,
+              policyName: policy.name,
+              rate: commissionRate,
+              commissionAmount,
+              attributionMethod,
+            };
+          }
+        }
+      } catch (attrErr) {
+        console.error('[Orders] Error resolving partner attribution:', attrErr);
+      }
+
+      const orderChannel = partnerAttribution && !partnerAttribution.isSelfReferral
+        ? 'PARTNER_REFERRAL'
+        : (body.orderChannel || 'CUSTOMER');
+
       // 6. TẠO ĐƠN HÀNG VÀ DÒNG CHI TIẾT TRONG TRANSACTION (RETRY TỐI ĐA 3 LẦN NẾU TRÙNG KHÓA 23505)
       const MAX_ORDER_RETRIES = 3;
       let attempt = 0;
@@ -339,8 +426,8 @@ export async function POST(request: Request) {
           await client.query('BEGIN;');
 
           await client.query(
-            `INSERT INTO orders (id, order_code, full_name, phone, email, province, district, ward, address, note, payment_method, shipping_fee, subtotal, total, status, user_id, store_code, store_address, items_total_count, items_resolved_count)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+            `INSERT INTO orders (id, order_code, full_name, phone, email, province, district, ward, address, note, payment_method, shipping_fee, subtotal, total, status, user_id, store_code, store_address, items_total_count, items_resolved_count, order_channel)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
             [
               orderId,
               orderCode,
@@ -362,6 +449,7 @@ export async function POST(request: Request) {
               targetStoreAddress,
               revalidatedItems.length,
               revalidatedItems.length,
+              orderChannel,
             ]
           );
 
@@ -433,6 +521,56 @@ export async function POST(request: Request) {
             client,
             INVENTORY_CONFIG.RESERVATION_EXPIRY_HOURS
           );
+
+          // 7.5. GHI NHẬN ATTRIBUTION VÀ SỔ CÁI ĐỐI TÁC TRONG CÙNG TRANSACTION (ROLLBACK NẾU LỖI)
+          if (partnerAttribution) {
+            const attrId = `attr_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+            await client.query(
+              `INSERT INTO order_attributions (
+                id, order_id, partner_id, referral_code, attribution_method,
+                is_self_referral, fraud_flags, policy_id, snapshot_policy_name,
+                snapshot_commission_rate, eligible_order_amount, estimated_commission, status
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);`,
+              [
+                attrId,
+                orderId,
+                partnerAttribution.partnerId,
+                partnerAttribution.partnerCode,
+                partnerAttribution.attributionMethod,
+                partnerAttribution.isSelfReferral,
+                partnerAttribution.fraudFlags ? JSON.stringify(partnerAttribution.fraudFlags) : null,
+                partnerAttribution.policyId,
+                partnerAttribution.policyName,
+                partnerAttribution.rate,
+                serverCalculatedSubtotal,
+                partnerAttribution.commissionAmount,
+                partnerAttribution.isSelfReferral ? 'FLAGGED' : 'ESTIMATED',
+              ]
+            );
+
+            if (!partnerAttribution.isSelfReferral && partnerAttribution.commissionAmount > 0) {
+              const ledgerId = `led_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+              await client.query(
+                `INSERT INTO partner_ledger (
+                  id, partner_id, order_id, entry_type, amount, direction, status,
+                  policy_snapshot, reference_id, note, created_by
+                ) VALUES ($1, $2, $3, 'COMMISSION', $4, 'CREDIT', 'ESTIMATED', $5, $6, $7, 'system');`,
+                [
+                  ledgerId,
+                  partnerAttribution.partnerId,
+                  orderId,
+                  partnerAttribution.commissionAmount,
+                  JSON.stringify({
+                    policyId: partnerAttribution.policyId,
+                    policyName: partnerAttribution.policyName,
+                    rate: partnerAttribution.rate,
+                  }),
+                  orderCode,
+                  `Hoa hồng dự kiến cho đơn hàng ${orderCode}`,
+                ]
+              );
+            }
+          }
 
           await client.query('COMMIT;');
           break; // Đặt hàng thành công! Thoát khỏi vòng lặp retry

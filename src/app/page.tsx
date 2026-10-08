@@ -239,7 +239,7 @@ export default async function HomePage() {
           className="hidden min-[1680px]:block absolute left-2 min-[1800px]:left-6 top-1 bottom-0 w-[210px] min-[1800px]:w-[240px] pointer-events-none z-20"
         >
           <div
-            className="sticky top-[138px] max-h-[calc(100vh-160px)] overflow-y-auto pointer-events-auto pr-1 pb-8 [&::-webkit-scrollbar]:hidden"
+            className="sticky top-[160px] max-h-[calc(100vh-180px)] overflow-y-auto pointer-events-auto pr-1 pt-3 pb-8 [&::-webkit-scrollbar]:hidden"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             <CategorySidebar />

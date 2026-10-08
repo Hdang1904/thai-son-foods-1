@@ -251,6 +251,15 @@ export async function PUT(request: Request) {
       );
       updatedOrder = res.rows[0];
 
+      // Đồng bộ trạng thái đối tác (Partner / CTV / Đại lý)
+      if (status === 'COMPLETED') {
+        const { processPartnerOrderEvent } = await import('@/lib/partner/orderEvent');
+        await processPartnerOrderEvent(id, 'ORDER_COMPLETED', { client, actor: session.username });
+      } else if (status === 'CANCELLED') {
+        const { processPartnerOrderEvent } = await import('@/lib/partner/orderEvent');
+        await processPartnerOrderEvent(id, 'ORDER_CANCELLED', { client, actor: session.username, note });
+      }
+
       await client.query('COMMIT;');
     } catch (txErr) {
       await client.query('ROLLBACK;');

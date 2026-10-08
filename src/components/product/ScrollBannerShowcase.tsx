@@ -38,12 +38,44 @@ export const defaultScrollBanners: ScrollBannerItem[] = [
   },
 ];
 
-export default function ScrollBannerShowcase({
+export default function ScrollBannerShowcase(props: ScrollBannerShowcaseProps = {}) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="relative w-full h-[180vh] sm:h-[260vh] bg-[#0A1612] select-none">
+        <div className="sticky top-0 h-screen w-full overflow-hidden flex items-center justify-center z-20">
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0F281E]/60 via-[#0A1612] to-[#050D0A] z-0" />
+          <div className="relative w-full h-full">
+            <Image
+              src={defaultScrollBanners[0].image}
+              alt={defaultScrollBanners[0].alt}
+              fill
+              priority
+              className="object-cover object-center"
+              sizes="100vw"
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return <ScrollBannerContent {...props} />;
+}
+
+function ScrollBannerContent({
   banners: customBanners,
 }: ScrollBannerShowcaseProps = {}) {
   const { language } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [banners, setBanners] = useState<ScrollBannerItem[] | null>(customBanners !== undefined ? customBanners : null);
+  const [banners, setBanners] = useState<ScrollBannerItem[]>(
+    customBanners !== undefined ? customBanners : defaultScrollBanners
+  );
 
   useEffect(() => {
     if (customBanners !== undefined) {
@@ -54,7 +86,7 @@ export default function ScrollBannerShowcase({
       .then((res) => res.json())
       .then((data) => {
         const list = data?.data || data?.banners;
-        if (Array.isArray(list)) {
+        if (Array.isArray(list) && list.length > 0) {
           setBanners(
             list.map((b: any) => ({
               id: b.id,
@@ -65,8 +97,8 @@ export default function ScrollBannerShowcase({
               subtitle: b.subtitle || '',
             }))
           );
-        } else {
-          setBanners(defaultScrollBanners);
+        } else if (Array.isArray(list) && list.length === 0) {
+          setBanners([]);
         }
       })
       .catch(() => {
@@ -109,8 +141,10 @@ export default function ScrollBannerShowcase({
   const pill1Active = useTransform(smoothProgress, [0, 0.49, 0.51, 1], [1, 1, 0.45, 0.45]);
   const pill2Active = useTransform(smoothProgress, [0, 0.49, 0.51, 1], [0.45, 0.45, 1, 1]);
 
-  // Nếu không có banner nào đang hoạt động (do admin tắt hiển thị), ẩn toàn bộ component
-  if (!banners || banners.length === 0) return null;
+  // Nếu không có banner nào đang hoạt động (do admin tắt hiển thị), giữ ref nhưng ẩn hiển thị
+  if (!banners || banners.length === 0) {
+    return <div ref={containerRef} className="hidden" />;
+  }
 
   const slide1 = banners[0] || defaultScrollBanners[0];
   const slide2 = banners[1] || defaultScrollBanners[1];
@@ -127,7 +161,7 @@ export default function ScrollBannerShowcase({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-[260vh] bg-[#0A1612] select-none"
+      className="relative w-full h-[180vh] sm:h-[260vh] bg-[#0A1612] select-none"
       aria-label={language === 'en' ? 'Explore Thai Son Foods visual brand collection by scrolling' : 'Khám phá bộ sưu tập banner Thái Sơn Foods bằng cách lướt chuột'}
     >
       {/* 
@@ -184,23 +218,40 @@ export default function ScrollBannerShowcase({
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/25 z-10" />
 
         {/* ════════════ GIAO DIỆN ĐIỀU HƯỚNG & TIẾN TRÌNH CAO CẤP ════════════ */}
-        {/* Góc trên bên trái: Badge nhận diện thương hiệu */}
-        <div className="absolute top-6 left-6 sm:top-8 sm:left-10 z-30">
+        {/* Góc trên bên trái: Badge nhận diện thương hiệu (Ẩn trên mobile để không bị header che mất) */}
+        <div className="hidden sm:block absolute top-8 left-10 z-30">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/45 backdrop-blur-md border border-white/15 text-white/90 text-xs font-semibold shadow-sm">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="tracking-wide uppercase text-[11px] font-bold">Thái Sơn Group • Brand Visual</span>
           </div>
         </div>
 
-        {/* Góc dưới bên phải: Chỉ số 01 / 02 và thanh tiến trình Apple-style */}
-        <div className="absolute bottom-6 right-6 sm:bottom-8 sm:right-10 z-30 flex flex-col items-end gap-2.5">
+        {/* Giữa mép dưới: Chỉ dẫn lướt/vuốt cuộn ảnh (Nằm phía trên các nút trên mobile để không bị đè chữ) */}
+        <motion.div
+          style={{ opacity: hintOpacity }}
+          className="pointer-events-none absolute bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 text-white/90"
+        >
+          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-black/50 backdrop-blur-md border border-white/15 shadow-lg text-[12px] font-semibold tracking-wide whitespace-nowrap">
+            <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-spin" style={{ animationDuration: '6s' }} />
+            <span className="hidden sm:inline">
+              {language === 'en' ? 'Scroll down to switch banner' : 'Lướt chuột xuống để chuyển đổi banner'}
+            </span>
+            <span className="sm:hidden">
+              {language === 'en' ? 'Swipe down to explore' : 'Vuốt xuống để chuyển đổi banner'}
+            </span>
+            <ChevronDown className="w-4 h-4 text-emerald-400 animate-bounce" />
+          </div>
+        </motion.div>
+
+        {/* Mép dưới: Chỉ số 01 / 02 và thanh tiến trình Apple-style (Căn giữa trên mobile, góc phải trên desktop) */}
+        <div className="absolute bottom-5 sm:bottom-8 left-1/2 sm:left-auto sm:right-10 -translate-x-1/2 sm:translate-x-0 z-30 flex flex-col items-center sm:items-end gap-2 sm:gap-2.5">
           <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-black/55 backdrop-blur-md border border-white/15 shadow-xl">
             {/* Nút Slide 1 */}
             <motion.button
               type="button"
               onClick={() => handleScrollToSlide(0)}
               style={{ opacity: pill1Active }}
-              className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-white hover:bg-white/15 transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-3.5 py-2 sm:py-2.5 rounded-xl text-xs font-bold text-white hover:bg-white/15 transition-all cursor-pointer flex items-center gap-1.5"
             >
               <span className="font-mono text-emerald-400">01</span>
               <span className="hidden sm:inline">
@@ -215,7 +266,7 @@ export default function ScrollBannerShowcase({
               type="button"
               onClick={() => handleScrollToSlide(1)}
               style={{ opacity: pill2Active }}
-              className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-white hover:bg-white/15 transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-3.5 py-2 sm:py-2.5 rounded-xl text-xs font-bold text-white hover:bg-white/15 transition-all cursor-pointer flex items-center gap-1.5"
             >
               <span className="font-mono text-amber-400">02</span>
               <span className="hidden sm:inline">
@@ -225,27 +276,13 @@ export default function ScrollBannerShowcase({
           </div>
 
           {/* Vạch đo tiến trình cuộn mượt */}
-          <div className="w-36 sm:w-44 h-1 bg-white/20 rounded-full overflow-hidden backdrop-blur-xs">
+          <div className="w-32 sm:w-44 h-1 bg-white/20 rounded-full overflow-hidden backdrop-blur-xs">
             <motion.div
               style={{ width: progressPercent }}
               className="h-full bg-gradient-to-r from-emerald-400 via-yellow-400 to-amber-400 rounded-full"
             />
           </div>
         </div>
-
-        {/* Giữa mép dưới: Chỉ dẫn lướt chuột cuộn ảnh (Tự động biến mất sau khi người dùng bắt đầu lướt) */}
-        <motion.div
-          style={{ opacity: hintOpacity }}
-          className="pointer-events-none absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 text-white/90"
-        >
-          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-black/50 backdrop-blur-md border border-white/15 shadow-lg text-[12px] font-semibold tracking-wide">
-            <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-spin" style={{ animationDuration: '6s' }} />
-            <span>
-              {language === 'en' ? 'Scroll down to switch banner' : 'Lướt chuột xuống để chuyển đổi banner'}
-            </span>
-            <ChevronDown className="w-4 h-4 text-emerald-400 animate-bounce" />
-          </div>
-        </motion.div>
       </div>
     </div>
   );
