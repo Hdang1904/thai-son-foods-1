@@ -99,7 +99,7 @@ export async function migrateUp() {
       {
         id: 'ss-5chai',
         product_id: 'prod-ss-01',
-        name: 'Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi và sữa tươi tiệt trùng, chai 568ml',
+        name: 'Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi thanh mát, chai 568ml',
         quantity: 5,
         price: 155000,
         unit: '1 chai',
@@ -110,7 +110,7 @@ export async function migrateUp() {
       {
         id: 'ss-7chai',
         product_id: 'prod-ss-01',
-        name: 'Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi và sữa tươi tiệt trùng, chai 568ml',
+        name: 'Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi thanh mát, chai 568ml',
         quantity: 7,
         price: 217000,
         unit: '1 chai',
@@ -121,7 +121,7 @@ export async function migrateUp() {
       {
         id: 'ss-10chai',
         product_id: 'prod-ss-01',
-        name: 'Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi và sữa tươi tiệt trùng, chai 568ml',
+        name: 'Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi thanh mát, chai 568ml',
         quantity: 10,
         price: 310000,
         unit: '1 chai',

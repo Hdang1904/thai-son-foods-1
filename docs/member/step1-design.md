@@ -503,7 +503,7 @@ stateDiagram-v2
 ├────────────────────────────────────────────────────────────────────────┤
 │  Hãy cho Thái Sơn Foods biết lý do bạn muốn dừng (Tùy chọn, 1 click): │
 │  ( ) Giá cước chưa phù hợp với nhu cầu                                 │
-│  ( ) Tần suất giao quá nhiều, uống không kịp date sữa tươi             │
+│  ( ) Tần suất giao quá nhiều, uống không kịp date sữa hạt nấu tươi     │
 │  ( ) Muốn đổi sang dùng gói mua lẻ khi cần                             │
 │  ( ) Lý do khác: [.................................................]  │
 │                                                                        │

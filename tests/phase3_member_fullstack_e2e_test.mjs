@@ -182,7 +182,7 @@ async function runFullstackSuite() {
     // ── NHÓM 4: THAO TÁC MINH BẠCH BỎ QUA KỲ GIAO (SKIP) ────────────────
     console.log('\n--- NHÓM 4: Thao Tác Bỏ Qua Kỳ Giao 1-Chạm (Skip Delivery) ---');
     await itAsync('Skip: Bỏ qua kỳ giao tiếp theo thành công và dời lịch sang tuần sau', async () => {
-      const skipRes = await skipSubscriptionNextDelivery(createdSubId, testUserId, 'Khách còn nhiều sữa');
+      const skipRes = await skipSubscriptionNextDelivery(createdSubId, testUserId, 'Khách còn nhiều sữa hạt');
       assert.equal(skipRes.success, true);
       assert.notEqual(skipRes.newNextDeliveryDate, null);
 
@@ -192,7 +192,7 @@ async function runFullstackSuite() {
         [createdSubId]
       );
       assert.equal(schedRes.rows[0].status, 'SKIPPED');
-      assert.equal(schedRes.rows[0].skip_reason, 'Khách còn nhiều sữa');
+      assert.equal(schedRes.rows[0].skip_reason, 'Khách còn nhiều sữa hạt');
     });
 
     // ── NHÓM 5: ĐỔI TẦN SUẤT & HỦY HỢP ĐỒNG MINH BẠCH ───────────────────

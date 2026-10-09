@@ -44,7 +44,7 @@ Hệ thống Hội viên (**Thái Sơn Prime**) và Giao hàng định kỳ (**S
   - Bộ modal Quản lý gói Prime: Hủy minh bạch 2 bước (Không Dark Pattern) và Tạm dừng linh hoạt.
 - **Trang Quản lý Giao định kỳ (`/tai-khoan/dinh-ky`):**
   - Danh sách hợp đồng đang hoạt động `#SUB-xxxx`.
-  - Nút "Bỏ qua kỳ này (Skip)" 1-chạm giúp khách không bị dồn sữa tươi khi đi công tác/về quê.
+  - Nút "Bỏ qua kỳ này (Skip)" 1-chạm giúp khách không bị dồn sữa hạt khi đi công tác/về quê.
   - Bộ chọn đổi tần suất (Hàng tuần, 2 tuần/lần, 4 tuần/lần) và ngày giao hàng.
   - Nút hủy hợp đồng trực tiếp với form lý do đóng góp cải tiến.
 - **Khối Đăng ký Trang chủ (`SubscribeSaveSection.tsx`):**
@@ -64,7 +64,7 @@ Hệ thống Hội viên (**Thái Sơn Prime**) và Giao hàng định kỳ (**S
 3. **Chốt giá (Price Snapshotting Guarantee):**
    - Khi giá niêm yết ngoài thị trường tăng, giá thanh toán của khách định kỳ vẫn giữ nguyên mức giá snapshot ban đầu trừ thêm 15%. Nếu giá ngoài thị trường giảm, hệ thống tự động áp dụng giá thị trường thấp hơn để khách luôn có lợi nhất.
 4. **Giới hạn Bán kính Vận chuyển Xe lạnh ($\le 25\text{km}$):**
-   - Bảo đảm tuyệt đối chất lượng sữa tươi thanh trùng không chất bảo quản bằng xe lạnh. Mọi địa chỉ vượt quá bán kính 25km từ kho gần nhất đều bị từ chối đăng ký định kỳ kèm giải thích rõ ràng.
+   - Bảo đảm tuyệt đối chất lượng sữa hạt nấu tươi thanh mát không chất bảo quản bằng xe lạnh. Mọi địa chỉ vượt quá bán kính 25km từ kho gần nhất đều bị từ chối đăng ký định kỳ kèm giải thích rõ ràng.
 5. **Đồng thời Kho Hàng & Zero Oversell:**
    - Sử dụng cơ chế khóa JIT (Just-in-time reservation) tại mốc 18:00 T-1, bảo đảm không bao giờ bán vượt quá tồn kho khả dụng (`stock_quantity - reserved_quantity`).
 
