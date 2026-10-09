@@ -1,6 +1,7 @@
 import HeroSlider from '@/components/home/HeroSlider';
 import ProductSection from '@/components/home/ProductSection';
 import ComboShowcase from '@/components/home/ComboShowcase';
+import SubscribeSaveSection from '@/components/home/SubscribeSaveSection';
 import WarehouseSection from '@/components/home/WarehouseSection';
 import CategorySidebar from '@/components/home/CategorySidebar';
 import StorePromotionSidebar from '@/components/home/StorePromotionSidebar';
@@ -269,7 +270,10 @@ export default async function HomePage() {
         <ComboShowcase combos={liveCombos} />
       </div>
 
-      {/* 4. KHO/SỈ/CỬA HÀNG — Warehouse & Wholesale Distribution (Tách biệt ngoài container, sidebar không bao giờ lọt xuống đây) */}
+      {/* 4. ĐĂNG KÝ GIAO ĐỊNH KỲ (SUBSCRIBE & SAVE) — Phong cách Amazon */}
+      <SubscribeSaveSection />
+
+      {/* 5. KHO/SỈ/CỬA HÀNG — Warehouse & Wholesale Distribution (Tách biệt ngoài container, sidebar không bao giờ lọt xuống đây) */}
       <WarehouseSection />
     </>
   );

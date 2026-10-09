@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: otpCheck.error || 'Mã OTP không hợp lệ' }, { status: 400 });
     }
 
-    // 2. Kiểm tra xem số điện thoại đã đăng ký Partner chưa
+    // 2. Kiểm tra xem số điện thoại hoặc email đã đăng ký Partner chưa
     const existingPartner = await query(
       `SELECT id, partner_code, lifecycle_status FROM partner_profiles WHERE phone = $1 LIMIT 1;`,
       [cleanPhone]
@@ -40,11 +40,28 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Số điện thoại này đã được đăng ký làm đối tác trên hệ thống.',
+          error: 'Số điện thoại này đã được đăng ký làm đối tác trên hệ thống. Vui lòng đăng nhập.',
           code: 'PARTNER_EXISTS',
         },
         { status: 409 }
       );
+    }
+
+    if (email && email.trim()) {
+      const existingPartnerByEmail = await query(
+        `SELECT id, partner_code, lifecycle_status FROM partner_profiles WHERE LOWER(email) = LOWER($1) LIMIT 1;`,
+        [cleanEmail]
+      );
+      if (existingPartnerByEmail.rows.length > 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Địa chỉ email này đã được liên kết với một hồ sơ đối tác. Vui lòng đăng nhập.',
+            code: 'PARTNER_EXISTS',
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const client = await pool.connect();
@@ -60,6 +77,23 @@ export async function POST(request: Request) {
 
       if (userRes.rows.length > 0) {
         userId = userRes.rows[0].id;
+
+        // Kiểm tra an toàn: Tài khoản này đã có hồ sơ đối tác hay chưa (ngăn chặn duplicate key partner_profiles_user_id_key)
+        const existingProfileByUser = await client.query(
+          `SELECT id, partner_code, lifecycle_status FROM partner_profiles WHERE user_id = $1 LIMIT 1;`,
+          [userId]
+        );
+        if (existingProfileByUser.rows.length > 0) {
+          await client.query('ROLLBACK;');
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Tài khoản này đã được đăng ký làm đối tác trên hệ thống (Mã đối tác: ${existingProfileByUser.rows[0].partner_code}). Vui lòng đăng nhập Cổng đối tác.`,
+              code: 'PARTNER_EXISTS',
+            },
+            { status: 409 }
+          );
+        }
       } else {
         userId = `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
         const pwdHash = await hashPassword(password || `P@ss${cleanPhone.slice(-4)}`);
@@ -144,8 +178,19 @@ export async function POST(request: Request) {
       });
 
       return response;
-    } catch (txErr) {
+    } catch (txErr: any) {
       await client.query('ROLLBACK;');
+      // Xử lý race condition / vi phạm ràng buộc unique chống sập 500
+      if (txErr?.code === '23505') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Thông tin tài khoản hoặc số điện thoại này đã được đăng ký làm đối tác trên hệ thống. Vui lòng đăng nhập.',
+            code: 'PARTNER_EXISTS',
+          },
+          { status: 409 }
+        );
+      }
       throw txErr;
     } finally {
       client.release();

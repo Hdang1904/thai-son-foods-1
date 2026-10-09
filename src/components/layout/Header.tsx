@@ -23,6 +23,8 @@ import {
   ChevronDown,
   Check,
   LogOut,
+  Crown,
+  RefreshCw,
 } from 'lucide-react';
 import { useCartStore } from '@/store/cart';
 import { useLanguage } from '@/context/LanguageContext';
@@ -79,6 +81,14 @@ export default function Header() {
         href: '/#san-pham',
         icon: Sparkles,
         color: 'text-amber-500',
+      },
+      {
+        id: 'member-prime',
+        label: 'Thái Sơn Prime',
+        href: '/member',
+        icon: Crown,
+        color: 'text-amber-500',
+        badge: 'HOT',
       },
       {
         id: 'dich-vu',
@@ -477,6 +487,22 @@ export default function Header() {
                         >
                           <User className="w-4 h-4 text-emerald-700" />
                           <span>{language === 'en' ? 'Account Details' : 'Thông tin tài khoản'}</span>
+                        </Link>
+                        <Link
+                          href="/member"
+                          onClick={() => setIsUserDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-50 transition-colors"
+                        >
+                          <Crown className="w-4 h-4 text-amber-600" />
+                          <span>Thái Sơn Prime</span>
+                        </Link>
+                        <Link
+                          href="/tai-khoan/dinh-ky"
+                          onClick={() => setIsUserDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 transition-colors"
+                        >
+                          <RefreshCw className="w-4 h-4 text-emerald-600" />
+                          <span>Lịch Giao Định Kỳ</span>
                         </Link>
                         <div className="pt-1 border-t border-gray-100 mt-1">
                           <button

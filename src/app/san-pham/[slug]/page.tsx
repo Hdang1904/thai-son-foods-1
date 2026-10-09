@@ -9,6 +9,7 @@ import ProductGallery from '@/components/product/ProductGallery';
 import ProductInfo, { ProductBreadcrumb } from '@/components/product/ProductInfo';
 import ProductCombosSidebar from '@/components/product/ProductCombosSidebar';
 import ProductSection from '@/components/home/ProductSection';
+import SubscribeSaveSection from '@/components/home/SubscribeSaveSection';
 import CartStickySidebar from '@/components/cart/CartStickySidebar';
 import ScrollBannerShowcase from '@/components/product/ScrollBannerShowcase';
 import { ChevronRight } from 'lucide-react';
@@ -238,6 +239,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
             <div className="section-container max-sm:px-2.5 py-8 sm:py-10 md:py-12 max-w-7xl mx-auto px-4 sm:px-6">
               <ProductCombosSidebar layout="horizontal" title="Các combo nổi bật đáng cân nhắc" />
             </div>
+          </div>
+
+          {/* 1 DÒNG 8 SẢN PHẨM / 8 COMBO GIAO ĐỊNH KỲ (SUBSCRIBE & SAVE) — ĐỂ XUỐNG CUỐI SAU CÁC COMBO NỔI BẬT */}
+          <div className="border-t border-gray-200 bg-white">
+            <SubscribeSaveSection
+              title="Đăng Ký Giao Định Kỳ — 8 Sản Phẩm & Combo Tiết Kiệm 15%"
+              subtitle="Tự động nhận nước uống tươi ngon mỗi tuần tận nhà. Miễn phí vận chuyển 100%, linh hoạt đổi vị và tạm dừng bất kỳ lúc nào."
+            />
           </div>
         </div>
 

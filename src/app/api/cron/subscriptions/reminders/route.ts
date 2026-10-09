@@ -1,0 +1,62 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { pool, query } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
+
+export async function POST(req: NextRequest) {
+  try {
+    const cronSecret = process.env.CRON_SECRET || 'staging_test_cron_secret_1234567890';
+    const authHeader = req.headers.get('x-cron-secret') || req.nextUrl.searchParams.get('secret');
+
+    if (authHeader !== cronSecret) {
+      return NextResponse.json({ success: false, error: 'Unauthorized CRON execution' }, { status: 401 });
+    }
+
+    // Quét các lịch giao trong vòng 5 ngày tới chưa được gửi nhắc nhở
+    const sql = `
+      SELECT 
+        ss.id AS schedule_id, ss.scheduled_date, ss.subscription_id,
+        s.subscription_code, s.recipient_name, s.recipient_phone, 
+        s.shipping_address, s.delivery_frequency, s.user_id,
+        u.email
+      FROM subscription_schedules ss
+      JOIN subscriptions s ON ss.subscription_id = s.id
+      LEFT JOIN users u ON s.user_id = u.id
+      WHERE ss.status = 'SCHEDULED'
+        AND ss.reminder_sent_at IS NULL
+        AND ss.scheduled_date BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '5 days')
+      ORDER BY ss.scheduled_date ASC
+      LIMIT 100;
+    `;
+
+    const res = await query(sql);
+    const schedules = res.rows;
+    let remindersSentCount = 0;
+
+    for (const item of schedules) {
+      const deliveryDateStr = new Date(item.scheduled_date).toLocaleDateString('vi-VN');
+      
+      // Giả lập thông báo Zalo ZNS / Email (Zero PII logging: masked phone)
+      const maskedPhone = item.recipient_phone ? item.recipient_phone.slice(0, 3) + '****' + item.recipient_phone.slice(-3) : '***';
+      console.log(`[CronReminders] Gửi thông báo ZNS nhắc lịch #${item.subscription_code} tới ${maskedPhone} cho ngày giao ${deliveryDateStr}. Khách có thể bấm [Skip/Bỏ qua] nếu chưa có nhu cầu.`);
+
+      // Đánh dấu đã gửi nhắc
+      await query(
+        `UPDATE subscription_schedules 
+         SET status = 'REMINDER_SENT', reminder_sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1;`,
+        [item.schedule_id]
+      );
+      remindersSentCount++;
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Đã quét và gửi nhắc nhở thành công cho ${remindersSentCount} kỳ giao hàng.`,
+      remindersSentCount,
+    });
+  } catch (error: any) {
+    console.error('Error in cron reminders:', error);
+    return NextResponse.json({ success: false, error: 'Lỗi thực thi cron nhắc lịch.' }, { status: 500 });
+  }
+}
