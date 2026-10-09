@@ -679,7 +679,7 @@ export default function SubscribeSaveSection({
 
                     <div>
                       <label className="text-xs font-semibold text-gray-700 block mb-1">
-                        Địa chỉ nhận hàng (Trong bán kính 25km):
+                        Địa chỉ nhận hàng:
                       </label>
                       <input
                         type="text"
