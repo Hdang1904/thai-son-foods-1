@@ -144,7 +144,7 @@ export default function SubscriptionsManagementPage() {
           <Calendar className="w-16 h-16 text-emerald-600 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-gray-900 font-heading">Quản Lý Giao Định Kỳ</h2>
           <p className="text-sm text-gray-600 mt-2 mb-6">
-            Vui lòng đăng nhập hoặc xác thực số điện thoại để xem và điều chỉnh các hợp đồng giao sữa tươi định kỳ.
+            Vui lòng đăng nhập hoặc xác thực số điện thoại để xem và điều chỉnh các hợp đồng giao sữa hạt định kỳ.
           </p>
           <button
             onClick={() => openAuthModal('login')}
@@ -196,7 +196,7 @@ export default function SubscriptionsManagementPage() {
             <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-bold text-gray-800 font-heading">Chưa Có Hợp Đồng Giao Định Kỳ</h3>
             <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-              Bạn chưa đăng ký sản phẩm định kỳ nào. Hãy khám phá 8 sản phẩm & combo sữa tươi giảm 15% giao tận nhà mỗi tuần!
+              Bạn chưa đăng ký sản phẩm định kỳ nào. Hãy khám phá 8 sản phẩm & combo sữa hạt nấu tươi giảm 15% giao tận nhà mỗi tuần!
             </p>
             <Link
               href="/#subscribe-save"

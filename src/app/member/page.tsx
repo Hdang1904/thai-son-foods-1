@@ -269,7 +269,7 @@ export default function MemberPage() {
             Gia Nhập <span className="text-emerald-700">Thái Sơn Prime</span>
           </h1>
           <p className="mt-3 text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
-            Giải pháp uống sữa tươi dinh dưỡng mỗi ngày cho gia đình. Miễn phí vận chuyển 100%, giảm 15% đơn định kỳ trọn đời và tích gấp đôi điểm thưởng.
+            Giải pháp uống sữa hạt nấu tươi dinh dưỡng mỗi ngày cho gia đình. Miễn phí vận chuyển 100%, giảm 15% đơn định kỳ trọn đời và tích gấp đôi điểm thưởng.
           </p>
         </div>
 
@@ -389,7 +389,7 @@ export default function MemberPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <h4 className="text-lg font-bold text-gray-900">Gói Năm Tiết Kiệm Nhất</h4>
-                    <p className="text-xs text-gray-500 mt-1">Uống sữa tươi ngon trọn năm không lo nghĩ</p>
+                    <p className="text-xs text-gray-500 mt-1">Uống sữa hạt tươi ngon trọn năm không lo nghĩ</p>
                   </div>
                   <input
                     type="radio"
@@ -432,7 +432,7 @@ export default function MemberPage() {
           <div>
             <h4 className="text-lg font-bold text-gray-900">Bạn đã có hợp đồng giao định kỳ chưa?</h4>
             <p className="text-sm text-gray-600 mt-1">
-              Đăng ký nhận sữa tươi mỗi tuần (Sáng T2 hoặc T5), tự động giảm 15% và freeship tận nhà.
+              Đăng ký nhận sữa hạt nấu tươi mỗi tuần (Sáng T2 hoặc T5), tự động giảm 15% và freeship tận nhà.
             </p>
           </div>
           <Link
