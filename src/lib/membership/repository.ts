@@ -15,6 +15,144 @@ import { calculateNextDeliveryDate } from '@/lib/membership/service';
  * Sử dụng Prepared Statements 100% để phòng chống SQL Injection.
  */
 
+export const DEFAULT_TIERS: MembershipTier[] = [
+  {
+    id: 'tier_free',
+    code: 'FREE',
+    name: 'Khách hàng Thân thiết (Miễn phí)',
+    price: 0,
+    billingCycle: 'none',
+    discountRate: 0.0,
+    freeShipping: false,
+    pointRate: 1.0,
+    description: 'Tích điểm 1% cho mọi đơn hàng, đổi quà tri ân hấp dẫn',
+    isActive: true,
+  },
+  {
+    id: 'tier_prime_monthly',
+    code: 'PRIME_MONTHLY',
+    name: 'Thái Sơn Prime (Gói Tháng)',
+    price: 49000,
+    billingCycle: 'month',
+    discountRate: 0.15,
+    freeShipping: true,
+    pointRate: 2.0,
+    description: 'Miễn phí giao hàng toàn bộ đơn định kỳ, giảm 15% trọn đời Subscribe & Save, tích điểm 2%',
+    isActive: true,
+  },
+  {
+    id: 'tier_prime_yearly',
+    code: 'PRIME_YEARLY',
+    name: 'Thái Sơn Prime (Gói Năm Tiết Kiệm Nhất)',
+    price: 499000,
+    billingCycle: 'year',
+    discountRate: 0.15,
+    freeShipping: true,
+    pointRate: 2.0,
+    description: 'Tiết kiệm 15% so với gói tháng, tặng kèm quà sinh nhật đặc biệt hàng năm',
+    isActive: true,
+  },
+];
+
+export async function ensureMembershipSchema(): Promise<void> {
+  const ddl = `
+    CREATE TABLE IF NOT EXISTS membership_tiers (
+      id VARCHAR(64) PRIMARY KEY,
+      code VARCHAR(50) UNIQUE NOT NULL,
+      name VARCHAR(150) NOT NULL,
+      price NUMERIC(12, 2) NOT NULL DEFAULT 0,
+      billing_cycle VARCHAR(20) NOT NULL DEFAULT 'month',
+      discount_rate NUMERIC(4, 2) NOT NULL DEFAULT 0.00,
+      free_shipping BOOLEAN NOT NULL DEFAULT false,
+      point_rate NUMERIC(4, 2) NOT NULL DEFAULT 1.00,
+      description TEXT,
+      benefits JSONB DEFAULT '[]'::jsonb,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      display_order INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS user_memberships (
+      id VARCHAR(64) PRIMARY KEY,
+      user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tier_id VARCHAR(64) NOT NULL REFERENCES membership_tiers(id),
+      status VARCHAR(30) NOT NULL DEFAULT 'TRIAL_ACTIVE',
+      started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMPTZ NOT NULL,
+      auto_renew BOOLEAN NOT NULL DEFAULT true,
+      cancelled_at TIMESTAMPTZ,
+      cancel_reason TEXT,
+      paused_until TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      id VARCHAR(64) PRIMARY KEY,
+      user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
+      delivery_frequency VARCHAR(20) NOT NULL DEFAULT '1_WEEK',
+      preferred_day_of_week INT NOT NULL DEFAULT 2,
+      next_delivery_date DATE NOT NULL,
+      recipient_name VARCHAR(150) NOT NULL,
+      recipient_phone VARCHAR(30) NOT NULL,
+      shipping_address TEXT NOT NULL,
+      province VARCHAR(100),
+      district VARCHAR(100),
+      ward VARCHAR(100),
+      store_code VARCHAR(30) NOT NULL,
+      payment_method VARCHAR(30) NOT NULL DEFAULT 'vietqr',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS subscription_items (
+      id VARCHAR(64) PRIMARY KEY,
+      subscription_id VARCHAR(64) NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+      product_id VARCHAR(100) NOT NULL,
+      product_name VARCHAR(255) NOT NULL,
+      unit VARCHAR(50) NOT NULL,
+      price_snapshot NUMERIC(12, 2) NOT NULL,
+      discount_rate NUMERIC(4, 2) NOT NULL DEFAULT 0.15,
+      final_price NUMERIC(12, 2) NOT NULL,
+      quantity INT NOT NULL DEFAULT 1,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS subscription_schedules (
+      id VARCHAR(64) PRIMARY KEY,
+      subscription_id VARCHAR(64) NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+      scheduled_date DATE NOT NULL,
+      status VARCHAR(30) NOT NULL DEFAULT 'SCHEDULED',
+      order_id VARCHAR(64),
+      skip_reason TEXT,
+      reminder_sent_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS loyalty_point_ledger (
+      id VARCHAR(64) PRIMARY KEY,
+      user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      points_change INT NOT NULL,
+      balance_after INT NOT NULL,
+      reason VARCHAR(100) NOT NULL,
+      reference_type VARCHAR(50),
+      reference_id VARCHAR(64),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    INSERT INTO membership_tiers (id, code, name, price, billing_cycle, discount_rate, free_shipping, point_rate, description, is_active, display_order)
+    VALUES 
+      ('tier_free', 'FREE', 'Khách hàng Thân thiết (Miễn phí)', 0, 'none', 0.00, false, 1.00, 'Tích điểm 1% cho mọi đơn hàng, đổi quà tri ân hấp dẫn', true, 1),
+      ('tier_prime_monthly', 'PRIME_MONTHLY', 'Thái Sơn Prime (Gói Tháng)', 49000, 'month', 0.15, true, 2.00, 'Miễn phí giao hàng toàn bộ đơn định kỳ, giảm 15% trọn đời Subscribe & Save, tích điểm 2%', true, 2),
+      ('tier_prime_yearly', 'PRIME_YEARLY', 'Thái Sơn Prime (Gói Năm Tiết Kiệm Nhất)', 499000, 'year', 0.15, true, 2.00, 'Tiết kiệm 15% so với gói tháng, tặng kèm quà sinh nhật đặc biệt hàng năm', true, 3)
+    ON CONFLICT (code) DO NOTHING;
+  `;
+  await query(ddl);
+}
+
 // ── 1. HẠNG THÀNH VIÊN (MEMBERSHIP TIERS) ──────────────────────────
 
 export async function getMembershipTiers(): Promise<MembershipTier[]> {
@@ -26,8 +164,25 @@ export async function getMembershipTiers(): Promise<MembershipTier[]> {
     WHERE is_active = true
     ORDER BY price ASC;
   `;
-  const res = await query(sql);
-  return res.rows;
+  try {
+    const res = await query(sql);
+    if (res.rows.length === 0) {
+      await ensureMembershipSchema();
+      const retryRes = await query(sql);
+      return retryRes.rows.length > 0 ? retryRes.rows : DEFAULT_TIERS;
+    }
+    return res.rows;
+  } catch (err: any) {
+    console.warn('Membership tiers query notice, running auto-migration:', err?.message);
+    try {
+      await ensureMembershipSchema();
+      const retryRes = await query(sql);
+      if (retryRes.rows.length > 0) return retryRes.rows;
+    } catch (migErr) {
+      console.error('Failed to auto-migrate membership schema:', migErr);
+    }
+    return DEFAULT_TIERS;
+  }
 }
 
 export async function getMembershipTierByCode(code: string): Promise<MembershipTier | null> {
@@ -39,8 +194,13 @@ export async function getMembershipTierByCode(code: string): Promise<MembershipT
     WHERE code = $1 AND is_active = true
     LIMIT 1;
   `;
-  const res = await query(sql, [code]);
-  return res.rows[0] || null;
+  try {
+    const res = await query(sql, [code]);
+    if (res.rows[0]) return res.rows[0];
+  } catch (err) {
+    console.warn('Error querying tier by code:', err);
+  }
+  return DEFAULT_TIERS.find((t) => t.code === code) || null;
 }
 
 // ── 2. HỒ SƠ HỘI VIÊN NGƯỜI DÙNG (USER MEMBERSHIPS) ───────────────
