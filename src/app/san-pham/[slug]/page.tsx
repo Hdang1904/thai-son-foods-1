@@ -12,6 +12,7 @@ import ProductSection from '@/components/home/ProductSection';
 import SubscribeSaveSection from '@/components/home/SubscribeSaveSection';
 import CartStickySidebar from '@/components/cart/CartStickySidebar';
 import ScrollBannerShowcase from '@/components/product/ScrollBannerShowcase';
+import ProductReviewsSection from '@/components/product/ProductReviewsSection';
 import { ChevronRight } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -239,6 +240,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
             <div className="section-container max-sm:px-2.5 py-8 sm:py-10 md:py-12 max-w-7xl mx-auto px-4 sm:px-6">
               <ProductCombosSidebar layout="horizontal" title="Các combo nổi bật đáng cân nhắc" />
             </div>
+          </div>
+
+          {/* ĐÁNH GIÁ TỪ KHÁCH HÀNG (SOCIAL PROOF & REVIEWS) — Chuẩn Amazon & Shopee */}
+          <div className="border-t border-gray-200 bg-white">
+            <ProductReviewsSection productId={product.slug || product.id} productName={product.name} />
           </div>
 
           {/* 1 DÒNG 8 SẢN PHẨM / 8 COMBO GIAO ĐỊNH KỲ (SUBSCRIBE & SAVE) — ĐỂ XUỐNG CUỐI SAU CÁC COMBO NỔI BẬT */}
