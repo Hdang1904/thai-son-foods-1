@@ -189,21 +189,21 @@ export default function ProductGallery({
   const isVideo = activeImage.url.endsWith('.mp4');
 
   return (
-    <div className="w-full flex flex-col items-center select-none">
-      {/* Gallery Layout: Thumbnails Left (desktop) + Main Image Right */}
-      <div className="w-full max-w-[700px] flex flex-row items-stretch gap-3">
-        {/* Vertical Thumbnails Column — desktop only */}
+    <div className="w-full flex flex-col items-start select-none">
+      {/* Gallery Layout: Thumbnails Cột dọc bên trái 64x64 1:1 + Main Image 1:1 bên phải */}
+      <div className="w-full flex flex-row items-start gap-3 sm:gap-4">
+        {/* Thumbnails bên trái: Cột dọc 4 ảnh tỉ lệ 1:1, kích thước 64x64px, rounded-lg, border border-gray-200 */}
         {displayImages.length > 1 && (
-          <div className="hidden sm:flex flex-col gap-2 w-[76px] shrink-0 max-h-[480px] overflow-y-auto scrollbar-hide py-0.5">
-            {displayImages.map((image, index) => (
+          <div className="hidden sm:flex flex-col gap-2.5 w-16 shrink-0 py-0.5">
+            {displayImages.slice(0, 4).map((image, index) => (
               <button
                 key={image.id || index}
                 onClick={() => setActiveIndex(index)}
                 className={cn(
-                  'relative w-full aspect-[4/3] rounded-lg overflow-hidden border-2 transition-all shrink-0 bg-[#FAF8F5] p-0.5 flex items-center justify-center cursor-pointer',
+                  'relative w-16 h-16 aspect-square rounded-lg overflow-hidden border transition-all shrink-0 bg-[#FAF8F5] p-1 flex items-center justify-center cursor-pointer',
                   activeIndex === index
-                    ? 'border-[#1B5E3B] shadow-[0_0_0_1px_#1B5E3B]'
-                    : 'border-gray-200 hover:border-gray-400 opacity-70 hover:opacity-100'
+                    ? 'border-[#1B5E3B] ring-2 ring-[#1B5E3B]/20'
+                    : 'border-gray-200 hover:border-gray-400 opacity-80 hover:opacity-100'
                 )}
                 aria-label={`Xem ảnh ${index + 1}`}
               >
@@ -218,7 +218,7 @@ export default function ProductGallery({
                         preload="metadata"
                       />
                       <div className="absolute inset-0 bg-black/30 flex items-center justify-center pointer-events-none">
-                        <PlayCircle className="w-6 h-6 text-white drop-shadow-md" />
+                        <PlayCircle className="w-5 h-5 text-white drop-shadow-md" />
                       </div>
                     </div>
                   ) : (
@@ -227,7 +227,7 @@ export default function ProductGallery({
                       alt={image.alt || productName}
                       fill
                       className="object-contain"
-                      sizes="80px"
+                      sizes="64px"
                     />
                   )}
                 </div>
@@ -236,43 +236,52 @@ export default function ProductGallery({
           </div>
         )}
 
-        {/* Main Image Card */}
+        {/* Khung ảnh chính (Main Image): Tỉ lệ 1:1, nền #FAF8F5, bo góc rounded-2xl, border mỏng border-gray-200/80 */}
         <div className="flex-1 min-w-0 flex flex-col">
-          <div
-            className={`relative w-full aspect-[4/3] ${isBottle ? 'bg-[#FAF8F5]' : 'bg-white'} rounded-2xl border border-gray-200/80 overflow-hidden group shadow-sm transition-all`}
-          >
-            {/* Floating Prev Button (<) */}
+          <div className="relative w-full aspect-square bg-[#FAF8F5] rounded-2xl border border-gray-200/80 overflow-hidden group shadow-sm transition-all">
+            {/* Nút chia sẻ tròn Share2 góc trên bên phải */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleNativeShare();
+              }}
+              className="absolute top-3 right-3 z-20 w-8 h-8 rounded-full bg-white/80 hover:bg-white text-gray-700 shadow-sm border border-gray-200/80 flex items-center justify-center transition-all hover:scale-105 cursor-pointer backdrop-blur-xs"
+              title="Chia sẻ sản phẩm"
+              aria-label="Chia sẻ sản phẩm"
+            >
+              <Share2 className="w-4 h-4 text-gray-700" />
+            </button>
+
+            {/* Floating Prev Button (<) Tròn mờ ở 2 bên */}
             {displayImages.length > 1 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setActiveIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
                 }}
-                className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/85 hover:bg-white text-gray-800 shadow-md border border-gray-100 flex items-center justify-center transition-all opacity-85 group-hover:opacity-100 hover:scale-105 cursor-pointer"
+                className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/70 hover:bg-white text-gray-800 shadow-md border border-gray-100 flex items-center justify-center transition-all opacity-80 group-hover:opacity-100 hover:scale-105 cursor-pointer backdrop-blur-xs"
                 aria-label="Ảnh trước"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
             )}
 
-            {/* Floating Next Button (>) */}
+            {/* Floating Next Button (>) Tròn mờ ở 2 bên */}
             {displayImages.length > 1 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setActiveIndex((prev) => (prev + 1) % displayImages.length);
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/85 hover:bg-white text-gray-800 shadow-md border border-gray-100 flex items-center justify-center transition-all opacity-85 group-hover:opacity-100 hover:scale-105 cursor-pointer"
+                className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/70 hover:bg-white text-gray-800 shadow-md border border-gray-100 flex items-center justify-center transition-all opacity-80 group-hover:opacity-100 hover:scale-105 cursor-pointer backdrop-blur-xs"
                 aria-label="Ảnh tiếp theo"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
             )}
 
-
-
-            {/* Bottom-Right Counter Badge */}
-            <div className="absolute bottom-3.5 right-3.5 z-10 bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium tracking-wider pointer-events-none">
+            {/* Huy hiệu số trang góc dưới 1/4 nền đen mờ bg-black/60 text-white text-xs px-2 py-0.5 rounded-full */}
+            <div className="absolute bottom-3 right-3 z-10 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full font-medium pointer-events-none">
               {activeIndex + 1}/{displayImages.length}
             </div>
 
@@ -301,9 +310,8 @@ export default function ProductGallery({
                   src={activeImage.url}
                   alt={activeImage.alt || productName}
                   fill
-                  className={`${isBottle ? 'object-contain p-4 sm:p-6 md:p-8' : 'object-cover object-center'
-                    } transition-transform duration-300 group-hover:scale-[1.02]`}
-                  sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 640px"
+                  className="object-contain p-4 sm:p-6 transition-transform duration-300 group-hover:scale-[1.02]"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 600px"
                   priority
                 />
               )}
@@ -312,16 +320,16 @@ export default function ProductGallery({
 
           {/* Mobile Thumbnails Row — only visible on small screens */}
           {displayImages.length > 1 && (
-            <div className="sm:hidden w-full flex items-center gap-2.5 overflow-x-auto py-3 px-0.5">
-              {displayImages.map((image, index) => (
+            <div className="sm:hidden w-full flex items-center gap-2 overflow-x-auto py-2.5 px-0.5">
+              {displayImages.slice(0, 4).map((image, index) => (
                 <button
                   key={image.id || index}
                   onClick={() => setActiveIndex(index)}
                   className={cn(
-                    'relative w-16 aspect-[4/3] rounded-lg overflow-hidden border-2 transition-all shrink-0 bg-white p-0.5 flex items-center justify-center cursor-pointer',
+                    'relative w-14 h-14 aspect-square rounded-lg overflow-hidden border transition-all shrink-0 bg-[#FAF8F5] p-1 flex items-center justify-center cursor-pointer',
                     activeIndex === index
-                      ? 'border-[#1B5E3B] shadow-[0_0_0_1px_#1B5E3B]'
-                      : 'border-gray-200 hover:border-gray-400 opacity-70 hover:opacity-100'
+                      ? 'border-[#1B5E3B] ring-2 ring-[#1B5E3B]/20'
+                      : 'border-gray-200 hover:border-gray-400 opacity-80 hover:opacity-100'
                   )}
                   aria-label={`Xem ảnh ${index + 1}`}
                 >
@@ -336,7 +344,7 @@ export default function ProductGallery({
                           preload="metadata"
                         />
                         <div className="absolute inset-0 bg-black/30 flex items-center justify-center pointer-events-none">
-                          <PlayCircle className="w-5 h-5 text-white drop-shadow-md" />
+                          <PlayCircle className="w-4 h-4 text-white drop-shadow-md" />
                         </div>
                       </div>
                     ) : (
@@ -345,7 +353,7 @@ export default function ProductGallery({
                         alt={image.alt || productName}
                         fill
                         className="object-contain"
-                        sizes="64px"
+                        sizes="56px"
                       />
                     )}
                   </div>
@@ -356,135 +364,142 @@ export default function ProductGallery({
         </div>
       </div>
 
-      {/* ─── DƯỚI ẢNH: PHÓNG TO & CHIA SẺ ĐẾN BẠN BÈ (ĐƠN GIẢN & HIỆU QUẢ) ─── */}
-      <div className="w-full max-w-[700px] mt-2.5 pt-2 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 px-1">
-        {/* Nút phóng to ảnh */}
+      {/* ── HÀNG TIỆN ÍCH DƯỚI ẢNH ── */}
+      <div className="w-full mt-3 pt-2.5 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 px-1">
+        {/* Dòng trái: Nhấp vào ảnh để phóng to kèm icon kính lúp ZoomIn màu #666666 */}
         <button
           onClick={() => !isVideo && setIsZoomOpen(true)}
-          className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#1B5E3B] font-medium transition-colors cursor-pointer py-2 -my-2"
+          className="inline-flex items-center gap-1.5 text-xs text-[#666666] hover:text-[#1B5E3B] font-normal transition-colors cursor-pointer"
         >
-          <ZoomIn className="w-3.5 h-3.5" />
-          <span>
-            {isVideo
-              ? (language === 'en' ? 'Watch full-screen video' : 'Xem video toàn màn hình')
-              : (language === 'en' ? 'Click image to zoom' : 'Nhấp vào ảnh để phóng to')}
-          </span>
+          <ZoomIn className="w-3.5 h-3.5 text-[#666666]" />
+          <span>Nhấp vào ảnh để phóng to</span>
         </button>
 
-        {/* Khối chia sẻ tinh gọn */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-600 font-medium">
-            {language === 'en' ? 'Share with friends:' : 'Chia sẽ đến bạn bè của bạn:'}
+        {/* Cụm phải: Chia sẻ đến bạn bè của bạn: + 2 nút badge MXH (Facebook xanh #1877F2, Zalo xanh #0068FF) + Nút Sao chép viền xám */}
+        <div className="flex items-center gap-2 relative">
+          <span className="text-xs text-[#666666] font-normal hidden sm:inline">
+            Chia sẻ đến bạn bè của bạn:
           </span>
 
-          {/* Facebook */}
+          {/* Facebook xanh #1877F2 */}
           <button
             onClick={handleShareFacebook}
-            className="w-10 h-10 sm:w-7 sm:h-7 rounded-full bg-blue-50 hover:bg-blue-100 text-[#1877F2] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer shadow-2xs"
-            title={language === 'en' ? 'Share to Facebook' : 'Chia sẻ lên Facebook'}
-            aria-label={language === 'en' ? 'Share to Facebook' : 'Chia sẻ lên Facebook'}
+            className="h-6 px-2 rounded-full bg-[#1877F2] text-white flex items-center gap-1 transition-transform hover:scale-105 cursor-pointer text-[11px] font-medium shadow-xs"
+            title="Chia sẻ lên Facebook"
+            aria-label="Chia sẻ lên Facebook"
           >
-            <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
               <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
             </svg>
+            <span>Facebook</span>
           </button>
 
-          {/* Zalo */}
+          {/* Zalo xanh #0068FF */}
           <button
             onClick={handleShareZalo}
-            className="w-10 h-10 sm:w-7 sm:h-7 rounded-full bg-blue-50 hover:bg-blue-100 text-[#0068FF] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer shadow-2xs font-extrabold text-[10px]"
-            title={language === 'en' ? 'Share to Zalo' : 'Chia sẻ qua Zalo'}
-            aria-label={language === 'en' ? 'Share to Zalo' : 'Chia sẻ qua Zalo'}
+            className="h-6 px-2.5 rounded-full bg-[#0068FF] text-white flex items-center justify-center transition-transform hover:scale-105 cursor-pointer text-[11px] font-bold shadow-xs"
+            title="Chia sẻ qua Zalo"
+            aria-label="Chia sẻ qua Zalo"
           >
             Zalo
           </button>
 
-          {/* Sao chép link */}
+          {/* Nút Sao chép viền xám (Copy link có toast thông báo "Đã sao chép") */}
           <button
             onClick={() => copyToClipboard()}
             className={cn(
-              "h-10 sm:h-7 px-3 sm:px-2.5 rounded-full border text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-2xs",
+              "h-6 px-2.5 rounded-full border text-[11px] font-medium flex items-center gap-1 transition-all cursor-pointer",
               copied
                 ? "bg-emerald-600 border-emerald-600 text-white"
-                : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300"
+                : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400"
             )}
-            title={language === 'en' ? 'Copy link' : 'Sao chép đường link'}
+            title="Sao chép liên kết"
           >
             {copied ? (
               <>
-                <Check className="w-3 h-3 text-white stroke-[3]" />
-                <span>{language === 'en' ? 'Copied!' : 'Đã chép!'}</span>
+                <Check className="w-3 h-3 text-white stroke-[2.5]" />
+                <span>Đã sao chép</span>
               </>
             ) : (
               <>
                 <Copy className="w-3 h-3 text-gray-500" />
-                <span>{language === 'en' ? 'Copy link' : 'Sao chép'}</span>
+                <span>Sao chép</span>
               </>
             )}
           </button>
         </div>
       </div>
 
-      {/* ─── DƯỚI CHÂN ẢNH: CHỌN SẢN PHẨM CÙNG DANH MỤC (Chọn vị khác) ─── */}
+      {/* ── KHỐI "SẢN PHẨM CÙNG DANH MỤC (CHỌN ĐỂ XEM VỊ KHÁC)" ── */}
       {categoryProducts && categoryProducts.length > 0 && (
-        <div className="w-full max-w-[700px] mt-3 pt-3 border-t border-gray-100">
-          <div className="flex items-center justify-between mb-2 px-0.5">
+        <div className="w-full mt-4 pt-3 border-t border-gray-100">
+          {/* Tiêu đề: Chấm tròn xanh w-2 h-2 rounded-full bg-emerald-600 + "Sản phẩm cùng danh mục (5)", bên phải là chữ xám nhạt "Chọn để xem vị khác" */}
+          <div className="flex items-center justify-between mb-2.5 px-0.5">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-600 inline-block" />
-              <span className="text-xs font-bold text-[#11241C]">
-                {language === 'en' ? 'Same Category' : 'Sản phẩm cùng danh mục'} ({categoryProducts.length})
+              <span className="text-xs font-bold text-gray-900">
+                Sản phẩm cùng danh mục ({categoryProducts.length})
               </span>
             </div>
-            <span className="text-[11px] text-text-muted">
-              {language === 'en' ? 'Select another flavor' : 'Chọn để xem vị khác'}
+            <span className="text-[11px] text-gray-400">
+              Chọn để xem vị khác
             </span>
           </div>
 
-          <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+          {/* Dải card cuộn ngang: Mỗi card có ảnh thumbnail tròn w-14 h-14 trên nền bo viền rounded-xl, tên vị bên dưới */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none -mx-1 px-1">
             {categoryProducts.map((prod) => {
               const isCurrent =
                 prod.id === currentProductId ||
                 prod.slug === currentProductId ||
                 prod.sku === currentProductId;
-              const prodTitle = (language === 'en' && prod.nameEn) ? prod.nameEn : prod.name;
+
+              // Rút gọn tên vị (Bắp Nếp, Sen Kết, Gạo Lứt...)
+              const shortFlavorName = prod.name
+                .replace(/Sữa\s*/i, '')
+                .replace(/Thái Sơn\s*/i, '')
+                .replace(/Lotus Yoo\s*/i, '')
+                .replace(/Mekong\s*/i, '')
+                .replace(/Ohsawa\s*/i, '')
+                .trim() || prod.name;
 
               return (
                 <Link
                   key={prod.id}
                   href={`/san-pham/${prod.slug}`}
                   className={cn(
-                    'group relative rounded-xl border p-1 sm:p-1.5 transition-all duration-200 flex flex-col justify-between bg-white hover:border-emerald-600',
+                    'group relative rounded-xl border p-2 flex flex-col items-center justify-between bg-white transition-all shrink-0 w-[84px] text-center',
                     isCurrent
-                      ? 'border-emerald-700 bg-emerald-50/40 ring-1 ring-emerald-700 shadow-2xs'
-                      : 'border-gray-200 hover:shadow-2xs opacity-80 hover:opacity-100'
+                      ? 'border-2 border-emerald-600 bg-emerald-50/20 shadow-xs'
+                      : 'border-gray-200 hover:border-gray-300 hover:shadow-2xs'
                   )}
-                  title={prodTitle}
+                  title={prod.name}
                 >
+                  {/* Card đang xem có icon dấu tick tròn xanh Check nổi ở góc trên bên phải */}
                   {isCurrent && (
-                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-700 text-white flex items-center justify-center shadow-xs text-[9px] z-10">
+                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs text-[10px] z-10">
                       <Check className="w-2.5 h-2.5 stroke-[3]" />
                     </span>
                   )}
 
-                  <div className="relative w-full aspect-square bg-[#FAF8F5] rounded-lg p-1 mb-1 overflow-hidden flex items-center justify-center">
+                  {/* Ảnh thumbnail tròn w-14 h-14 */}
+                  <div className="relative w-14 h-14 rounded-full bg-[#FAF8F5] border border-gray-100 p-1 mb-1.5 overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
                     <Image
                       src={prod.thumbnail}
                       alt={prod.name}
                       fill
-                      className="object-contain group-hover:scale-105 transition-transform duration-200"
-                      sizes="60px"
+                      className="object-contain p-0.5"
+                      sizes="56px"
                     />
                   </div>
 
-                  <div className="flex-1 flex flex-col justify-between w-full">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-text-dark leading-tight break-words line-clamp-5 text-left my-0.5">
-                      {prodTitle}
-                    </span>
-
-                    <span className="text-[9px] sm:text-[10px] font-semibold text-emerald-800 text-left mt-auto pt-1">
-                      {formatPrice(prod.price)}đ
-                    </span>
-                  </div>
+                  {/* Tên vị bên dưới */}
+                  <span className="text-[11px] font-semibold text-gray-800 leading-tight line-clamp-1 w-full">
+                    {shortFlavorName}
+                  </span>
+                  <span className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                    {formatPrice(prod.price)}đ
+                  </span>
                 </Link>
               );
             })}

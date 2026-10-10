@@ -5,7 +5,6 @@ import { products } from '@/data/products';
 import ComboDetailView from '@/components/product/ComboDetailView';
 import ProductCombosSidebar from '@/components/product/ProductCombosSidebar';
 import CartStickySidebar from '@/components/cart/CartStickySidebar';
-import ScrollBannerShowcase from '@/components/product/ScrollBannerShowcase';
 import ProductSection from '@/components/home/ProductSection';
 
 import { query } from '@/lib/db';
@@ -209,11 +208,6 @@ export default async function ComboDetailPage({ params }: ComboPageProps) {
         >
           <CartStickySidebar />
         </aside>
-      </div>
-
-      {/* ─── VÙNG 2: BANNER TRẢI NGHIỆM CUỘN ĐIỆN ẢNH (SCROLL-DRIVEN) ─── */}
-      <div className="w-full border-t border-gray-200">
-        <ScrollBannerShowcase />
       </div>
     </div>
   );

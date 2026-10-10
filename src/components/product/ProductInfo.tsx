@@ -335,348 +335,297 @@ export default function ProductInfo({ product }: ProductInfoProps) {
     router.push('/thanh-toan');
   };
 
-  return (
-    <div className="flex flex-col space-y-5 w-full max-w-[640px]">
-      {/* 1. Thương hiệu & Gian hàng */}
-      <div className="flex items-center justify-between text-sm text-green-primary font-medium">
-        <Link href="/#ve-chung-toi" className="hover:text-green-dark hover:underline flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-600 inline-block"></span>
-          {language === 'en' ? 'Official Thai Son Foods Store' : 'Gian hàng chính hãng Thái Sơn Foods'}
-        </Link>
-        <span className="text-gray-400 text-xs">
-          {language === 'en' ? 'SKU: ' : 'Mã sản phẩm: '}{product.sku || 'TSF-PRODUCT'}
-        </span>
-      </div>
+  // Tính toán giá gốc hiển thị chuẩn Amazon
+  const discountRate = 26;
+  const originalPrice = Math.round((currentPrice / (1 - discountRate / 100)) / 1000) * 1000;
 
-      {/* 2. Tên sản phẩm & Mô tả ngắn */}
-      <div className="space-y-1.5">
-        <h1
-          className="text-[19px] font-bold text-gray-900 leading-snug tracking-tight font-sans"
-          style={{ fontSize: '19px' }}
-        >
+  // Đảm bảo luôn có 3 biến thể bộ sản phẩm để hiển thị 3 card lựa chọn ngang
+  const displayVariants = useMemo(() => {
+    if (sortedVariants.length >= 3) {
+      return sortedVariants.slice(0, 3);
+    }
+    if (sortedVariants.length > 0) {
+      return sortedVariants;
+    }
+    // Fallback nếu sản phẩm chưa cấu hình variants
+    return [
+      { id: 'v-5', name: '5 chai', quantity: 5, price: 125000, volume: '5 x 568ml', unit: 'lốc' },
+      { id: 'v-7', name: '7 chai', quantity: 7, price: 175000, volume: '7 x 568ml', unit: 'lốc' },
+      { id: 'v-10', name: '10 chai', quantity: 10, price: 250000, volume: '10 x 568ml', unit: 'thùng' },
+    ];
+  }, [sortedVariants]);
+
+  return (
+    <div className="flex flex-col space-y-3.5 w-full">
+      {/* 1. Tiêu đề sản phẩm chuẩn Amazon */}
+      <div className="space-y-1">
+        <h1 className="text-2xl lg:text-[25px] font-medium text-[#0F1111] leading-snug tracking-tight">
           {displayName}
         </h1>
         {displayShortDesc && (
-          <p className="text-xs sm:text-[13px] text-gray-500 leading-relaxed font-normal">
+          <p className="text-sm text-[#333333] pt-0.5 leading-relaxed">
             {displayShortDesc}
           </p>
         )}
       </div>
 
-      {/* 3. Khu vực giá & Nhãn đặc tính */}
-      <div className="py-1 border-b border-gray-200 pb-3.5 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-baseline gap-2.5 flex-wrap">
-          <span className="text-3xl md:text-4xl font-bold text-gray-900">
-            {formatPrice(currentPrice)} <span className="text-lg font-semibold">₫</span>
-          </span>
-          <span className="text-sm text-gray-500 font-normal">
-            ({formatPrice(perBottlePrice)} ₫ / {bottleCount > 1 ? (language === 'en' ? 'bottle' : 'chai') : (language === 'en' ? (product.unitEn || 'bottle') : product.unit)})
-          </span>
-        </div>
-
-        {isVegan && (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-[#1B5E3B] text-xs sm:text-sm font-semibold tracking-wide shadow-xs">
-            <Leaf className="w-4 h-4 text-[#1B5E3B] fill-[#1B5E3B]/20" />
-            <span>{language === 'en' ? 'Purely Vegan Product' : 'Sản phẩm thuần chay'}</span>
-          </div>
-        )}
+      {/* 2. Link gian hàng & SKU */}
+      <div className="flex items-center justify-between text-sm flex-wrap gap-2 pb-1 border-b border-gray-100">
+        <Link
+          href="/#ve-chung-toi"
+          className="text-[#007185] hover:text-[#C7511F] hover:underline text-sm font-medium transition-colors"
+        >
+          Ghé thăm cửa hàng Thái Sơn Foods
+        </Link>
+        <span className="text-xs text-gray-500 font-mono">
+          SKU: {product.sku || 'SS-01'}
+        </span>
       </div>
 
-      {/* 4. Lựa chọn Quy cách đóng gói (Variant Matrix) */}
-      {product.variants && product.variants.length > 0 && (
-        <div className="pt-1">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-700">
-              {language === 'en' ? 'Packaging options: ' : 'Quy cách đóng gói: '}<strong className="text-gray-900">{currentUnit}</strong> ({currentVolume})
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            {sortedVariants.map((v) => {
-              const isSelected = activeVariant === v.id;
-              const vPerBottle = Math.round(v.price / (v.quantity || 1));
-              const vVolume = v.volume || product.volume || '330ml';
-              const vDisplayName = getVariantName(v.name);
-
-              return (
-                <button
-                  key={v.id}
-                  onClick={() => setActiveVariant(v.id)}
-                  className={cn(
-                    'p-2.5 rounded-xl border text-left transition-all relative flex flex-col justify-between cursor-pointer',
-                    isSelected
-                      ? 'border-[#1B5E3B] bg-emerald-50/60 shadow-[0_0_0_1px_#1B5E3B]'
-                      : 'border-gray-200 bg-white hover:border-gray-400'
-                  )}
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="text-sm font-semibold text-gray-900">{vDisplayName}</span>
-                    {isSelected && (
-                      <span className="w-4 h-4 rounded-full bg-[#1B5E3B] text-white flex items-center justify-center text-xs">
-                        <Check className="w-2.5 h-2.5" />
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs text-gray-600 font-medium mt-0.5">
-                    {language === 'en' ? 'Volume: ' : 'Thể tích: '}{vVolume}
-                  </div>
-                  <div className="mt-1.5 pt-1 border-t border-gray-100">
-                    <div className="text-base font-bold text-gray-900">
-                      {formatPrice(v.price)} ₫
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      ({formatPrice(vPerBottle)} ₫/{language === 'en' ? 'bottle' : 'chai'})
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+      {/* 3. Đánh giá & Lượt bán */}
+      <div className="flex items-center gap-2 flex-wrap text-sm text-[#0F1111]">
+        <span className="font-semibold text-sm">4.0</span>
+        <div className="flex items-center gap-0.5">
+          {[1, 2, 3, 4, 5].map((s) => (
+            <Star
+              key={s}
+              className={`w-4 h-4 ${
+                s <= 4 ? 'fill-[#FFA41C] text-[#FFA41C]' : 'fill-gray-200 text-gray-200'
+              }`}
+            />
+          ))}
         </div>
-      )}
+        <Link
+          href="#danh-gia"
+          className="text-[#007185] hover:text-[#C7511F] hover:underline text-xs sm:text-sm"
+        >
+          (402) lượt
+        </Link>
+        <span className="text-gray-300">|</span>
+        <span className="text-xs sm:text-sm text-[#565959]">
+          Hơn 200 sản phẩm đã được mua trong tháng trước.
+        </span>
+      </div>
 
-      {/* 5. KHỐI MUA HÀNG (Buy Box) */}
-      <div className="border border-gray-200/90 rounded-2xl p-4 md:p-5 bg-white shadow-sm space-y-4">
-        {/* Tình trạng tồn kho theo chi nhánh & Giao hàng */}
-        {isOutOfStock ? (
-          <div className="space-y-2 pb-3 border-b border-gray-100">
-            <div className="flex items-center gap-1.5 text-sm font-bold text-red-600">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-600"></span>
-              <span>
-                {language === 'en'
-                  ? `Out of stock at ${selectedBranch?.name || 'this branch'}`
-                  : `Hết hàng tại ${selectedBranch?.name || 'chi nhánh này'}`}
-              </span>
-            </div>
-            {hasOtherBranchInStock ? (
-              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-2 text-xs text-amber-900">
-                <span className="font-medium">
-                  {bestAlternativeStore
-                    ? (language === 'en'
-                        ? `Available at ${bestAlternativeStore.name}`
-                        : `Còn hàng tại ${bestAlternativeStore.name}`)
-                    : (language === 'en' ? 'Available at other branches' : 'Chi nhánh khác còn hàng')}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (bestAlternativeStore) {
-                      setSelectedBranch(bestAlternativeStore);
-                    } else {
-                      openBranchModal();
-                    }
-                  }}
-                  className="font-bold underline text-[#1B5E3B] hover:text-emerald-800 cursor-pointer shrink-0"
-                >
-                  {language === 'en' ? 'Switch branch' : 'Đổi chi nhánh'}
-                </button>
-              </div>
-            ) : (
-              <p className="text-xs text-gray-500">
-                {language === 'en'
-                  ? 'We are working hard to have this item back in stock soon.'
-                  : 'Chúng tôi đang nỗ lực để sớm có hàng trở lại.'}
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center justify-between text-sm pb-2 border-b border-gray-100">
-            <div className="flex items-center gap-1.5">
-              <span
+      {/* 4. Khối Giá & Ưu đãi */}
+      <div className="py-1">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="text-2xl text-[#CC0C39] font-light mr-2">
+            -{discountRate}%
+          </span>
+          <span className="text-3xl font-bold text-[#0F1111]">
+            {formatPrice(currentPrice)} đ
+          </span>
+          <span className="text-xs text-gray-500">
+            ({formatPrice(perBottlePrice)} đ / {bottleCount > 1 ? (language === 'en' ? 'bottle' : 'chai') : (language === 'en' ? (product.unitEn || 'bottle') : product.unit)})
+          </span>
+        </div>
+        <div className="text-xs text-gray-500 mt-1">
+          <span>Đã từng là: </span>
+          <span className="line-through">{formatPrice(originalPrice)} đ</span>
+        </div>
+      </div>
+
+      {/* 5. Banner Mã giảm giá */}
+      <div className="bg-[#FFF5ED] border border-[#FFD8B3] rounded-lg p-3 text-xs flex items-center gap-2 text-[#0F1111] leading-relaxed">
+        <span className="bg-[#C7511F] text-white font-bold px-1.5 py-0.5 rounded text-[11px] shrink-0">
+          Mã giảm giá:
+        </span>
+        <div className="flex-1 min-w-0">
+          <strong>Tiết kiệm 5%</strong>: Mã giảm giá chỉ áp dụng cho tùy chọn mua hàng trực tiếp website.{' '}
+          <Link href="/#khuyen-mai" className="text-[#007185] hover:text-[#C7511F] hover:underline font-medium">
+            Mua sắm các mặt hàng
+          </Link>{' '}
+          |{' '}
+          <span className="text-[#007185] hover:text-[#C7511F] hover:underline cursor-pointer">
+            Điều khoản
+          </span>
+        </div>
+      </div>
+
+      {/* 6. Selector Chọn biến thể bộ sản phẩm: 3 Card ngang */}
+      <div className="space-y-2 pt-1">
+        <div className="text-sm text-[#0F1111]">
+          <span>Tên bộ sản phẩm: </span>
+          <strong className="font-bold">{currentUnit} ({currentVolume})</strong>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2.5">
+          {displayVariants.map((v) => {
+            const isSelected = activeVariant === v.id;
+            const vPerBottle = Math.round(v.price / (v.quantity || 1));
+            const vOriginalPrice = Math.round((v.price / (1 - discountRate / 100)) / 1000) * 1000;
+            const vDisplayName = getVariantName(v.name);
+
+            return (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => setActiveVariant(v.id)}
                 className={cn(
-                  'w-2 h-2 rounded-full animate-pulse',
-                  isLowStock ? 'bg-amber-500' : 'bg-emerald-600'
-                )}
-              ></span>
-              <span
-                className={cn(
-                  'font-semibold text-xs sm:text-sm',
-                  isLowStock ? 'text-amber-700' : 'text-emerald-700'
+                  'rounded-lg p-3 text-left transition-all relative flex flex-col justify-between cursor-pointer',
+                  isSelected
+                    ? 'border-2 border-[#007185] bg-blue-50/10 shadow-xs'
+                    : 'border border-gray-200 bg-white hover:border-gray-400'
                 )}
               >
-                {isLowStock
-                  ? language === 'en'
-                    ? `Low stock: ${maxAvailableInBranch} ${currentUnit} available at ${selectedBranch?.name || 'branch'}`
-                    : `Sắp hết: Còn ${maxAvailableInBranch} ${currentUnit} tại ${selectedBranch?.name || 'chi nhánh'}`
-                  : language === 'en'
-                  ? `In stock at ${selectedBranch?.name || 'branch'} (${maxAvailableInBranch} ${currentUnit} available)`
-                  : `Còn hàng tại ${selectedBranch?.name || 'chi nhánh'} (${maxAvailableInBranch} ${currentUnit} có sẵn)`}
-              </span>
-            </div>
-            <span className="text-gray-500 text-xs flex items-center gap-1">
-              <Truck className="w-3.5 h-3.5 text-gray-400" />
-              <span>{language === 'en' ? 'Same-day express' : 'Giao hỏa tốc'}</span>
+                <div className="flex items-center justify-between w-full mb-1">
+                  <span className="text-sm font-bold text-[#0F1111]">{vDisplayName}</span>
+                  {isSelected && (
+                    <span className="w-4 h-4 rounded-full bg-[#007185] text-white flex items-center justify-center text-[10px]">
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-sm sm:text-base font-bold text-[#0F1111]">
+                  {formatPrice(v.price)} đ
+                </div>
+
+                <div className="text-[11px] text-gray-500 mt-0.5">
+                  ({formatPrice(vPerBottle)} đ/chai)
+                </div>
+
+                <div className="text-[11px] text-gray-400 line-through mt-0.5">
+                  {formatPrice(vOriginalPrice)} đ
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 7. Khối Thao tác & Tồn kho (Buy Box Card) */}
+      <div className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm space-y-3">
+        {/* Dòng giá nhắc lại + Badge Thuần chay */}
+        <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-gray-100">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-bold text-[#0F1111]">
+              {formatPrice(currentPrice)} đ
+            </span>
+            <span className="text-xs text-gray-500">
+              ({formatPrice(perBottlePrice)} đ / {bottleCount > 1 ? (language === 'en' ? 'bottle' : 'chai') : (language === 'en' ? (product.unitEn || 'bottle') : product.unit)})
             </span>
           </div>
-        )}
 
-        {/* Số lượng (Ẩn khi tạm thời hết hàng) */}
+          {isVegan && (
+            <div className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5 text-xs font-medium">
+              <Leaf className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Thuần chay</span>
+            </div>
+          )}
+        </div>
+
+        {/* Giao hàng miễn phí */}
+        <div className="flex items-center gap-2 text-xs sm:text-sm text-[#0F1111]">
+          <Truck className="w-4 h-4 text-sky-600 shrink-0" />
+          <span>
+            Giao hàng <strong className="text-emerald-700 font-bold">MIỄN PHÍ</strong> cho đơn hàng từ 200.000 đ
+          </span>
+        </div>
+
+        {/* Vị trí kho */}
+        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-[#565959]">
+          <MapPin className="w-4 h-4 text-gray-500 shrink-0" />
+          <span className="truncate">
+            Giao hàng đến: <strong className="text-[#0F1111]">{selectedBranch?.name || 'Cửa Hàng Vườn Lài (Tân Phú)'}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={openBranchModal}
+            className="text-[#007185] hover:text-[#C7511F] hover:underline font-medium ml-1 shrink-0 cursor-pointer"
+          >
+            (Đổi kho)
+          </button>
+        </div>
+
+        {/* Tồn kho */}
+        <div className="pt-0.5">
+          {isOutOfStock ? (
+            <div className="text-red-600 font-semibold text-sm flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-600"></span>
+              <span>Tạm hết hàng tại kho đã chọn</span>
+            </div>
+          ) : isLowStock ? (
+            <div className="text-amber-700 font-semibold text-sm flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+              <span>Sắp hết hàng ({maxAvailableInBranch} {currentUnit} có sẵn)</span>
+            </div>
+          ) : (
+            <div className="text-emerald-700 font-semibold text-sm flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+              <span>Còn hàng</span>
+            </div>
+          )}
+        </div>
+
+        {/* Số lượng & Nút Thao tác */}
         {!isOutOfStock && (
-          <div className="space-y-2.5">
+          <div className="space-y-3 pt-1">
             <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm text-gray-700 font-medium">
-                  {language === 'en' ? 'Quantity:' : 'Số lượng:'}
-                </label>
-                {existingCartQty > 0 && (
-                  <span className="block text-[11px] text-gray-500">
-                    {language === 'en'
-                      ? `(${existingCartQty} ${currentUnit} in cart)`
-                      : `(Đã có ${existingCartQty} ${currentUnit} trong giỏ)`}
-                  </span>
-                )}
-              </div>
+              <label className="text-xs text-gray-600 font-medium">
+                Số lượng:
+              </label>
               <div className="flex items-center border border-gray-300 rounded-lg bg-gray-50">
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  className="px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors rounded-l-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-2.5 py-1 text-gray-600 hover:text-gray-900 transition-colors rounded-l-lg cursor-pointer disabled:opacity-40"
                   disabled={quantity <= 1 || remainingCanAdd <= 0}
-                  aria-label={language === 'en' ? 'Decrease quantity' : 'Giảm số lượng'}
+                  aria-label="Giảm số lượng"
                 >
-                  <Minus className="w-4 h-4" />
+                  <Minus className="w-3.5 h-3.5" />
                 </button>
-                <span className="px-3 py-1.5 text-sm font-bold text-gray-900 min-w-[36px] text-center">
+                <span className="px-3 py-1 text-sm font-bold text-gray-900 min-w-[32px] text-center">
                   {remainingCanAdd <= 0 ? 0 : quantity}
                 </span>
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => Math.min(remainingCanAdd, q + 1))}
-                  className="px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors rounded-r-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-2.5 py-1 text-gray-600 hover:text-gray-900 transition-colors rounded-r-lg cursor-pointer disabled:opacity-40"
                   disabled={quantity >= remainingCanAdd || remainingCanAdd <= 0}
-                  aria-label={language === 'en' ? 'Increase quantity' : 'Tăng số lượng'}
-                  title={
-                    quantity >= remainingCanAdd
-                      ? language === 'en'
-                        ? `Maximum available stock reached (${maxAvailableInBranch} ${currentUnit})`
-                        : `Đã đạt số lượng khả dụng tối đa tại chi nhánh (${maxAvailableInBranch} ${currentUnit})`
-                      : undefined
-                  }
+                  aria-label="Tăng số lượng"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
-            {/* Cảnh báo nhẹ nhàng & Gợi ý đổi kho khi chạm ngưỡng tồn kho */}
-            {(quantity >= remainingCanAdd || remainingCanAdd <= 0) && maxAvailableInBranch > 0 && (
-              <div className="p-2.5 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-900 space-y-1.5">
-                <div className="flex items-center gap-1.5 font-bold text-amber-900">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>
-                    {remainingCanAdd <= 0
-                      ? language === 'en'
-                        ? `All available ${maxAvailableInBranch} ${currentUnit} are in your cart!`
-                        : `Bạn đã thêm toàn bộ ${maxAvailableInBranch} ${currentUnit} có sẵn vào giỏ hàng!`
-                      : language === 'en'
-                      ? `This branch only has ${maxAvailableInBranch} ${currentUnit} in stock`
-                      : `Chi nhánh hiện chỉ còn ${maxAvailableInBranch} ${currentUnit} khả dụng`}
-                  </span>
-                </div>
-                <p className="text-[11px] text-amber-800 leading-snug">
-                  {language === 'en'
-                    ? 'Need more? Switch to another branch to fulfill your order now.'
-                    : 'Quý khách muốn mua số lượng nhiều hơn? Vui lòng đổi chi nhánh còn hàng để được phục vụ ngay.'}
-                </p>
-                {bestAlternativeStore ? (
-                  <div className="pt-1 border-t border-amber-200/70 flex items-center justify-between gap-2">
-                    <span className="text-[11px] text-gray-700 truncate">
-                      {language === 'en' ? 'Store ' : 'Kho '}<strong>{bestAlternativeStore.name}</strong> còn hàng
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedBranch(bestAlternativeStore)}
-                      className="text-[11px] font-bold text-emerald-800 underline hover:text-emerald-900 cursor-pointer shrink-0"
-                    >
-                      {language === 'en' ? 'Switch to this branch' : 'Đổi kho này'}
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={openBranchModal}
-                    className="text-[11px] font-bold text-emerald-800 underline cursor-pointer block text-left"
-                  >
-                    {language === 'en' ? 'Choose another branch' : 'Chọn chi nhánh khác còn hàng'}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Nút hành động */}
-        {isOutOfStock ? (
-          <div className="pt-1">
-            <button
-              type="button"
-              disabled
-              className="w-full py-3.5 px-4 bg-gray-100 text-gray-400 font-bold rounded-xl text-sm md:text-base border border-gray-200 cursor-not-allowed text-center"
-            >
-              {language === 'en' ? 'Currently unavailable' : 'Hiện tạm thời hết hàng'}
-            </button>
-          </div>
-        ) : remainingCanAdd <= 0 ? (
-          <div className="pt-1 space-y-2">
-            <button
-              type="button"
-              disabled
-              className="w-full py-3 px-4 bg-amber-50 text-amber-900 font-bold rounded-xl text-sm border border-amber-200 cursor-not-allowed text-center shadow-xs"
-            >
-              {language === 'en'
-                ? `Max stock reached in cart (${maxAvailableInBranch} ${currentUnit})`
-                : `Đã thêm tối đa tồn kho (${maxAvailableInBranch} ${currentUnit})`}
-            </button>
-            <div className="flex gap-2">
-              <Link
-                href="/gio-hang"
-                className="flex-1 py-2.5 px-3 bg-[#1B5E3B] text-white text-center font-bold rounded-xl text-xs sm:text-sm hover:bg-[#14482D] transition-colors"
-              >
-                {language === 'en' ? 'View Cart' : 'Xem giỏ hàng'}
-              </Link>
+            {/* Các nút bấm */}
+            <div className="space-y-2 pt-1">
               <button
                 type="button"
-                onClick={openBranchModal}
-                className="flex-1 py-2.5 px-3 bg-white border border-gray-300 text-gray-700 text-center font-bold rounded-xl text-xs sm:text-sm hover:bg-gray-50 transition-colors cursor-pointer"
+                onClick={handleAddToCart}
+                disabled={remainingCanAdd <= 0}
+                className="w-full py-3 px-4 bg-[#FFD814] hover:bg-[#F7CA00] active:scale-[0.99] text-[#0F1111] font-medium rounded-full text-sm shadow-sm transition-all border border-[#FCD200] cursor-pointer text-center"
               >
-                {language === 'en' ? 'Switch Branch' : 'Đổi chi nhánh'}
+                Thêm vào giỏ hàng
+              </button>
+
+              <button
+                type="button"
+                onClick={handleBuyNow}
+                disabled={remainingCanAdd <= 0}
+                className="w-full py-3 px-4 bg-[#1B5E3B] hover:bg-[#14482D] active:scale-[0.99] text-white font-medium rounded-full text-sm shadow-sm transition-all cursor-pointer text-center"
+              >
+                Mua ngay
               </button>
             </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <button
-              onClick={handleAddToCart}
-              className="w-full py-3.5 px-4 bg-[#FFD814] hover:bg-[#F7CA00] active:scale-[0.99] text-gray-900 font-bold rounded-xl text-sm md:text-base shadow-sm transition-all border border-[#FCD200] cursor-pointer"
-            >
-              {language === 'en' ? 'Add to Cart' : 'Thêm vào giỏ hàng'}
-            </button>
-
-            <button
-              onClick={handleBuyNow}
-              className="w-full py-3.5 px-4 bg-[#1B5E3B] hover:bg-[#14482D] active:scale-[0.99] text-white font-bold rounded-xl text-sm md:text-base shadow-sm transition-all cursor-pointer"
-            >
-              {language === 'en' ? 'Buy Now' : 'Mua ngay'}
-            </button>
           </div>
         )}
 
         {/* Toast thông báo khi thêm giỏ */}
         {addedToast && (
-          <div className="bg-green-50 border border-green-300 text-green-800 text-sm px-3.5 py-2 rounded-lg flex items-center gap-2 animate-fade-in-up">
-            <Check className="w-4 h-4 text-green-600 shrink-0" />
+          <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs px-3 py-2 rounded-lg flex items-center gap-2 animate-fade-in-up">
+            <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span>
-              {language === 'en' ? (
-                <>Added <strong>{quantity} {currentUnit} ({currentVolume})</strong> to cart!</>
-              ) : (
-                <>Đã thêm <strong>{quantity} {currentUnit} ({currentVolume})</strong> vào giỏ hàng!</>
-              )}
+              Đã thêm <strong>{quantity} {currentUnit} ({currentVolume})</strong> vào giỏ hàng!
             </span>
           </div>
         )}
       </div>
 
-      {/* 6. CÁC KHỐI THÔNG TIN CHI TIẾT (ACCORDIONS) */}
+      {/* 8. CÁC KHỐI THÔNG TIN CHI TIẾT (ACCORDIONS) */}
       <div className="pt-2 space-y-2.5">
         {/* Accordion 1: Đặc điểm nổi bật (Top highlights) */}
         <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-xs">

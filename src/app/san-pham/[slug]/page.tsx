@@ -7,11 +7,12 @@ import { query } from '@/lib/db';
 import { Product } from '@/types';
 import ProductGallery from '@/components/product/ProductGallery';
 import ProductInfo, { ProductBreadcrumb } from '@/components/product/ProductInfo';
+import ProductDescription from '@/components/product/ProductDescription';
+import ProductFeatureShowcase from '@/components/product/ProductFeatureShowcase';
 import ProductCombosSidebar from '@/components/product/ProductCombosSidebar';
 import ProductSection from '@/components/home/ProductSection';
 import SubscribeSaveSection from '@/components/home/SubscribeSaveSection';
 import CartStickySidebar from '@/components/cart/CartStickySidebar';
-import ScrollBannerShowcase from '@/components/product/ScrollBannerShowcase';
 import ProductReviewsSection from '@/components/product/ProductReviewsSection';
 import { ChevronRight } from 'lucide-react';
 
@@ -202,30 +203,28 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <ProductBreadcrumb product={product} category={category} />
 
           {/* Main Product Content Area (2-Column Layout: Gallery Left + Buy Box Right) */}
-          <div className="section-container py-6 lg:py-8 max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-7 items-start">
-              {/* Cột 1: Ảnh sản phẩm chính + Dưới chân là chọn sản phẩm cùng danh mục */}
-              <div className="order-1 lg:col-span-6 flex justify-center">
-                <div className="w-full lg:sticky lg:top-24">
-                  <ProductGallery
-                    images={product.images}
-                    productName={product.name}
-                    imageFit={product.imageFit}
-                    currentProductId={product.id}
-                    categoryProducts={categoryProducts}
-                  />
-                </div>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 lg:py-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+              {/* Cột trái (Gallery): lg:col-span-5 w-full lg:sticky lg:top-24 */}
+              <div className="lg:col-span-5 w-full lg:sticky lg:top-24">
+                <ProductGallery
+                  images={product.images}
+                  productName={product.name}
+                  imageFit={product.imageFit}
+                  currentProductId={product.id}
+                  categoryProducts={categoryProducts}
+                />
               </div>
 
-              {/* Cột 2: Buy Box Thông tin sản phẩm & Mua hàng */}
-              <div className="order-2 lg:col-span-6">
+              {/* Cột phải (Buy Box & Info): lg:col-span-7 space-y-3.5 */}
+              <div className="lg:col-span-7 space-y-3.5">
                 <ProductInfo product={product} />
               </div>
             </div>
           </div>
 
-          {/* Các sản phẩm bạn có thể thích ở trên (Slider lướt 7 sản phẩm 1 hàng) */}
-          <div className="border-t border-gray-200 mt-12 bg-white">
+          {/* ── 1. CÁC SẢN PHẨM BẠN CÓ THỂ THÍCH & CÁC COMBO NỔI BẬT (Thứ tự 1) ── */}
+          <div className="border-t border-gray-200 mt-10 bg-white">
             <ProductSection
               excludeProductId={product.id}
               itemsPerRow={7}
@@ -235,19 +234,30 @@ export default async function ProductPage({ params }: ProductPageProps) {
             />
           </div>
 
-          {/* Các combo nổi bật đáng cân nhắc ở dưới (Slider lướt 7 combo 1 hàng) */}
           <div className="border-t border-gray-200 bg-white">
             <div className="section-container max-sm:px-2.5 py-8 sm:py-10 md:py-12 max-w-7xl mx-auto px-4 sm:px-6">
               <ProductCombosSidebar layout="horizontal" title="Các combo nổi bật đáng cân nhắc" />
             </div>
           </div>
 
+          {/* ── 2. MÔ TẢ & CÂU CHUYỆN CHẤT LƯỢNG (Thứ tự 2) ── */}
+          <ProductDescription
+            productName={product.name}
+            description={product.description || product.shortDescription}
+          />
+
+          {/* ── 3. VISUAL A+ CONTENT: 2 BANNER XẾP CHỒNG (Thứ tự 3) ── */}
+          <ProductFeatureShowcase
+            productName={product.name}
+            productThumbnail={product.thumbnail}
+          />
+
           {/* ĐÁNH GIÁ TỪ KHÁCH HÀNG (SOCIAL PROOF & REVIEWS) — Chuẩn Amazon & Shopee */}
           <div className="border-t border-gray-200 bg-white">
             <ProductReviewsSection productId={product.slug || product.id} productName={product.name} />
           </div>
 
-          {/* 1 DÒNG 8 SẢN PHẨM / 8 COMBO GIAO ĐỊNH KỲ (SUBSCRIBE & SAVE) — ĐỂ XUỐNG CUỐI SAU CÁC COMBO NỔI BẬT */}
+          {/* 1 DÒNG 8 SẢN PHẨM / 8 COMBO GIAO ĐỊNH KỲ (SUBSCRIBE & SAVE) */}
           <div className="border-t border-gray-200 bg-white">
             <SubscribeSaveSection
               title="Đăng Ký Giao Định Kỳ — 8 Sản Phẩm & Combo Tiết Kiệm 15%"
@@ -264,14 +274,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
         >
           <CartStickySidebar />
         </aside>
-      </div>
-
-      {/* ─── VÙNG 2: PHÍA DƯỚI COMBO TIẾT KIỆM — BANNER TRẢI NGHIỆM CUỘN CHUỘT ĐIỆN ẢNH (SCROLL-DRIVEN) ───
-          - Khi lướt tới đây, ghim toàn màn hình và lướt chuột 2-3 lần để hiệu ứng animation chuyển từ Banner 1 sang Banner 2
-          - Không cần nút bấm, chuyển động mượt mà phong cách Apple / thương hiệu cao cấp
-      */}
-      <div className="w-full border-t border-gray-200">
-        <ScrollBannerShowcase />
       </div>
     </div>
   );

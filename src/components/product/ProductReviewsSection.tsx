@@ -236,15 +236,15 @@ export default function ProductReviewsSection({
   const count4 = useMemo(() => summary.breakdown.find((b) => b.stars === 4)?.count || 0, [summary]);
 
   return (
-    <section className={`w-full py-12 lg:py-16 bg-white ${className}`} id="danh-gia-khach-hang">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* ── HEADER PHÂN ĐOẠN (Khớp 100% mẫu) ── */}
-        <div className="text-center mb-10 sm:mb-12">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-50 border border-amber-200/80 text-amber-700 text-xs font-bold uppercase tracking-wider mb-3">
-            <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-            ĐÁNH GIÁ TỪ KHÁCH HÀNG
+    <section className={`w-full bg-white py-12 md:py-16 border-t border-gray-200 ${className}`} id="danh-gia">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        {/* 1. SECTION HEADER */}
+        <div className="text-center mb-10 max-w-2xl mx-auto">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold uppercase tracking-wider mb-2">
+            <Star className="w-3.5 h-3.5 fill-[#FFA41C] text-[#FFA41C]" />
+            <span>ĐÁNH GIÁ TỪ KHÁCH HÀNG</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-gray-900 font-heading tracking-tight">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mt-2">
             Khách Hàng Nói Gì Về Sản Phẩm?
           </h2>
           <p className="mt-2 text-sm sm:text-base text-gray-500 max-w-2xl mx-auto">
@@ -252,79 +252,81 @@ export default function ProductReviewsSection({
           </p>
         </div>
 
-        {/* ── NỘI DUNG 2 CỘT ── */}
+        {/* 2. BỐ CỤC 2 CỘT CHÍNH (GRID 12 CỘT) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* ── CỘT TRÁI: ĐÁNH GIÁ CHUNG (Rating Summary Card) ── */}
-          <div className="lg:col-span-4 bg-white rounded-2xl border border-gray-200/90 shadow-sm p-6 sm:p-7 sticky lg:top-24">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          {/* ── CỘT TRÁI (TỔNG QUAN ĐÁNH GIÁ - 4 CỘT) ── */}
+          <div className="lg:col-span-4 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-5 sticky lg:top-24">
+            <h3 className="font-bold text-gray-900 text-base">
               Đánh giá chung
             </h3>
 
-            {/* Điểm số to bản & sao */}
-            <div className="flex items-baseline gap-2 mb-1.5">
-              <span className="text-4xl sm:text-5xl font-black text-gray-900 font-heading">
-                {summary.averageRating.toFixed(1)}
-              </span>
-              <span className="text-lg text-gray-400 font-normal">/ 5.0</span>
-              <div className="flex items-center gap-1 ml-2">
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <Star
-                    key={s}
-                    className="w-5 h-5 fill-amber-400 text-amber-400"
-                  />
-                ))}
+            {/* Điểm số: 4.8 / 5.0 + 5 sao vàng #FFA41C */}
+            <div>
+              <div className="flex items-baseline gap-2 mb-1.5">
+                <span className="text-4xl font-extrabold text-gray-900 font-heading">
+                  {summary.averageRating.toFixed(1)}
+                </span>
+                <span className="text-base text-gray-400 font-normal">/ 5.0</span>
+                <div className="flex items-center gap-1 ml-2">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star
+                      key={s}
+                      className="w-4.5 h-4.5 fill-[#FFA41C] text-[#FFA41C]"
+                    />
+                  ))}
+                </div>
               </div>
+
+              <p className="text-xs text-gray-500">
+                Dựa trên {summary.totalReviews} lượt đánh giá từ khách hàng
+              </p>
             </div>
 
-            <p className="text-xs text-gray-500 mb-6">
-              Dựa trên <span className="font-semibold text-gray-700">{summary.totalReviews}</span> lượt đánh giá từ khách hàng
-            </p>
-
-            {/* Biểu đồ 5 thanh phân bổ sao */}
-            <div className="space-y-2.5 mb-7">
+            {/* 5 Thanh tỉ lệ sao */}
+            <div className="space-y-2.5">
               {summary.breakdown.map((item) => (
                 <div key={item.stars} className="flex items-center gap-3 text-xs">
                   <span className="w-10 text-gray-600 font-medium shrink-0">
                     {item.stars} sao
                   </span>
-                  <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                  <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden flex-1">
                     <div
-                      className="bg-amber-500 h-2.5 rounded-full transition-all duration-500"
+                      className="bg-[#FFA41C] h-2.5 rounded-full transition-all duration-500"
                       style={{ width: `${Math.min(100, Math.max(0, item.percentage))}%` }}
                     />
                   </div>
-                  <span className="w-9 text-right text-gray-400 font-semibold shrink-0">
+                  <span className="w-9 text-right text-gray-500 font-medium shrink-0">
                     {item.percentage}%
                   </span>
                 </div>
               ))}
             </div>
 
-            {/* Nút bấm Viết đánh giá của bạn (Xanh đậm bo góc tròn) */}
+            {/* Nút CTA Viết đánh giá của bạn */}
             <button
               type="button"
               onClick={handleOpenModal}
-              className="w-full py-3.5 px-5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-sm transition-all duration-200 shadow-sm hover:shadow flex items-center justify-center gap-2 group cursor-pointer"
+              className="w-full py-3 px-4 rounded-xl bg-[#1B5E3B] hover:bg-[#14472D] text-white font-medium text-sm flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
             >
-              <Edit3 className="w-4 h-4 transition-transform group-hover:scale-110" />
-              Viết đánh giá của bạn
+              <Edit3 className="w-4 h-4" />
+              <span>Viết đánh giá của bạn</span>
             </button>
           </div>
 
-          {/* ── CỘT PHẢI: BỘ LỌC & DANH SÁCH REVIEW (Review List) ── */}
+          {/* ── CỘT PHẢI (BỘ LỌC & DANH SÁCH REVIEW - 8 CỘT) ── */}
           <div className="lg:col-span-8">
-            {/* Thanh nút lọc nhanh (Filter Pills) */}
-            <div className="flex flex-wrap items-center gap-2 mb-6">
+            {/* Thanh lọc Pill Tabs */}
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => {
                   setSelectedRating(null);
                   setVerifiedOnly(false);
                 }}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                className={`px-4 py-2 text-xs transition-all cursor-pointer rounded-lg ${
                   selectedRating === null && !verifiedOnly
-                    ? 'bg-gray-900 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-[#0F1111] text-white font-semibold'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                 }`}
               >
                 Tất cả ({summary.totalReviews})
@@ -336,10 +338,10 @@ export default function ProductReviewsSection({
                   setSelectedRating(5);
                   setVerifiedOnly(false);
                 }}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                className={`px-4 py-2 text-xs transition-all cursor-pointer rounded-lg ${
                   selectedRating === 5 && !verifiedOnly
-                    ? 'bg-gray-900 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-[#0F1111] text-white font-semibold'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                 }`}
               >
                 5 sao ({count5})
@@ -351,10 +353,10 @@ export default function ProductReviewsSection({
                   setSelectedRating(4);
                   setVerifiedOnly(false);
                 }}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                className={`px-4 py-2 text-xs transition-all cursor-pointer rounded-lg ${
                   selectedRating === 4 && !verifiedOnly
-                    ? 'bg-gray-900 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-[#0F1111] text-white font-semibold'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                 }`}
               >
                 4 sao ({count4})
@@ -366,87 +368,86 @@ export default function ProductReviewsSection({
                   setVerifiedOnly((prev) => !prev);
                   setSelectedRating(null);
                 }}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-4 py-2 text-xs transition-all cursor-pointer rounded-lg flex items-center gap-1.5 ${
                   verifiedOnly
-                    ? 'bg-emerald-700 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-[#0F1111] text-white font-semibold'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                 }`}
               >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Đã mua hàng ({summary.verifiedReviewsCount})
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>✓ Đã mua hàng ({summary.verifiedReviewsCount})</span>
               </button>
             </div>
 
-            {/* Danh sách các thẻ đánh giá */}
+            {/* Danh sách Review Cards */}
             {loading ? (
-              <div className="space-y-4">
+              <div className="space-y-4 mt-6">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm animate-pulse">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-full bg-gray-200" />
+                  <div key={i} className="border border-gray-200 rounded-2xl p-5 bg-white space-y-3 animate-pulse">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-gray-200" />
                       <div className="space-y-1.5 flex-1">
                         <div className="w-32 h-4 bg-gray-200 rounded" />
                         <div className="w-24 h-3 bg-gray-100 rounded" />
                       </div>
                     </div>
-                    <div className="w-3/4 h-4 bg-gray-200 rounded mb-2" />
+                    <div className="w-3/4 h-4 bg-gray-200 rounded" />
                     <div className="w-full h-12 bg-gray-100 rounded" />
                   </div>
                 ))}
               </div>
             ) : reviews.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-200/80 p-10 text-center text-gray-500">
+              <div className="border border-gray-200 rounded-2xl p-10 bg-white text-center text-gray-500 mt-6">
                 <MessageCircle className="w-10 h-10 text-gray-300 mx-auto mb-3" />
                 <p className="font-semibold text-gray-700">Chưa có đánh giá nào phù hợp với bộ lọc</p>
                 <p className="text-xs text-gray-400 mt-1">Hãy là người đầu tiên để lại đánh giá cho sản phẩm này!</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 mt-6">
                 {reviews.map((rev) => (
                   <article
                     key={rev.id}
-                    className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-200"
+                    className="border border-gray-200 rounded-2xl p-5 bg-white space-y-3 shadow-xs hover:shadow-sm transition-all"
                   >
-                    {/* Hàng đầu: Avatar, Tên, Badge Đã mua hàng, Thời gian, Số sao */}
-                    <div className="flex items-start justify-between gap-3 mb-3">
+                    {/* Hàng tác giả: Avatar chữ cái đầu bo tròn 36px + Tên khách hàng + Badge Đã mua hàng + 5 sao vàng bên phải */}
+                    <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        {/* Avatar chữ cái */}
-                        <div
-                          className={`w-10 h-10 rounded-full font-bold flex items-center justify-center text-sm shrink-0 shadow-sm ${getAvatarColor(
-                            rev.customerName
-                          )}`}
-                        >
+                        {/* Avatar chữ cái đầu bo tròn 36px */}
+                        <div className="w-9 h-9 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-sm shrink-0 shadow-xs">
                           {rev.customerName.charAt(0).toUpperCase()}
                         </div>
 
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="text-sm font-bold text-gray-900">
+                            <span className="font-bold text-gray-900 text-sm">
                               {rev.customerName}
-                            </h4>
+                            </span>
 
                             {rev.isVerifiedBuyer && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200/60">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-semibold border border-emerald-200">
                                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                 Đã mua hàng
                               </span>
                             )}
                           </div>
 
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {rev.variantInfo} • {formatRelativeTime(rev.createdAt)}
-                          </p>
+                          {/* Hàng thông tin phụ: Phân loại mua + Chấm tròn phân cách + Thời gian */}
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-0.5">
+                            <span>{rev.variantInfo || 'Lốc 7 chai (330ml)'}</span>
+                            <span className="text-gray-300">•</span>
+                            <span>{formatRelativeTime(rev.createdAt)}</span>
+                          </div>
                         </div>
                       </div>
 
-                      {/* 5 sao vàng */}
+                      {/* 5 ngôi sao vàng #FFA41C bên phải */}
                       <div className="flex items-center gap-0.5 shrink-0">
                         {[1, 2, 3, 4, 5].map((s) => (
                           <Star
                             key={s}
                             className={`w-4 h-4 ${
                               s <= rev.rating
-                                ? 'fill-amber-400 text-amber-400'
+                                ? 'fill-[#FFA41C] text-[#FFA41C]'
                                 : 'fill-gray-200 text-gray-200'
                             }`}
                           />
@@ -454,21 +455,21 @@ export default function ProductReviewsSection({
                       </div>
                     </div>
 
-                    {/* Tiêu đề in đậm (Khớp ảnh mẫu) */}
+                    {/* Tiêu đề nhận xét in đậm */}
                     {rev.title && (
-                      <h5 className="text-sm sm:text-base font-bold text-gray-900 mb-2 font-heading leading-snug">
+                      <h4 className="font-bold text-gray-900 text-sm leading-snug">
                         {rev.title}
-                      </h5>
+                      </h4>
                     )}
 
-                    {/* Nội dung nhận xét chi tiết */}
-                    <p className="text-xs sm:text-sm text-gray-700 leading-relaxed whitespace-pre-line mb-4">
+                    {/* Nội dung nhận xét */}
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
                       {rev.comment}
                     </p>
 
                     {/* Phản hồi từ CSKH Thái Sơn Foods (nếu có) */}
                     {rev.adminReply && (
-                      <div className="bg-gray-50 border-l-4 border-emerald-600 p-3.5 rounded-r-xl mb-4 text-xs">
+                      <div className="bg-gray-50 border-l-4 border-emerald-600 p-3 rounded-r-xl text-xs">
                         <div className="flex items-center gap-1.5 font-bold text-emerald-800 mb-1">
                           <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                           Phản hồi từ Thái Sơn Foods
@@ -477,15 +478,15 @@ export default function ProductReviewsSection({
                       </div>
                     )}
 
-                    {/* Hàng chân: Nút Hữu ích & Tem bảo chứng */}
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-50 text-xs">
+                    {/* Footer card: Bên trái là nút like ThumbsUp "Hữu ích (24)" viền xám nhạt bo tròn; Bên phải là chữ xám nhạt "Thái Sơn Foods bảo chứng" */}
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
                       <button
                         type="button"
                         onClick={() => handleVoteHelpful(rev.id)}
                         disabled={votedMap[rev.id]}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer ${
                           votedMap[rev.id]
-                            ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold'
+                            ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-medium'
                             : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                         }`}
                       >
@@ -493,7 +494,7 @@ export default function ProductReviewsSection({
                         <span>Hữu ích ({rev.helpfulCount})</span>
                       </button>
 
-                      <div className="inline-flex items-center gap-1 text-[11px] text-gray-400">
+                      <div className="inline-flex items-center gap-1 text-xs text-gray-400 font-normal">
                         <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                         <span>Thái Sơn Foods bảo chứng</span>
                       </div>
