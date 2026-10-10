@@ -4,7 +4,6 @@ import { combos, getComboBySlug } from '@/data/combos';
 import { products } from '@/data/products';
 import ComboDetailView from '@/components/product/ComboDetailView';
 import ProductCombosSidebar from '@/components/product/ProductCombosSidebar';
-import CartStickySidebar from '@/components/cart/CartStickySidebar';
 import ProductSection from '@/components/home/ProductSection';
 
 import { query } from '@/lib/db';
@@ -171,43 +170,31 @@ export default async function ComboDetailPage({ params }: ComboPageProps) {
 
   return (
     <div className="bg-white min-h-screen">
-      {/* ─── VÙNG 1: CHI TIẾT COMBO & CÁC COMBO KHÁC (KÈM GIỎ HÀNG CUỘN DÍNH BÊN PHẢI) ─── */}
-      <div className="flex flex-row relative w-full items-start">
+      <div className="w-full">
         {/* Cột nội dung chính */}
-        <div className="flex-1 min-w-0">
-          <ComboDetailView
-            combo={combo}
-            productsDetail={comboProductsWithDetail}
-            initialStock={initialStock}
-            initialStockDetails={initialStockDetails}
+        <ComboDetailView
+          combo={combo}
+          productsDetail={comboProductsWithDetail}
+          initialStock={initialStock}
+          initialStockDetails={initialStockDetails}
+        />
+
+        {/* Hàng các sản phẩm bạn có thể thích */}
+        <div className="border-t border-gray-200 bg-white">
+          <ProductSection
+            itemsPerRow={7}
+            title="Các sản phẩm bạn có thể thích"
+            showViewAll={false}
+            className="py-6 sm:py-8 lg:py-10"
           />
-
-          {/* Hàng các sản phẩm bạn có thể thích */}
-          <div className="border-t border-gray-200 bg-white">
-            <ProductSection
-              itemsPerRow={7}
-              title="Các sản phẩm bạn có thể thích"
-              showViewAll={false}
-              className="py-6 sm:py-8 lg:py-10"
-            />
-          </div>
-
-          {/* Các combo nổi bật đáng cân nhắc khác */}
-          <div className="border-t border-gray-200 bg-white">
-            <div className="section-container max-sm:px-2.5 py-6 sm:py-8 lg:py-10 max-w-7xl mx-auto px-4 sm:px-6">
-              <ProductCombosSidebar layout="horizontal" title="Các combo nổi bật đáng cân nhắc" />
-            </div>
-          </div>
         </div>
 
-        {/* Giỏ hàng cố định cuộn dính bên phải trên desktop lớn */}
-        <aside
-          aria-label="Giỏ hàng cố định"
-          className="hidden min-[1440px]:flex flex-col w-[380px] shrink-0 sticky top-[146px] border-l border-border-light bg-white shadow-xl z-30 overflow-hidden"
-          style={{ height: 'calc(100vh - 146px)' }}
-        >
-          <CartStickySidebar />
-        </aside>
+        {/* Các combo nổi bật đáng cân nhắc khác */}
+        <div className="border-t border-gray-200 bg-white">
+          <div className="section-container max-sm:px-2.5 py-6 sm:py-8 lg:py-10 max-w-7xl mx-auto px-4 sm:px-6">
+            <ProductCombosSidebar layout="horizontal" title="Các combo nổi bật đáng cân nhắc" />
+          </div>
+        </div>
       </div>
     </div>
   );

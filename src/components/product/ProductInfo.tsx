@@ -542,9 +542,14 @@ export default function ProductInfo({ product }: ProductInfoProps) {
         {/* Tồn kho */}
         <div className="pt-0.5">
           {isOutOfStock ? (
-            <div className="text-red-600 font-semibold text-sm flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-600"></span>
-              <span>Tạm hết hàng tại kho đã chọn</span>
+            <div className="space-y-1">
+              <div className="text-red-600 font-semibold text-sm flex items-start gap-1.5 leading-snug">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0 mt-1"></span>
+                <span>Tạm thời hết hàng chúng tôi đang nỗ lực để sớm có hàng trở lại.</span>
+              </div>
+              <p className="text-xs text-gray-500 pl-4 leading-relaxed">
+                Bạn có thể tham khảo các kho xa hơn nhưng có thể tốn chi phí giao hàng cao hơn.
+              </p>
             </div>
           ) : isLowStock ? (
             <div className="text-amber-700 font-semibold text-sm flex items-center gap-1.5">

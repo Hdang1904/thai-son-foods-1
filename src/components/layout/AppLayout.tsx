@@ -4,8 +4,6 @@ import React, { Suspense } from 'react';
 import { usePathname } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import FloatingCartWidget from '@/components/cart/FloatingCartWidget';
-import CartDrawer from '@/components/cart/CartDrawer';
 import ReferralTracker from '@/components/common/ReferralTracker';
 import { FlyToCartProvider } from '@/context/FlyToCartContext';
 import { LanguageProvider } from '@/context/LanguageContext';
@@ -24,11 +22,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
     return <>{children}</>;
   }
 
-  // Giỏ hàng popup/nổi (FloatingCartWidget) CHỈ hiển thị ngoài giao diện Trang chủ ('/').
-  // Các trang chi tiết (/san-pham/*, /combo/*) đã có sẵn CartStickySidebar mở cố định bên phải.
-  // Các trang /gio-hang và /thanh-toan là trang chức năng giỏ hàng/thanh toán.
-  const showFloatingCart = pathname === '/';
-
   return (
     <LanguageProvider>
       <UserAuthProvider>
@@ -40,8 +33,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
             <Header />
             <main className="min-h-screen flex-1">{children}</main>
             <Footer />
-            <CartDrawer />
-            {showFloatingCart && <FloatingCartWidget />}
             <AuthModal />
             <BranchSelectorModal />
           </div>

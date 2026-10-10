@@ -28,7 +28,6 @@ import { useFlyToCart } from '@/context/FlyToCartContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useBranchStore } from '@/store/branch';
 import { useBranchStockMap } from '@/hooks/useBranchStockMap';
-import CartStickySidebar from '@/components/cart/CartStickySidebar';
 
 // ==========================================
 // CẤU HÌNH COMBO 01 (TỰ DO 4 CHAI)
@@ -2896,10 +2895,8 @@ function ComboContent() {
 
   return (
     <div className="min-h-screen bg-[#FAF9F5] pb-32 pt-2">
-      <div className="flex flex-row relative w-full items-start">
-        {/* Cột nội dung chính */}
-        <div className="flex-1 min-w-0">
-          <div className="section-container max-w-7xl mx-auto px-4 sm:px-6">
+      <div className="w-full">
+        <div className="section-container max-w-7xl mx-auto px-4 sm:px-6">
             {/* Top bar: Nút quay lại */}
             <div className="flex items-center justify-between py-3 mb-3">
               <Link
@@ -2991,17 +2988,7 @@ function ComboContent() {
             )}
           </div>
         </div>
-
-        {/* Giỏ hàng cố định cuộn dính bên phải trên desktop lớn */}
-        <aside
-          aria-label="Giỏ hàng cố định"
-          className="hidden min-[1440px]:flex flex-col w-[380px] shrink-0 sticky top-[146px] border-l border-border-light bg-white shadow-xl z-30 overflow-hidden"
-          style={{ height: 'calc(100vh - 146px)' }}
-        >
-          <CartStickySidebar />
-        </aside>
       </div>
-    </div>
   );
 }
 

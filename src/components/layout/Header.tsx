@@ -109,7 +109,6 @@ export default function Header() {
     [t]
   );
 
-  const { openCart } = useCartStore();
   const totalQuantity = useCartStore((s) => s.items.reduce((t, i) => t + i.quantity, 0));
 
   useEffect(() => {
@@ -523,24 +522,53 @@ export default function Header() {
                 )}
               </div>
 
-              {/* Giỏ hàng */}
-              <button
-                type="button"
-                onClick={openCart}
+              {/* Giỏ hàng — Chuyển hướng trực tiếp sang trang Giỏ hàng lớn (/gio-hang) */}
+              <Link
+                href="/gio-hang"
                 id="cart-target-header"
-                className="relative p-2.5 text-text-body hover:text-green-primary transition-colors rounded-lg hover:bg-ivory-dark/50 min-[1440px]:hidden transition-transform cursor-pointer"
-                aria-label={`Giỏ hàng, ${isMounted ? totalQuantity : 0} sản phẩm`}
-              >
-                <ShoppingBag className="w-5 h-5" />
-                {isMounted && totalQuantity > 0 && (
-                  <span
-                    key={totalQuantity}
-                    className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 flex items-center justify-center px-1 text-[11px] font-bold text-white bg-sale rounded-full animate-pulse-badge"
-                  >
-                    {totalQuantity > 99 ? '99+' : totalQuantity}
-                  </span>
+                className={cn(
+                  'relative flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-full border transition-all cursor-pointer shadow-2xs group',
+                  isMounted && totalQuantity > 0
+                    ? 'border-emerald-600/35 bg-emerald-50/90 hover:bg-emerald-100 hover:border-emerald-500 text-emerald-950'
+                    : 'border-gray-200/90 bg-gray-50/90 hover:bg-emerald-50/70 hover:border-emerald-300 text-gray-800'
                 )}
-              </button>
+                aria-label={
+                  language === 'en'
+                    ? `Cart, ${isMounted ? totalQuantity : 0} items`
+                    : `Giỏ hàng, ${isMounted ? totalQuantity : 0} sản phẩm`
+                }
+                title={language === 'en' ? 'Shopping Cart' : 'Giỏ hàng'}
+              >
+                <div className="relative flex items-center justify-center">
+                  <ShoppingBag className="w-3.5 h-3.5 text-emerald-700 group-hover:scale-110 transition-transform" />
+                  {/* Badge số lượng trên Mobile (< sm) */}
+                  {isMounted && totalQuantity > 0 && (
+                    <span
+                      key={`mobile-badge-${totalQuantity}`}
+                      className="sm:hidden absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center px-1 text-[10px] font-black text-white bg-sale rounded-full animate-pulse-badge shadow-2xs"
+                    >
+                      {totalQuantity > 99 ? '99+' : totalQuantity}
+                    </span>
+                  )}
+                </div>
+
+                <span className="hidden sm:inline text-xs font-bold">
+                  {language === 'en' ? 'Cart' : 'Giỏ hàng'}
+                </span>
+
+                {/* Badge số lượng trên Desktop (>= sm) */}
+                <span
+                  key={`desktop-badge-${totalQuantity}`}
+                  className={cn(
+                    'hidden sm:inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-black transition-all',
+                    isMounted && totalQuantity > 0
+                      ? 'bg-[#1B5E3B] text-white shadow-2xs animate-pulse-badge'
+                      : 'bg-gray-200/80 text-gray-600'
+                  )}
+                >
+                  {isMounted ? (totalQuantity > 99 ? '99+' : totalQuantity) : 0}
+                </span>
+              </Link>
 
               {/* Mobile Menu Toggle */}
               <button

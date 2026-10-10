@@ -10,6 +10,8 @@ import {
   X,
   Send,
   MessageCircle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { ReviewItem, ProductReviewSummary } from '@/types/reviews';
 import { useUserAuth } from '@/context/UserAuthContext';
@@ -83,6 +85,7 @@ export default function ProductReviewsSection({
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [verifiedOnly, setVerifiedOnly] = useState<boolean>(false);
   const [votedMap, setVotedMap] = useState<Record<string, boolean>>({});
+  const [showAll, setShowAll] = useState(false);
 
   // Modal viết đánh giá
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -99,7 +102,10 @@ export default function ProductReviewsSection({
   // Tải tóm tắt đánh giá
   const fetchSummary = useCallback(async () => {
     try {
-      const res = await fetch(`/api/reviews/summary?productId=${encodeURIComponent(productId)}`);
+      const res = await fetch(
+        `/api/reviews/summary?productId=${encodeURIComponent(productId)}&_t=${Date.now()}`,
+        { cache: 'no-store' }
+      );
       const data = await res.json();
       if (data.success && data.data) {
         setSummary(data.data);
@@ -117,6 +123,7 @@ export default function ProductReviewsSection({
         productId,
         sort: 'helpful',
         limit: '50',
+        _t: Date.now().toString(),
       });
       if (selectedRating !== null) {
         params.set('rating', selectedRating.toString());
@@ -125,7 +132,7 @@ export default function ProductReviewsSection({
         params.set('verifiedOnly', 'true');
       }
 
-      const res = await fetch(`/api/reviews?${params.toString()}`);
+      const res = await fetch(`/api/reviews?${params.toString()}`, { cache: 'no-store' });
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setReviews(data.data);
@@ -144,6 +151,11 @@ export default function ProductReviewsSection({
   useEffect(() => {
     fetchReviews();
   }, [fetchReviews]);
+
+  // Reset trạng thái xem thêm khi đổi bộ lọc sao hoặc đã mua hàng
+  useEffect(() => {
+    setShowAll(false);
+  }, [selectedRating, verifiedOnly]);
 
   // Bấm hữu ích
   const handleVoteHelpful = async (reviewId: string) => {
@@ -379,32 +391,37 @@ export default function ProductReviewsSection({
               </button>
             </div>
 
-            {/* Danh sách Review Cards */}
-            {loading ? (
-              <div className="space-y-4 mt-6">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="border border-gray-200 rounded-2xl p-5 bg-white space-y-3 animate-pulse">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-gray-200" />
-                      <div className="space-y-1.5 flex-1">
-                        <div className="w-32 h-4 bg-gray-200 rounded" />
-                        <div className="w-24 h-3 bg-gray-100 rounded" />
+            {/* Danh sách Review Cards (Hiển thị tĩnh 5 đánh giá, bấm Xem thêm để mở rộng) */}
+            {(() => {
+              const INITIAL_COUNT = 5;
+              const displayedReviews = showAll ? reviews : reviews.slice(0, INITIAL_COUNT);
+              const hasMore = reviews.length > INITIAL_COUNT;
+
+              return loading ? (
+                <div className="space-y-4 mt-6">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="border border-gray-200 rounded-2xl p-5 bg-white space-y-3 animate-pulse">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-gray-200" />
+                        <div className="space-y-1.5 flex-1">
+                          <div className="w-32 h-4 bg-gray-200 rounded" />
+                          <div className="w-24 h-3 bg-gray-100 rounded" />
+                        </div>
                       </div>
+                      <div className="w-3/4 h-4 bg-gray-200 rounded" />
+                      <div className="w-full h-12 bg-gray-100 rounded" />
                     </div>
-                    <div className="w-3/4 h-4 bg-gray-200 rounded" />
-                    <div className="w-full h-12 bg-gray-100 rounded" />
-                  </div>
-                ))}
-              </div>
-            ) : reviews.length === 0 ? (
-              <div className="border border-gray-200 rounded-2xl p-10 bg-white text-center text-gray-500 mt-6">
-                <MessageCircle className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                <p className="font-semibold text-gray-700">Chưa có đánh giá nào phù hợp với bộ lọc</p>
-                <p className="text-xs text-gray-400 mt-1">Hãy là người đầu tiên để lại đánh giá cho sản phẩm này!</p>
-              </div>
-            ) : (
-              <div className="space-y-4 mt-6">
-                {reviews.map((rev) => (
+                  ))}
+                </div>
+              ) : reviews.length === 0 ? (
+                <div className="border border-gray-200 rounded-2xl p-10 bg-white text-center text-gray-500 mt-6">
+                  <MessageCircle className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="font-semibold text-gray-700">Chưa có đánh giá nào phù hợp với bộ lọc</p>
+                  <p className="text-xs text-gray-400 mt-1">Hãy là người đầu tiên để lại đánh giá cho sản phẩm này!</p>
+                </div>
+              ) : (
+                <div className="space-y-4 mt-6">
+                  {displayedReviews.map((rev) => (
                   <article
                     key={rev.id}
                     className="border border-gray-200 rounded-2xl p-5 bg-white space-y-3 shadow-xs hover:shadow-sm transition-all"
@@ -501,8 +518,34 @@ export default function ProductReviewsSection({
                     </div>
                   </article>
                 ))}
+
+                {/* Nút Xem thêm / Thu gọn khi có nhiều hơn 5 đánh giá */}
+                {hasMore && (
+                  <div className="pt-2 text-center">
+                    {!showAll ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowAll(true)}
+                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-800 font-medium text-sm shadow-xs hover:border-gray-400 transition-all cursor-pointer"
+                      >
+                        <span>Xem thêm ({reviews.length - INITIAL_COUNT}) đánh giá khác</span>
+                        <ChevronDown className="w-4 h-4 text-gray-600" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowAll(false)}
+                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 font-medium text-sm transition-all cursor-pointer"
+                      >
+                        <span>Thu gọn đánh giá</span>
+                        <ChevronUp className="w-4 h-4 text-gray-500" />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
+            );
+          })()}
           </div>
         </div>
       </div>

@@ -12,8 +12,9 @@ import ProductFeatureShowcase from '@/components/product/ProductFeatureShowcase'
 import ProductCombosSidebar from '@/components/product/ProductCombosSidebar';
 import ProductSection from '@/components/home/ProductSection';
 import SubscribeSaveSection from '@/components/home/SubscribeSaveSection';
-import CartStickySidebar from '@/components/cart/CartStickySidebar';
 import ProductReviewsSection from '@/components/product/ProductReviewsSection';
+import ProductSponsoredBanner from '@/components/product/ProductSponsoredBanner';
+import ProductSidebarSponsoredCard from '@/components/product/ProductSidebarSponsoredCard';
 import { ChevronRight } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -98,11 +99,11 @@ async function getLiveProduct(slug: string): Promise<Product | undefined> {
         thumbnail: finalThumbnail,
         images: activeImages.length > 0
           ? activeImages.map((img: any) => ({
-              id: img.id,
-              url: img.url,
-              alt: img.alt || dbProd.name,
-              sortOrder: Number(img.sortOrder) || 1,
-            }))
+            id: img.id,
+            url: img.url,
+            alt: img.alt || dbProd.name,
+            sortOrder: Number(img.sortOrder) || 1,
+          }))
           : (fallback.images && fallback.images.length > 0 ? fallback.images : [{ id: 'img-1', url: finalThumbnail, alt: dbProd.name, sortOrder: 1 }]),
         categoryId: (dbProd.category_id ? dbProd.category_id.replace(/^cat-/, '') : fallback.categoryId),
         isFeatured: dbProd.is_featured !== null ? Boolean(dbProd.is_featured) : fallback.isFeatured,
@@ -111,14 +112,14 @@ async function getLiveProduct(slug: string): Promise<Product | undefined> {
         isActive: dbProd.is_active !== null ? Boolean(dbProd.is_active) : fallback.isActive,
         variants: (Array.isArray(dbProd.variants) && dbProd.variants.length > 0)
           ? dbProd.variants.map((v: any) => ({
-              id: v.id || `var-${v.quantity}`,
-              name: v.name || `${v.quantity} chai`,
-              quantity: Number(v.quantity) || 1,
-              price: Number(v.price) || 0,
-              unit: v.unit || 'lốc',
-              volume: v.volume || `${v.quantity} x ${dbProd.volume || '330ml'}`
-            }))
-          .sort((a: any, b: any) => a.quantity - b.quantity)
+            id: v.id || `var-${v.quantity}`,
+            name: v.name || `${v.quantity} chai`,
+            quantity: Number(v.quantity) || 1,
+            price: Number(v.price) || 0,
+            unit: v.unit || 'lốc',
+            volume: v.volume || `${v.quantity} x ${dbProd.volume || '330ml'}`
+          }))
+            .sort((a: any, b: any) => a.quantity - b.quantity)
           : [...(fallback.variants || [])].sort((a: any, b: any) => a.quantity - b.quantity),
       };
     }
@@ -195,85 +196,90 @@ export default async function ProductPage({ params }: ProductPageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      {/* ─── VÙNG 1: TỪ ĐẦU TRANG ĐẾN HẾT COMBO TIẾT KIỆM (Có Giỏ hàng cố định cuộn dính bên phải) ─── */}
-      <div className="flex flex-row relative w-full items-start">
-        {/* Cột nội dung chính */}
-        <div className="flex-1 min-w-0">
-          {/* Top Bar / Breadcrumb */}
-          <ProductBreadcrumb product={product} category={category} />
+      {/* Main Content Area */}
+      <div className="w-full">
+        {/* Top Bar / Breadcrumb */}
+        <ProductBreadcrumb product={product} category={category} />
 
-          {/* Main Product Content Area (2-Column Layout: Gallery Left + Buy Box Right) */}
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 lg:py-8">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-              {/* Cột trái (Gallery): lg:col-span-5 w-full lg:sticky lg:top-24 */}
-              <div className="lg:col-span-5 w-full lg:sticky lg:top-24">
-                <ProductGallery
-                  images={product.images}
-                  productName={product.name}
-                  imageFit={product.imageFit}
-                  currentProductId={product.id}
-                  categoryProducts={categoryProducts}
-                />
-              </div>
+        {/* Main Product Content Area (3-Column Layout: Gallery Left + Buy Box Center + Sponsored Ad Right) */}
+        <div className="max-w-[1456px] mx-auto px-4 sm:px-6 py-6 lg:py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+            {/* Cột trái (Gallery): lg:col-span-5 w-full lg:sticky lg:top-24 */}
+            <div className="lg:col-span-5 w-full lg:sticky lg:top-24">
+              <ProductGallery
+                images={product.images}
+                productName={product.name}
+                imageFit={product.imageFit}
+                currentProductId={product.id}
+                categoryProducts={categoryProducts}
+              />
+            </div>
 
-              {/* Cột phải (Buy Box & Info): lg:col-span-7 space-y-3.5 */}
-              <div className="lg:col-span-7 space-y-3.5">
-                <ProductInfo product={product} />
-              </div>
+            {/* Cột giữa (Buy Box & Info): lg:col-span-4 xl:col-span-4 space-y-4 */}
+            <div className="lg:col-span-4 xl:col-span-4 space-y-4">
+              <ProductInfo product={product} />
+            </div>
+
+            {/* Cột phải (Góc bên phải chỗ khoanh đỏ - Sponsored Best Seller / Đang Sale): lg:col-span-3 xl:col-span-3 */}
+            <div className="hidden lg:block lg:col-span-3 xl:col-span-3 lg:sticky lg:top-24">
+              <ProductSidebarSponsoredCard currentProductId={product.id} />
             </div>
           </div>
 
-          {/* ── 1. CÁC SẢN PHẨM BẠN CÓ THỂ THÍCH & CÁC COMBO NỔI BẬT (Thứ tự 1) ── */}
-          <div className="border-t border-gray-200 mt-10 bg-white">
-            <ProductSection
-              excludeProductId={product.id}
-              itemsPerRow={7}
-              title="Các sản phẩm bạn có thể thích"
-              showViewAll={false}
-              className="py-8 sm:py-10 md:py-12"
-            />
-          </div>
-
-          <div className="border-t border-gray-200 bg-white">
-            <div className="section-container max-sm:px-2.5 py-8 sm:py-10 md:py-12 max-w-7xl mx-auto px-4 sm:px-6">
-              <ProductCombosSidebar layout="horizontal" title="Các combo nổi bật đáng cân nhắc" />
-            </div>
-          </div>
-
-          {/* ── 2. MÔ TẢ & CÂU CHUYỆN CHẤT LƯỢNG (Thứ tự 2) ── */}
-          <ProductDescription
-            productName={product.name}
-            description={product.description || product.shortDescription}
-          />
-
-          {/* ── 3. VISUAL A+ CONTENT: 2 BANNER XẾP CHỒNG (Thứ tự 3) ── */}
-          <ProductFeatureShowcase
-            productName={product.name}
-            productThumbnail={product.thumbnail}
-          />
-
-          {/* ĐÁNH GIÁ TỪ KHÁCH HÀNG (SOCIAL PROOF & REVIEWS) — Chuẩn Amazon & Shopee */}
-          <div className="border-t border-gray-200 bg-white">
-            <ProductReviewsSection productId={product.slug || product.id} productName={product.name} />
-          </div>
-
-          {/* 1 DÒNG 8 SẢN PHẨM / 8 COMBO GIAO ĐỊNH KỲ (SUBSCRIBE & SAVE) */}
-          <div className="border-t border-gray-200 bg-white">
-            <SubscribeSaveSection
-              title="Đăng Ký Giao Định Kỳ — 8 Sản Phẩm & Combo Tiết Kiệm 15%"
-              subtitle="Tự động nhận nước uống tươi ngon mỗi tuần tận nhà. Miễn phí vận chuyển 100%, linh hoạt đổi vị và tạm dừng bất kỳ lúc nào."
-            />
+          {/* Hiển thị dưới ProductInfo khi ở màn hình mobile (< lg) */}
+          <div className="block lg:hidden mt-6">
+            <ProductSidebarSponsoredCard currentProductId={product.id} />
           </div>
         </div>
 
-        {/* Giỏ hàng cố định: Chỉ cuộn dính trong phạm vi VÙNG 1, đến hết Combo tiết kiệm thì DỪNG LẠI */}
-        <aside
-          aria-label="Giỏ hàng cố định"
-          className="hidden min-[1440px]:flex flex-col w-[380px] shrink-0 sticky top-[146px] border-l border-border-light bg-white shadow-xl z-30 overflow-hidden"
-          style={{ height: 'calc(100vh - 146px)' }}
-        >
-          <CartStickySidebar />
-        </aside>
+        {/* ── 1. CÁC SẢN PHẨM BẠN CÓ THỂ THÍCH & CÁC COMBO NỔI BẬT (Thứ tự 1) ── */}
+        <div className="border-t border-gray-200 mt-10 bg-white">
+          <ProductSection
+            excludeProductId={product.id}
+            itemsPerRow={7}
+            title="Các sản phẩm bạn có thể thích"
+            showViewAll={false}
+            className="py-8 sm:py-10 md:py-12"
+          />
+        </div>
+
+        <div className="border-t border-gray-200 bg-white">
+          <div className="section-container max-sm:px-2.5 py-8 sm:py-10 md:py-12 max-w-7xl mx-auto px-4 sm:px-6">
+            <ProductCombosSidebar layout="horizontal" title="Các combo nổi bật đáng cân nhắc" />
+          </div>
+        </div>
+
+        {/* ── 2. MÔ TẢ & CÂU CHUYỆN CHẤT LƯỢNG (Thứ tự 2) ── */}
+        <ProductDescription
+          productName={product.name}
+          description={product.description || product.shortDescription}
+        />
+
+        {/* ── 3. VISUAL A+ CONTENT: 2 BANNER XẾP CHỒNG (Thứ tự 3) ── */}
+        <ProductFeatureShowcase
+          productName={product.name}
+          productThumbnail={product.thumbnail}
+        />
+
+        {/* ── BANNER SHOWCASE THƯƠNG HIỆU & SẢN PHẨM (CHUẨN AMAZON BRAND SHOWCASE) ── */}
+        <div className="border-t border-gray-200 bg-white">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <ProductSponsoredBanner product={product} />
+          </div>
+        </div>
+
+        {/* ĐÁNH GIÁ TỪ KHÁCH HÀNG (SOCIAL PROOF & REVIEWS) — Chuẩn Amazon & Shopee */}
+        <div className="border-t border-gray-200 bg-white" id="danh-gia-khach-hang">
+          <ProductReviewsSection productId={product.slug || product.id} productName={product.name} />
+        </div>
+
+        {/* 1 DÒNG 8 SẢN PHẨM / 8 COMBO GIAO ĐỊNH KỲ (SUBSCRIBE & SAVE) */}
+        <div className="border-t border-gray-200 bg-white">
+          <SubscribeSaveSection
+            title="Đăng Ký Giao Định Kỳ — 8 Sản Phẩm & Combo Tiết Kiệm 15%"
+            subtitle="Tự động nhận nước uống tươi ngon mỗi tuần tận nhà. Miễn phí vận chuyển 100%, linh hoạt đổi vị và tạm dừng bất kỳ lúc nào."
+          />
+        </div>
       </div>
     </div>
   );
