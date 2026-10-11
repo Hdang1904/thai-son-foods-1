@@ -4,11 +4,11 @@
  */
 
 export const MEMBERSHIP_CONFIG = {
-  // Cờ tính năng hội viên: Tắt (chưa chốt phương án với doanh nghiệp)
-  ENABLE_MEMBERSHIP: process.env.NEXT_PUBLIC_ENABLE_MEMBERSHIP === 'true',
+  // Cờ tính năng hội viên: LUÔN TẮT (chưa chốt phương án với doanh nghiệp)
+  ENABLE_MEMBERSHIP: false,
 
-  // Cờ tính năng Subscribe & Save: Tắt (chưa chốt phương án với doanh nghiệp)
-  ENABLE_SUBSCRIBE_SAVE: process.env.NEXT_PUBLIC_ENABLE_SUBSCRIBE_SAVE === 'true',
+  // Cờ tính năng Subscribe & Save: LUÔN TẮT (chưa chốt phương án với doanh nghiệp)
+  ENABLE_SUBSCRIBE_SAVE: false,
 
   // Múi giờ chuẩn vận hành toàn chuỗi
   TIMEZONE: 'Asia/Ho_Chi_Minh',

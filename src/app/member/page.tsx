@@ -21,9 +21,17 @@ import {
 } from 'lucide-react';
 import { useUserAuth } from '@/context/UserAuthContext';
 import { formatPrice } from '@/lib/utils';
+import { MEMBERSHIP_CONFIG } from '@/config/membership';
 
 export default function MemberPage() {
   const router = useRouter();
+
+  useEffect(() => {
+    if (!MEMBERSHIP_CONFIG.ENABLE_MEMBERSHIP) {
+      router.replace('/');
+    }
+  }, [router]);
+
   const { user, openAuthModal } = useUserAuth();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -57,6 +65,7 @@ export default function MemberPage() {
   };
 
   useEffect(() => {
+    if (!MEMBERSHIP_CONFIG.ENABLE_MEMBERSHIP) return;
     fetchStatus();
   }, [user]);
 
@@ -137,7 +146,9 @@ export default function MemberPage() {
 
   const isPrime = membershipData?.membership?.status === 'PAID_ACTIVE' || membershipData?.membership?.status === 'TRIAL_ACTIVE';
   const isGrace = membershipData?.membership?.status === 'CANCELLED_GRACE';
-  const isPaused = membershipData?.membership?.status === 'PAUSED';
+  if (!MEMBERSHIP_CONFIG.ENABLE_MEMBERSHIP) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8">

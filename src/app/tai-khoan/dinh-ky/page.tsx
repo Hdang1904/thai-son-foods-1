@@ -20,9 +20,17 @@ import {
 import { useUserAuth } from '@/context/UserAuthContext';
 import { formatPrice } from '@/lib/utils';
 import { Subscription } from '@/types/membership';
+import { MEMBERSHIP_CONFIG } from '@/config/membership';
 
 export default function SubscriptionsManagementPage() {
   const router = useRouter();
+
+  useEffect(() => {
+    if (!MEMBERSHIP_CONFIG.ENABLE_SUBSCRIBE_SAVE) {
+      router.replace('/');
+    }
+  }, [router]);
+
   const { user, openAuthModal } = useUserAuth();
 
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -66,6 +74,7 @@ export default function SubscriptionsManagementPage() {
   };
 
   useEffect(() => {
+    if (!MEMBERSHIP_CONFIG.ENABLE_SUBSCRIBE_SAVE) return;
     if (user) {
       fetchSubscriptions();
     } else {
@@ -194,6 +203,10 @@ export default function SubscriptionsManagementPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (!MEMBERSHIP_CONFIG.ENABLE_SUBSCRIBE_SAVE) {
+    return null;
+  }
 
   if (!user && !isLoading) {
     return (

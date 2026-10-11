@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Users,
@@ -23,12 +24,21 @@ import {
 } from 'lucide-react';
 
 export default function DaiLyLandingPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace('/');
+  }, [router]);
+
   // Bộ tính toán thu nhập mô phỏng cho CTV
   const [estBottles, setEstBottles] = useState<number>(300);
   const avgBottlePrice = 22000; // Giá bán lẻ trung bình
   const ctvCommissionRate = 0.12; // 12% hoa hồng CTV chuẩn
   const monthlyRevenue = estBottles * avgBottlePrice;
   const monthlyProfit = Math.round(monthlyRevenue * ctvCommissionRate);
+
+  // Tính năng đang tạm tắt theo yêu cầu doanh nghiệp, chuyển hướng về trang chủ
+  return null;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
