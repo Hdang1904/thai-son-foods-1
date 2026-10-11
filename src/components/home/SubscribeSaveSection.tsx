@@ -23,7 +23,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useUserAuth } from '@/context/UserAuthContext';
 import { MEMBERSHIP_CONFIG } from '@/config/membership';
 
-// Tất cả item dùng CHUNG ĐÚNG 1 ẢNH chuẩn theo yêu cầu của người dùng
+// Ảnh chuẩn fallback
 const UNIFIED_PRODUCT_IMAGE = '/images/products/1200x900-sb1.jpg';
 
 interface SubscribeItem {
@@ -37,9 +37,11 @@ interface SubscribeItem {
   rating: number;
   reviewCount: number;
   badgeText: string;
+  image?: string;
 }
 
-const SUBSCRIBE_ITEMS: SubscribeItem[] = [
+// ── HÀNG 1: 12 SẢN PHẨM NẤU MỚI NGUYÊN BẢN ──────────────────────────
+export const SUBSCRIBE_PRODUCTS: SubscribeItem[] = [
   {
     id: 'sub-sb-01',
     nameVi: 'Sữa Bắp Nếp Tươi Thái Sơn (Lốc 7 chai 330ml)',
@@ -51,6 +53,7 @@ const SUBSCRIBE_ITEMS: SubscribeItem[] = [
     rating: 5.0,
     reviewCount: 932,
     badgeText: '5% | 15%',
+    image: '/images/products/1200x900-sb1.jpg',
   },
   {
     id: 'sub-shs-01',
@@ -63,11 +66,12 @@ const SUBSCRIBE_ITEMS: SubscribeItem[] = [
     rating: 4.9,
     reviewCount: 680,
     badgeText: '5% | 15%',
+    image: '/images/products/1200x900-shs1.jpg',
   },
   {
     id: 'sub-sgl-01',
     nameVi: 'Sữa Gạo Lứt Huyết Rồng (Lốc 7 chai 330ml)',
-    nameEn: 'Brown Rice Nutritious Milk (Pack of 7)',
+    nameEn: 'Mekong Nutritious Brown Rice Milk (Pack of 7)',
     unitVi: 'Lốc 7 chai',
     unitEn: 'Pack of 7',
     retailPrice: 126000,
@@ -75,74 +79,297 @@ const SUBSCRIBE_ITEMS: SubscribeItem[] = [
     rating: 4.9,
     reviewCount: 524,
     badgeText: '5% | 15%',
+    image: '/images/products/1200x900-sgl1.jpg',
+  },
+  {
+    id: 'sub-ss-01',
+    nameVi: 'Sữa Hạt Sen Lotus Yoo (Lốc 5 chai 568ml)',
+    nameEn: 'Lotus Yoo Fresh Lotus Seed Milk (Pack of 5)',
+    unitVi: 'Lốc 5 chai',
+    unitEn: 'Pack of 5',
+    retailPrice: 125000,
+    discountRate: 15,
+    rating: 4.9,
+    reviewCount: 418,
+    badgeText: '5% | 15%',
+    image: '/images/products/1200x900-ss1.jpg',
   },
   {
     id: 'sub-sl-01',
-    nameVi: 'Sữa Đậu Nành Tươi Lá Dứa (Lốc 7 chai 330ml)',
-    nameEn: 'Fresh Soy Milk with Pandan (Pack of 7)',
+    nameVi: 'Sữa Gạo Lứt Ohsawa Yoo (Lốc 5 chai 568ml)',
+    nameEn: 'Ohsawa Yoo Whole Brown Rice Milk (Pack of 5)',
+    unitVi: 'Lốc 5 chai',
+    unitEn: 'Pack of 5',
+    retailPrice: 125000,
+    discountRate: 15,
+    rating: 4.8,
+    reviewCount: 395,
+    badgeText: '5% | 15%',
+    image: '/images/products/1200x900-sl1.jpg',
+  },
+  {
+    id: 'sub-md-01',
+    nameVi: 'Nha Đam Mủ Trôm Tự Nhiên (Lốc 7 chai 330ml)',
+    nameEn: 'Aloe Vera & Karaya Gum Drink (Pack of 7)',
+    unitVi: 'Lốc 7 chai',
+    unitEn: 'Pack of 7',
+    retailPrice: 126000,
+    discountRate: 15,
+    rating: 5.0,
+    reviewCount: 612,
+    badgeText: '5% | 15%',
+    image: '/images/products/1200x900-md1.jpg',
+  },
+  {
+    id: 'sub-td-01',
+    nameVi: 'Nước Táo Đỏ Hạt Chia (Lốc 7 chai 330ml)',
+    nameEn: 'Red Apple & Chia Seed Drink (Pack of 7)',
+    unitVi: 'Lốc 7 chai',
+    unitEn: 'Pack of 7',
+    retailPrice: 126000,
+    discountRate: 15,
+    rating: 4.9,
+    reviewCount: 476,
+    badgeText: '5% | 15%',
+    image: '/images/products/1200x900-td1.jpg',
+  },
+  {
+    id: 'sub-lh-01',
+    nameVi: 'Sâm La Hán Quả Hoa Cúc (Lốc 7 chai 330ml)',
+    nameEn: 'Monk Fruit & Chrysanthemum Herbal (Pack of 7)',
     unitVi: 'Lốc 7 chai',
     unitEn: 'Pack of 7',
     retailPrice: 126000,
     discountRate: 15,
     rating: 4.8,
-    reviewCount: 388,
+    reviewCount: 382,
     badgeText: '5% | 15%',
+    image: '/images/products/1200x900-lh1.jpg',
   },
   {
-    id: 'sub-md-01',
-    nameVi: 'Sữa Mè Đen Tự Nhiên (Lốc 7 chai 330ml)',
-    nameEn: 'Black Sesame Fresh Milk (Pack of 7)',
+    id: 'sub-tsa-01',
+    nameVi: 'Trà Sữa Ciao Trân Châu (Lốc 7 chai 270ml)',
+    nameEn: 'Ciao Milk Tea with Topping (Pack of 7)',
+    unitVi: 'Lốc 7 chai',
+    unitEn: 'Pack of 7',
+    retailPrice: 140000,
+    discountRate: 15,
+    rating: 4.9,
+    reviewCount: 520,
+    badgeText: '5% | 15%',
+    image: '/images/products/1200x900-tsa1.jpg',
+  },
+  {
+    id: 'sub-mac-01',
+    nameVi: 'Matcha Trà Sữa Ciao (Lốc 7 chai 270ml)',
+    nameEn: 'Ciao Japanese Matcha Milk Tea (Pack of 7)',
+    unitVi: 'Lốc 7 chai',
+    unitEn: 'Pack of 7',
+    retailPrice: 140000,
+    discountRate: 15,
+    rating: 4.9,
+    reviewCount: 430,
+    badgeText: '5% | 15%',
+    image: '/images/products/1200x900-mac1.jpg',
+  },
+  {
+    id: 'sub-tsg-01',
+    nameVi: 'Trà Sữa GO Vị Đậm Đà (Lốc 7 chai 330ml)',
+    nameEn: 'GO Milk Tea Authentic Flavor (Pack of 7)',
     unitVi: 'Lốc 7 chai',
     unitEn: 'Pack of 7',
     retailPrice: 126000,
     discountRate: 15,
-    rating: 4.9,
-    reviewCount: 412,
+    rating: 4.8,
+    reviewCount: 345,
     badgeText: '5% | 15%',
+    image: '/images/products/1200x900-tsg1.jpg',
   },
   {
-    id: 'sub-family-01',
-    nameVi: 'Combo Năng Lượng Gia Đình 3 Vị (Thùng 15 chai)',
-    nameEn: 'Family Healthy Drink Pack (Box of 15)',
-    unitVi: 'Thùng 15 chai',
-    unitEn: 'Box of 15',
-    retailPrice: 270000,
+    id: 'sub-txg-01',
+    nameVi: 'Trà Xanh GO Thạch Giòn (Lốc 7 chai 330ml)',
+    nameEn: 'GO Refreshing Green Tea (Pack of 7)',
+    unitVi: 'Lốc 7 chai',
+    unitEn: 'Pack of 7',
+    retailPrice: 126000,
+    discountRate: 15,
+    rating: 4.8,
+    reviewCount: 310,
+    badgeText: '5% | 15%',
+    image: '/images/products/1200x900-txg1.jpg',
+  },
+];
+
+// ── HÀNG 2: 12 GÓI COMBO TIẾT KIỆM ĐA VỊ ────────────────────────────
+export const SUBSCRIBE_COMBOS: SubscribeItem[] = [
+  {
+    id: 'sub-combo-01',
+    nameVi: 'Combo Khám Phá Đa Vị (10 chai)',
+    nameEn: 'Diverse Discovery Combo (10 bottles)',
+    unitVi: 'Combo 10 chai',
+    unitEn: 'Combo of 10',
+    retailPrice: 180000,
+    discountRate: 15,
+    rating: 5.0,
+    reviewCount: 840,
+    badgeText: '10% | 15%',
+    image: '/images/combos/combo-1.jpg',
+  },
+  {
+    id: 'sub-combo-02',
+    nameVi: 'Combo Siêu Hời Gia Đình (17 chai)',
+    nameEn: 'Smart Family Stockup Combo (17 bottles)',
+    unitVi: 'Thùng 17 chai',
+    unitEn: 'Box of 17',
+    retailPrice: 306000,
+    discountRate: 15,
+    rating: 5.0,
+    reviewCount: 1120,
+    badgeText: '10% | 15%',
+    image: '/images/combos/combo-2.jpg',
+  },
+  {
+    id: 'sub-combo-03',
+    nameVi: 'Combo Tiết Kiệm Bậc Thang (20 chai)',
+    nameEn: 'Tier Pricing Savings Combo (20 bottles)',
+    unitVi: 'Thùng 20 chai',
+    unitEn: 'Carton of 20',
+    retailPrice: 360000,
+    discountRate: 15,
+    rating: 4.9,
+    reviewCount: 670,
+    badgeText: '10% | 15%',
+    image: '/images/combos/combo-3.jpg',
+  },
+  {
+    id: 'sub-combo-04',
+    nameVi: 'Combo Dáng Xinh Sức Khỏe (10 chai)',
+    nameEn: 'Slim & Golden Health Combo (10 bottles)',
+    unitVi: 'Combo 10 chai',
+    unitEn: 'Combo of 10',
+    retailPrice: 180000,
+    discountRate: 15,
+    rating: 4.9,
+    reviewCount: 520,
+    badgeText: '5% | 15%',
+    image: '/images/combos/combo-4.jpg',
+  },
+  {
+    id: 'sub-combo-05',
+    nameVi: 'Combo Bữa Sáng Năng Lượng Hạt (10 chai)',
+    nameEn: 'Energy Nut Breakfast Combo (10 bottles)',
+    unitVi: 'Combo 10 chai',
+    unitEn: 'Combo of 10',
+    retailPrice: 180000,
+    discountRate: 15,
+    rating: 5.0,
+    reviewCount: 910,
+    badgeText: '5% | 15%',
+    image: '/images/combos/combo-5.jpg',
+  },
+  {
+    id: 'sub-combo-06',
+    nameVi: 'Combo Giải Nhiệt Mát Lành (10 chai)',
+    nameEn: 'Instant Refreshment Combo (10 bottles)',
+    unitVi: 'Combo 10 chai',
+    unitEn: 'Combo of 10',
+    retailPrice: 180000,
+    discountRate: 15,
+    rating: 4.9,
+    reviewCount: 785,
+    badgeText: '5% | 15%',
+    image: '/images/combos/combo-6.jpg',
+  },
+  {
+    id: 'sub-combo-07',
+    nameVi: 'Combo Trọn Vị Gia Đình (12 chai)',
+    nameEn: 'Family Full Flavor Combo (12 bottles)',
+    unitVi: 'Thùng 12 chai',
+    unitEn: 'Box of 12',
+    retailPrice: 216000,
     discountRate: 15,
     rating: 5.0,
     reviewCount: 1045,
     badgeText: '10% | 15%',
+    image: '/images/combos/combo-7.jpg',
   },
   {
-    id: 'sub-combo-week',
-    nameVi: 'Combo Thanh Lọc 7 Ngày 7 Vị (Combo 7 chai 330ml)',
-    nameEn: '7-Day Detox & Vitality Combo (Set of 7)',
-    unitVi: 'Combo 7 chai',
-    unitEn: 'Set of 7',
-    retailPrice: 135000,
+    id: 'sub-combo-08',
+    nameVi: 'Combo Thả Ga Giảm Căng Thẳng (10 chai)',
+    nameEn: 'Worry-Free Enjoyment Combo (10 bottles)',
+    unitVi: 'Combo 10 chai',
+    unitEn: 'Combo of 10',
+    retailPrice: 208000,
     discountRate: 15,
-    rating: 5.0,
-    reviewCount: 780,
+    rating: 4.8,
+    reviewCount: 460,
     badgeText: '5% | 15%',
+    image: '/images/combos/combo-8.jpg',
   },
   {
-    id: 'sub-office-box',
-    nameVi: 'Thùng Tiếp Sức Văn Phòng Trọn Tuần (Thùng 24 chai)',
-    nameEn: 'Weekly Office Refreshment Pack (Carton of 24)',
-    unitVi: 'Thùng 24 chai',
-    unitEn: 'Carton of 24',
-    retailPrice: 410000,
+    id: 'sub-combo-09',
+    nameVi: 'Combo Văn Phòng Tỉnh Táo (12 chai)',
+    nameEn: 'Alert Office Energy Combo (12 bottles)',
+    unitVi: 'Thùng 12 chai',
+    unitEn: 'Carton of 12',
+    retailPrice: 224000,
     discountRate: 15,
     rating: 4.9,
-    reviewCount: 512,
+    reviewCount: 630,
     badgeText: '10% | 15%',
+    image: '/images/combos/combo-9.jpg',
+  },
+  {
+    id: 'sub-combo-10',
+    nameVi: 'Combo Quốc Dân Bán Chạy (10 chai)',
+    nameEn: 'National Best-Seller Combo (10 bottles)',
+    unitVi: 'Combo 10 chai',
+    unitEn: 'Combo of 10',
+    retailPrice: 180000,
+    discountRate: 15,
+    rating: 5.0,
+    reviewCount: 1250,
+    badgeText: '5% | 15%',
+    image: '/images/combos/combo-10.jpg',
+  },
+  {
+    id: 'sub-combo-11',
+    nameVi: 'Combo Giải Nhiệt Xu Hướng (10 chai)',
+    nameEn: 'Modern Trendy Cooling Combo (10 bottles)',
+    unitVi: 'Combo 10 chai',
+    unitEn: 'Combo of 10',
+    retailPrice: 184000,
+    discountRate: 15,
+    rating: 4.9,
+    reviewCount: 540,
+    badgeText: '10% | 15%',
+    image: '/images/combos/combo-11.jpg',
+  },
+  {
+    id: 'sub-combo-12',
+    nameVi: 'Combo Trải Nghiệm Toàn Diện (12 chai)',
+    nameEn: 'Comprehensive Experience Combo (12 bottles)',
+    unitVi: 'Thùng 12 chai',
+    unitEn: 'Box of 12',
+    retailPrice: 216000,
+    discountRate: 15,
+    rating: 5.0,
+    reviewCount: 890,
+    badgeText: '10% | 15%',
+    image: '/images/combos/combo-12.jpg',
   },
 ];
 
+export const SUBSCRIBE_ITEMS: SubscribeItem[] = [
+  ...SUBSCRIBE_PRODUCTS,
+  ...SUBSCRIBE_COMBOS,
+];
+
 const FREQUENCY_OPTIONS = [
-  { value: 'weekly', labelVi: 'Giao mỗi tuần (Sáng T2)', labelEn: 'Weekly (Every Mon)' },
-  { value: 'biweekly', labelVi: 'Giao 2 tuần / lần', labelEn: 'Every 2 weeks' },
-  { value: 'twice-weekly', labelVi: 'Giao 2 lần/tuần (T2 & T5)', labelEn: '2 times / week (Mon & Thu)' },
-  { value: 'monthly', labelVi: 'Giao mỗi tháng', labelEn: 'Monthly' },
+  { value: 'weekly', labelVi: 'Mỗi tuần', labelEn: 'Weekly' },
+  { value: 'biweekly', labelVi: '2 tuần/lần', labelEn: '2 weeks' },
+  { value: 'twice-weekly', labelVi: '2 lần/tuần', labelEn: '2x/week' },
+  { value: 'monthly', labelVi: 'Mỗi tháng', labelEn: 'Monthly' },
 ];
 
 interface SubscribeSaveSectionProps {
@@ -159,18 +386,14 @@ export default function SubscribeSaveSection({
   badgeText,
 }: SubscribeSaveSectionProps) {
   const { language } = useLanguage();
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Lưu tần suất giao hàng theo từng item trong số 8 sản phẩm/combo
-  const [selectedFreq, setSelectedFreq] = useState<Record<string, string>>({
-    'sub-sb-01': 'weekly',
-    'sub-shs-01': 'weekly',
-    'sub-sgl-01': 'weekly',
-    'sub-sl-01': 'weekly',
-    'sub-md-01': 'weekly',
-    'sub-family-01': 'weekly',
-    'sub-combo-week': 'weekly',
-    'sub-office-box': 'weekly',
+  // Lưu tần suất giao hàng theo từng item trong số 24 sản phẩm và combo
+  const [selectedFreq, setSelectedFreq] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    SUBSCRIBE_ITEMS.forEach((it) => {
+      initial[it.id] = 'weekly';
+    });
+    return initial;
   });
 
   const { user, refreshUser } = useUserAuth();
@@ -209,20 +432,10 @@ export default function SubscribeSaveSection({
     return null;
   }
 
-  const handleScroll = (direction: 'left' | 'right') => {
-    if (scrollContainerRef.current) {
-      const scrollAmount = 320;
-      scrollContainerRef.current.scrollBy({
-        left: direction === 'left' ? -scrollAmount : scrollAmount,
-        behavior: 'smooth',
-      });
-    }
-  };
-
   const handleSubscribeClick = (item: SubscribeItem) => {
     const freqKey = selectedFreq[item.id] || 'weekly';
     const opt = FREQUENCY_OPTIONS.find((o) => o.value === freqKey);
-    const freqLabel = language === 'en' ? opt?.labelEn || 'Weekly' : opt?.labelVi || 'Giao mỗi tuần';
+    const freqLabel = language === 'en' ? opt?.labelEn || 'Weekly' : opt?.labelVi || 'Mỗi tuần';
     const subPrice = Math.round(item.retailPrice * (1 - item.discountRate / 100));
 
     setCreatedSub(null);
@@ -344,149 +557,175 @@ export default function SubscribeSaveSection({
     }
   };
 
-  return (
-    <section className={`py-7 sm:py-10 bg-linear-to-b from-white via-amber-50/20 to-white relative overflow-hidden border-t border-b border-amber-100/60 ${className}`}>
-      <div className="section-container">
-        {/* Header Section phong cách Amazon Subscribe & Save kết hợp bản sắc Thái Sơn Foods */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-5">
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-bold uppercase tracking-wider mb-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
-              <span>{badgeText || 'Subscribe & Save • Tiết kiệm 15%'}</span>
-            </div>
-            <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-gray-900 tracking-tight font-heading">
-              {title || (language === 'en' ? 'Subscribe & Save Favourites' : 'Đăng Ký Giao Định Kỳ — 8 Sản Phẩm & Combo Tiết Kiệm')}
-            </h2>
-            <p className="text-xs sm:text-sm text-gray-600 mt-1 max-w-2xl">
-              {subtitle || (language === 'en'
-                ? 'Never run out of wholesome fresh beverages. Automatic scheduled delivery to your door. Free shipping on every order, cancel or skip anytime.'
-                : 'Thức uống tươi ngon nấu mới mỗi ngày với 8 sản phẩm & combo tuyển chọn. Miễn phí vận chuyển 100%, linh hoạt đổi vị và tạm dừng bất kỳ lúc nào.')}
-            </p>
+  // Chuẩn hóa tiêu đề & phụ đề
+  const displayTitle = title
+    ? title.replace(/8 Sản Phẩm( & Combo)?/gi, '12 Sản Phẩm & 12 Combo')
+    : language === 'en'
+    ? 'Subscribe & Save — 12 Products & 12 Value Combos'
+    : 'Đăng Ký Giao Định Kỳ — 12 Sản Phẩm & 12 Combo Tiết Kiệm';
+
+  const displaySubtitle = subtitle
+    ? subtitle.replace(/8 sản phẩm( & combo)?/gi, '12 sản phẩm & 12 combo')
+    : language === 'en'
+    ? 'Never run out of wholesome fresh beverages. Automatic scheduled delivery to your door. Free shipping on every order, cancel or skip anytime.'
+    : 'Thức uống tươi ngon nấu mới mỗi ngày với 12 sản phẩm & 12 combo tuyển chọn. Miễn phí vận chuyển 100%, linh hoạt đổi vị và tạm dừng bất kỳ lúc nào.';
+
+  const renderCard = (item: SubscribeItem) => {
+    const subPrice = Math.round(item.retailPrice * (1 - item.discountRate / 100));
+    const savingAmount = item.retailPrice - subPrice;
+    const currentFreq = selectedFreq[item.id] || 'weekly';
+
+    return (
+      <div
+        key={item.id}
+        className="bg-white rounded-lg border border-gray-200/90 shadow-2xs hover:shadow-md hover:border-amber-400 transition-all duration-200 p-1.5 sm:p-2 flex flex-col justify-between group h-full"
+      >
+        <div>
+          {/* Huy hiệu chiết khấu đặc trưng kiểu Amazon (5% | 15%) */}
+          <div className="flex items-center justify-between gap-0.5 mb-1">
+            <span className="px-1 py-0.5 bg-orange-600 text-white font-extrabold text-[8px] sm:text-[9px] rounded leading-none shrink-0">
+              {item.badgeText}
+            </span>
+            <span className="text-[8px] sm:text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200 leading-none shrink-0 truncate">
+              Freeship
+            </span>
           </div>
 
-          {/* Nút điều hướng Carousel (< >) trên màn hình cuộn */}
-          <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
-            <button
-              onClick={() => handleScroll('left')}
-              aria-label="Previous items"
-              className="w-9 h-9 rounded-full border border-gray-300 bg-white hover:bg-gray-50 active:scale-95 shadow-xs flex items-center justify-center text-gray-700 transition-all cursor-pointer"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => handleScroll('right')}
-              aria-label="Next items"
-              className="w-9 h-9 rounded-full border border-gray-300 bg-white hover:bg-gray-50 active:scale-95 shadow-xs flex items-center justify-center text-gray-700 transition-all cursor-pointer"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+          {/* Ảnh sản phẩm / combo — Tỷ lệ chuẩn 4:3 khớp chính xác với kích thước ảnh gốc 1200x900, hiển thị toàn diện không cắt xén */}
+          <div className="relative w-full aspect-[4/3] bg-[#FAF8F5] rounded-md overflow-hidden mb-1 flex items-center justify-center">
+            <Image
+              src={item.image || UNIFIED_PRODUCT_IMAGE}
+              alt={language === 'en' ? item.nameEn : item.nameVi}
+              fill
+              sizes="(max-width: 1024px) 150px, 120px"
+              className="object-contain w-full h-full group-hover:scale-105 transition-transform duration-300"
+            />
+          </div>
+
+          {/* Tên sản phẩm / combo */}
+          <h4
+            title={language === 'en' ? item.nameEn : item.nameVi}
+            className="text-[10px] sm:text-[11px] font-bold text-gray-900 line-clamp-2 min-h-[26px] sm:min-h-[28px] leading-tight"
+          >
+            {language === 'en' ? item.nameEn : item.nameVi}
+          </h4>
+
+          {/* Đánh giá sao */}
+          <div className="flex items-center gap-0.5 mt-0.5 text-gray-500">
+            <div className="flex items-center text-amber-500">
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+              ))}
+            </div>
+            <span className="text-[8px] sm:text-[9px] text-gray-400">({item.reviewCount})</span>
           </div>
         </div>
 
-        {/* 1 DÒNG 8 SẢN PHẨM / 8 COMBO (Xếp đều 8 cột trên màn hình Desktop lớn, cuộn ngang mượt mà trên Mobile/Tablet) */}
-        <div
-          ref={scrollContainerRef}
-          className="flex gap-2.5 sm:gap-3 overflow-x-auto pb-4 pt-1 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-amber-200 scrollbar-track-transparent -mx-4 px-4 sm:mx-0 sm:px-0"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        >
-          {SUBSCRIBE_ITEMS.map((item) => {
-            const subPrice = Math.round(item.retailPrice * (1 - item.discountRate / 100));
-            const savingAmount = item.retailPrice - subPrice;
-            const currentFreq = selectedFreq[item.id] || 'weekly';
+        <div>
+          {/* Khung Giá bán */}
+          <div className="mt-1 pt-1 border-t border-gray-100">
+            <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-1">
+              <span className="text-[11px] sm:text-xs font-black text-[#B12704] whitespace-nowrap">
+                {formatPrice(subPrice)} ₫
+              </span>
+              <span className="text-[8px] sm:text-[9px] text-gray-400 line-through whitespace-nowrap">
+                {formatPrice(item.retailPrice)} ₫
+              </span>
+            </div>
+            <div className="text-[8px] sm:text-[9px] text-emerald-700 font-semibold truncate">
+              {language === 'en'
+                ? `-${item.discountRate}%`
+                : `Giảm ${formatPrice(savingAmount)} ₫`}
+            </div>
+          </div>
 
-            return (
-              <div
-                key={item.id}
-                className="w-[170px] sm:w-[185px] lg:w-[calc((100%-7*10px)/8)] lg:min-w-[136px] shrink-0 bg-white rounded-xl border border-gray-200/90 shadow-xs hover:shadow-md hover:border-amber-400 transition-all duration-200 p-2.5 sm:p-3 flex flex-col justify-between snap-start relative group"
-              >
-                {/* Huy hiệu chiết khấu đặc trưng kiểu Amazon (5% | 15%) */}
-                <div className="flex items-center justify-between gap-1 mb-1.5">
-                  <span className="px-1.5 py-0.5 bg-orange-600 text-white font-bold text-[10px] rounded shadow-xs">
-                    {item.badgeText}
-                  </span>
-                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200">
-                    Freeship
-                  </span>
-                </div>
+          {/* Dropdown chọn tần suất giao hàng */}
+          <div className="mt-1">
+            <label className="block text-[8px] sm:text-[9px] font-semibold text-gray-500 mb-0.5 truncate">
+              {language === 'en' ? 'Deliver:' : 'Chu kỳ:'}
+            </label>
+            <select
+              value={currentFreq}
+              onChange={(e) =>
+                setSelectedFreq((prev) => ({
+                  ...prev,
+                  [item.id]: e.target.value,
+                }))
+              }
+              className="w-full text-[8px] sm:text-[9px] font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer transition-colors"
+            >
+              {FREQUENCY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {language === 'en' ? opt.labelEn : opt.labelVi}
+                </option>
+              ))}
+            </select>
+          </div>
 
-                {/* Ảnh sản phẩm dùng CHUNG ĐÚNG 1 ẢNH chuẩn cho toàn bộ 8 item */}
-                <div className="relative w-full aspect-square bg-gray-50 rounded-lg overflow-hidden mb-2">
-                  <Image
-                    src={UNIFIED_PRODUCT_IMAGE}
-                    alt={language === 'en' ? item.nameEn : item.nameVi}
-                    fill
-                    sizes="(max-width: 768px) 170px, 150px"
-                    className="object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                </div>
+          {/* Nút màu vàng đặc trưng của Amazon: "Subscribe now" */}
+          <button
+            onClick={() => handleSubscribeClick(item)}
+            type="button"
+            className="w-full mt-1.5 py-1.5 px-1 bg-[#FFD814] hover:bg-[#F7CA00] active:scale-[0.98] text-gray-900 font-bold text-[9px] sm:text-[10px] rounded border border-[#FCD200] shadow-2xs flex items-center justify-center gap-0.5 transition-all cursor-pointer whitespace-nowrap"
+          >
+            <RefreshCw className="w-2.5 h-2.5 text-gray-800 shrink-0" />
+            <span>{language === 'en' ? 'Subscribe' : 'Đăng ký ngay'}</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
 
-                {/* Tên sản phẩm */}
-                <h3 className="text-[11px] sm:text-xs font-bold text-gray-900 line-clamp-2 min-h-[32px] leading-snug">
-                  {language === 'en' ? item.nameEn : item.nameVi}
-                </h3>
+  return (
+    <section className={`py-5 sm:py-8 bg-linear-to-b from-white via-amber-50/20 to-white relative overflow-hidden border-t border-b border-amber-100/60 w-full ${className}`}>
+      {/* Container tràn viền full 2 cánh trái phải */}
+      <div className="w-full px-2 sm:px-3 md:px-4 lg:px-5 xl:px-6">
+        {/* Header Section phong cách Amazon Subscribe & Save */}
+        <div className="mb-4">
+          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1">
+            <Sparkles className="w-3 h-3 text-amber-600 fill-amber-500" />
+            <span>{badgeText || 'Subscribe & Save • Tiết kiệm 15%'}</span>
+          </div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-extrabold text-gray-900 tracking-tight font-heading">
+            {displayTitle}
+          </h2>
+          <p className="text-[11px] sm:text-xs text-gray-600 mt-0.5 max-w-4xl">
+            {displaySubtitle}
+          </p>
+        </div>
 
-                {/* Đánh giá sao */}
-                <div className="flex items-center gap-1 mt-1 text-[11px] text-gray-500">
-                  <div className="flex items-center text-amber-500">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-3 h-3 fill-amber-400 text-amber-400" />
-                    ))}
-                  </div>
-                  <span className="text-[10px] text-gray-400">({item.reviewCount})</span>
-                </div>
+        {/* ── HÀNG 1: 12 SẢN PHẨM NẤU MỚI (Show toàn diện 12 mã trên 1 hàng) ── */}
+        <div className="mb-5">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-gray-800 font-heading">
+              {language === 'en' ? '12 Fresh Nut Milk & Herbal Products' : '12 Sản Phẩm Sữa Hạt & Giải Khát Nấu Mới'}
+            </h3>
+            <span className="text-[9px] sm:text-[10px] font-semibold text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-full">
+              {language === 'en' ? 'Save 15%' : 'Tiết kiệm 15%'}
+            </span>
+          </div>
 
-                {/* Khung Giá bán */}
-                <div className="mt-2 pt-1.5 border-t border-gray-100">
-                  <div className="flex items-baseline gap-1.5 flex-wrap">
-                    <span className="text-sm sm:text-base font-black text-[#B12704]">
-                      {formatPrice(subPrice)} ₫
-                    </span>
-                    <span className="text-[10px] text-gray-400 line-through">
-                      {formatPrice(item.retailPrice)} ₫
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-emerald-700 font-semibold mt-0.5 truncate">
-                    {language === 'en'
-                      ? `Save ${formatPrice(savingAmount)} ₫`
-                      : `Giảm ${formatPrice(savingAmount)} ₫`}
-                  </div>
-                </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-1 sm:gap-1.5 xl:gap-2">
+            {SUBSCRIBE_PRODUCTS.map((item) => renderCard(item))}
+          </div>
+        </div>
 
-                {/* Dropdown chọn tần suất giao hàng */}
-                <div className="mt-2">
-                  <label className="block text-[10px] font-semibold text-gray-600 mb-0.5 truncate">
-                    {language === 'en' ? 'Deliver every:' : 'Chu kỳ nhận:'}
-                  </label>
-                  <select
-                    value={currentFreq}
-                    onChange={(e) =>
-                      setSelectedFreq((prev) => ({
-                        ...prev,
-                        [item.id]: e.target.value,
-                      }))
-                    }
-                    className="w-full text-[10px] font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer transition-colors"
-                  >
-                    {FREQUENCY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {language === 'en' ? opt.labelEn : opt.labelVi}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+        {/* ── HÀNG 2: 12 COMBO TIẾT KIỆM (Show toàn diện 12 mã trên 1 hàng) ── */}
+        <div>
+          <div className="flex items-center gap-2 mb-2 pt-2.5 border-t border-amber-100/60">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-gray-800 font-heading">
+              {language === 'en' ? '12 Family & Office Value Combos' : '12 Combo Tiết Kiệm Gia Đình & Văn Phòng'}
+            </h3>
+            <span className="text-[9px] sm:text-[10px] font-semibold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full">
+              {language === 'en' ? 'Freeship 100%' : 'Freeship 100%'}
+            </span>
+          </div>
 
-                {/* Nút màu vàng đặc trưng của Amazon: "Subscribe now" */}
-                <button
-                  onClick={() => handleSubscribeClick(item)}
-                  type="button"
-                  className="w-full mt-2.5 py-2 px-2 bg-[#FFD814] hover:bg-[#F7CA00] active:scale-[0.98] text-gray-900 font-bold text-[11px] rounded-lg border border-[#FCD200] shadow-xs flex items-center justify-center gap-1 transition-all cursor-pointer"
-                >
-                  <RefreshCw className="w-3 h-3 text-gray-800" />
-                  <span>{language === 'en' ? 'Subscribe' : 'Đăng ký ngay'}</span>
-                </button>
-              </div>
-            );
-          })}
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-1 sm:gap-1.5 xl:gap-2">
+            {SUBSCRIBE_COMBOS.map((item) => renderCard(item))}
+          </div>
         </div>
       </div>
 

@@ -248,7 +248,7 @@ export default function ProductReviewsSection({
   const count4 = useMemo(() => summary.breakdown.find((b) => b.stars === 4)?.count || 0, [summary]);
 
   return (
-    <section className={`w-full bg-white py-12 md:py-16 border-t border-gray-200 ${className}`} id="danh-gia">
+    <section className={`w-full bg-white py-12 md:py-16 border-t border-gray-200 scroll-mt-[168px] ${className}`} id="danh-gia">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         {/* 1. SECTION HEADER */}
         <div className="text-center mb-10 max-w-2xl mx-auto">
@@ -267,7 +267,7 @@ export default function ProductReviewsSection({
         {/* 2. BỐ CỤC 2 CỘT CHÍNH (GRID 12 CỘT) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* ── CỘT TRÁI (TỔNG QUAN ĐÁNH GIÁ - 4 CỘT) ── */}
-          <div className="lg:col-span-4 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-5 sticky lg:top-24">
+          <div className="lg:col-span-4 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-5 lg:sticky lg:top-[168px] z-10">
             <h3 className="font-bold text-gray-900 text-base">
               Đánh giá chung
             </h3>

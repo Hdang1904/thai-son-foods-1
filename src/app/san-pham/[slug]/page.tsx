@@ -204,8 +204,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
         {/* Main Product Content Area (3-Column Layout: Gallery Left + Buy Box Center + Sponsored Ad Right) */}
         <div className="max-w-[1456px] mx-auto px-4 sm:px-6 py-6 lg:py-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-            {/* Cột trái (Gallery): lg:col-span-5 w-full lg:sticky lg:top-24 */}
-            <div className="lg:col-span-5 w-full lg:sticky lg:top-24">
+            {/* Cột trái (Gallery): lg:col-span-5 w-full lg:sticky lg:top-[168px] */}
+            <div className="lg:col-span-5 w-full lg:sticky lg:top-[168px]">
               <ProductGallery
                 images={product.images}
                 productName={product.name}
@@ -221,7 +221,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </div>
 
             {/* Cột phải (Góc bên phải chỗ khoanh đỏ - Sponsored Best Seller / Đang Sale): lg:col-span-3 xl:col-span-3 */}
-            <div className="hidden lg:block lg:col-span-3 xl:col-span-3 lg:sticky lg:top-24">
+            <div className="hidden lg:block lg:col-span-3 xl:col-span-3 lg:sticky lg:top-[168px]">
               <ProductSidebarSponsoredCard currentProductId={product.id} />
             </div>
           </div>
