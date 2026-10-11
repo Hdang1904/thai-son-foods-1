@@ -16,6 +16,7 @@ import { MEMBERSHIP_CONFIG } from '@/config/membership';
 import ProductReviewsSection from '@/components/product/ProductReviewsSection';
 import ProductSponsoredBanner from '@/components/product/ProductSponsoredBanner';
 import ProductSidebarSponsoredCard from '@/components/product/ProductSidebarSponsoredCard';
+import { getProductReviewSummary, getProductReviews } from '@/lib/reviews/repository';
 import { ChevronRight } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -176,7 +177,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
     categoryProducts = products.filter((p) => p.isActive).slice(0, 5);
   }
 
-  const jsonLd = {
+  const reviewSummary = await getProductReviewSummary(product.slug || product.id);
+  let latestReviews: any[] = [];
+  if (reviewSummary.totalReviews > 0) {
+    const revResult = await getProductReviews(product.slug || product.id, {
+      sort: 'newest',
+      limit: 5,
+    });
+    latestReviews = revResult.reviews;
+  }
+
+  const jsonLd: Record<string, any> = {
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: product.name,
@@ -189,6 +200,36 @@ export default async function ProductPage({ params }: ProductPageProps) {
       availability: 'https://schema.org/InStock',
     },
   };
+
+  // CHỈ thêm aggregateRating và reviews khi reviewCount > 0 (tuyệt đối không xuất số 0 hoặc số giả)
+  if (reviewSummary.totalReviews > 0) {
+    jsonLd.aggregateRating = {
+      '@type': 'AggregateRating',
+      ratingValue: reviewSummary.averageRating,
+      reviewCount: reviewSummary.totalReviews,
+      bestRating: 5,
+      worstRating: 1,
+    };
+
+    if (latestReviews.length > 0) {
+      jsonLd.review = latestReviews.map((rev) => ({
+        '@type': 'Review',
+        reviewRating: {
+          '@type': 'Rating',
+          ratingValue: rev.rating,
+          bestRating: 5,
+          worstRating: 1,
+        },
+        author: {
+          '@type': 'Person',
+          name: rev.customerName || 'Khách hàng Thái Sơn',
+        },
+        datePublished: new Date(rev.createdAt).toISOString().split('T')[0],
+        reviewBody: rev.comment,
+        name: rev.title || undefined,
+      }));
+    }
+  }
 
   return (
     <div className="bg-white min-h-screen">
