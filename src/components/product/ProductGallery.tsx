@@ -192,15 +192,15 @@ export default function ProductGallery({
     <div className="w-full flex flex-col items-start select-none">
       {/* Gallery Layout: Thumbnails Cột dọc bên trái 64x64 1:1 + Main Image 1:1 bên phải */}
       <div className="w-full flex flex-row items-start gap-3 sm:gap-4">
-        {/* Thumbnails bên trái: Cột dọc 4 ảnh tỉ lệ 1:1, kích thước 64x64px, rounded-lg, border border-gray-200 */}
+        {/* Thumbnails bên trái: Cột dọc 4 ảnh tỉ lệ 4:3 khớp chuẩn ảnh 1200x900, bo góc rounded-lg */}
         {displayImages.length > 1 && (
-          <div className="hidden sm:flex flex-col gap-2.5 w-16 shrink-0 py-0.5">
+          <div className="hidden sm:flex flex-col gap-2 w-16 shrink-0 py-0.5">
             {displayImages.slice(0, 4).map((image, index) => (
               <button
                 key={image.id || index}
                 onClick={() => setActiveIndex(index)}
                 className={cn(
-                  'relative w-16 h-16 aspect-square rounded-lg overflow-hidden border transition-all shrink-0 bg-white p-0.5 flex items-center justify-center cursor-pointer',
+                  'relative w-16 aspect-[4/3] rounded-lg overflow-hidden border transition-all shrink-0 bg-white p-0.5 flex items-center justify-center cursor-pointer',
                   activeIndex === index
                     ? 'border-[#1B5E3B] ring-2 ring-[#1B5E3B]/20 shadow-xs'
                     : 'border-gray-200 hover:border-gray-400 opacity-80 hover:opacity-100'
@@ -226,11 +226,7 @@ export default function ProductGallery({
                       src={image.url}
                       alt={image.alt || productName}
                       fill
-                      className={cn(
-                        image.url.includes('bang-') || image.url.endsWith('.png')
-                          ? 'object-contain p-0.5'
-                          : 'object-cover'
-                      )}
+                      className="object-contain p-0.5"
                       sizes="64px"
                     />
                   )}
@@ -240,9 +236,9 @@ export default function ProductGallery({
           </div>
         )}
 
-        {/* Khung ảnh chính (Main Image): Tỉ lệ 1:1, nền bg-white, bo góc rounded-2xl, border mỏng border-gray-200/80 */}
+        {/* Khung ảnh chính (Main Image): Tỉ lệ 4:3 khớp hoàn hảo ảnh 1200x900, nền trắng, bo góc rounded-2xl, border mỏng border-gray-200/80 */}
         <div className="flex-1 min-w-0 flex flex-col">
-          <div className="relative w-full aspect-square bg-white rounded-2xl border border-gray-200/80 overflow-hidden group shadow-sm transition-all">
+          <div className="relative w-full aspect-[4/3] bg-white rounded-2xl border border-gray-200/80 overflow-hidden group shadow-sm transition-all">
             {/* Nút chia sẻ tròn Share2 góc trên bên phải */}
             <button
               onClick={(e) => {
@@ -314,12 +310,7 @@ export default function ProductGallery({
                   src={activeImage.url}
                   alt={activeImage.alt || productName}
                   fill
-                  className={cn(
-                    "transition-transform duration-300 group-hover:scale-[1.02]",
-                    isChart || activeImage.url.endsWith('.png')
-                      ? "object-contain p-2 sm:p-4"
-                      : "object-cover"
-                  )}
+                  className="object-contain transition-transform duration-300 group-hover:scale-[1.02]"
                   sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 600px"
                   priority
                 />
@@ -335,7 +326,7 @@ export default function ProductGallery({
                   key={image.id || index}
                   onClick={() => setActiveIndex(index)}
                   className={cn(
-                    'relative w-14 h-14 aspect-square rounded-lg overflow-hidden border transition-all shrink-0 bg-white p-0.5 flex items-center justify-center cursor-pointer',
+                    'relative w-16 aspect-[4/3] rounded-lg overflow-hidden border transition-all shrink-0 bg-white p-0.5 flex items-center justify-center cursor-pointer',
                     activeIndex === index
                       ? 'border-[#1B5E3B] ring-2 ring-[#1B5E3B]/20 shadow-xs'
                       : 'border-gray-200 hover:border-gray-400 opacity-80 hover:opacity-100'
@@ -361,12 +352,8 @@ export default function ProductGallery({
                         src={image.url}
                         alt={image.alt || productName}
                         fill
-                        className={cn(
-                          image.url.includes('bang-') || image.url.endsWith('.png')
-                            ? 'object-contain p-0.5'
-                            : 'object-cover'
-                        )}
-                        sizes="56px"
+                        className="object-contain p-0.5"
+                        sizes="64px"
                       />
                     )}
                   </div>
@@ -495,18 +482,14 @@ export default function ProductGallery({
                     </span>
                   )}
 
-                  {/* Ảnh thumbnail khớp khung card w-14 h-14 */}
-                  <div className="relative w-14 h-14 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center mb-1.5 group-hover:scale-105 transition-transform duration-200">
+                  {/* Khung ảnh thumbnail 4:3 khớp chuẩn ảnh 1200x900 */}
+                  <div className="relative w-full aspect-[4/3] rounded-lg bg-white border border-gray-100 overflow-hidden flex items-center justify-center mb-1.5 group-hover:scale-105 transition-transform duration-200">
                     <Image
                       src={prod.thumbnail}
                       alt={prod.name}
                       fill
-                      className={cn(
-                        prod.thumbnail.endsWith('.png')
-                          ? 'object-contain p-0.5'
-                          : 'object-cover'
-                      )}
-                      sizes="56px"
+                      className="object-contain p-0.5"
+                      sizes="80px"
                     />
                   </div>
 

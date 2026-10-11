@@ -77,14 +77,14 @@ export default function ProductSidebarSponsoredCard({
               />
             </div>
 
-            {/* Mini Product / Lifestyle Banner bên phải */}
-            <div className="relative w-24 sm:w-28 h-14 sm:h-16 rounded-md overflow-hidden bg-white border border-gray-100 shrink-0">
+            {/* Mini Product / Lifestyle Banner bên phải: tỉ lệ 4:3 khớp ảnh chuẩn 1200x900 */}
+            <div className="relative w-24 sm:w-28 aspect-[4/3] rounded-md overflow-hidden bg-white border border-gray-100 shrink-0">
               <Image
                 src={thumbnail}
                 alt={cleanName}
                 fill
                 sizes="120px"
-                className="object-cover group-hover:scale-105 transition-transform duration-300"
+                className="object-contain p-0.5 group-hover:scale-105 transition-transform duration-300"
               />
             </div>
           </div>
