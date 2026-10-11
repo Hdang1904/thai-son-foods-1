@@ -812,7 +812,7 @@ export async function getProductReviews(
     queryParams.push(limit, offset);
 
     const res = await query(dataSql, queryParams);
-    let reviews: ReviewItem[] = res.rows.map((row) => ({
+    const reviews: ReviewItem[] = res.rows.map((row) => ({
       ...row,
       images: Array.isArray(row.images) ? row.images : [],
       createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
@@ -938,7 +938,7 @@ export async function createProductReview(
           )
       `;
       const params: any[] = [productKeys];
-      let pIdx = 2;
+      const pIdx = 2;
 
       if (phoneVariants.length > 0 && userId) {
         orderCheckSql += ` AND (regexp_replace(o.phone, '\\D', '', 'g') = ANY($${pIdx}) OR o.user_id = $${pIdx + 1})`;

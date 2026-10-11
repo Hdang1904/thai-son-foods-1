@@ -12,7 +12,6 @@
 
 import assert from 'node:assert';
 import pg from 'pg';
-import { SignJWT } from 'jose';
 import {
   getProductReviewSummary,
   createProductReview,
@@ -26,9 +25,6 @@ import { containsBannedWords } from '../src/config/bannedWords.ts';
 
 const DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:Tsf%40123@127.0.0.1:5432/WebTSF?sslmode=disable';
 const pool = new pg.Pool({ connectionString: DB_URL });
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'tsf_super_secret_jwt_key_2026_thai_son_foods'
-);
 
 let passed = 0;
 let failed = 0;
