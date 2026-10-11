@@ -41,7 +41,10 @@ export type Permission =
   | 'partners.policy_manage'
   | 'payouts.view'
   | 'payouts.approve'
-  | 'dealer.manage';
+  | 'dealer.manage'
+  | 'reviews.view'
+  | 'reviews.reply'
+  | 'reviews.moderate';
 
 export const ALL_PERMISSIONS: readonly Permission[] = [
   'dashboard.view_company',
@@ -85,6 +88,9 @@ export const ALL_PERMISSIONS: readonly Permission[] = [
   'payouts.view',
   'payouts.approve',
   'dealer.manage',
+  'reviews.view',
+  'reviews.reply',
+  'reviews.moderate',
 ] as const;
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
@@ -102,6 +108,9 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'upload.use',
     'inventory.view_total',
     'members.view_masked',
+    'reviews.view',
+    'reviews.reply',
+    'reviews.moderate',
   ],
 
   STORE_STAFF: [

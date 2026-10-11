@@ -45,6 +45,7 @@ export const BANNED_WORDS: readonly string[] = [
   'bắn cá',
   'ku bet',
   'kubet',
+  'bet88',
   'shbet',
   'fb88',
   'fun88',

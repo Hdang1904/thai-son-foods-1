@@ -5,11 +5,8 @@ import Link from 'next/link';
 import {
   Star,
   Search,
-  Filter,
   CheckCircle2,
   XCircle,
-  Eye,
-  EyeOff,
   MessageCircle,
   ArrowLeft,
   X,
@@ -17,6 +14,9 @@ import {
   ThumbsUp,
   RefreshCw,
   ShieldCheck,
+  Trash2,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface AdminReviewRow {
@@ -36,11 +36,24 @@ interface AdminReviewRow {
   createdAt: string;
 }
 
+interface ReviewCounts {
+  total: number;
+  pendingCount: number;
+  approvedCount: number;
+  verifiedCount: number;
+}
+
 export default function AdminReviewsPage() {
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState<AdminReviewRow[]>([]);
-  const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [filterStatus, setFilterStatus] = useState<string>('PENDING'); // Mặc định mở tab "Chờ duyệt"
   const [searchQuery, setSearchQuery] = useState('');
+  const [counts, setCounts] = useState<ReviewCounts>({
+    total: 0,
+    pendingCount: 0,
+    approvedCount: 0,
+    verifiedCount: 0,
+  });
 
   // Modal phản hồi CSKH
   const [activeReview, setActiveReview] = useState<AdminReviewRow | null>(null);
@@ -58,6 +71,9 @@ export default function AdminReviewsPage() {
       const data = await res.json();
       if (data.success && Array.isArray(data.reviews)) {
         setReviews(data.reviews);
+        if (data.counts) {
+          setCounts(data.counts);
+        }
       }
     } catch (err) {
       console.error('Error fetching admin reviews:', err);
@@ -82,11 +98,36 @@ export default function AdminReviewsPage() {
         setReviews((prev) =>
           prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
         );
+        fetchReviews();
       } else {
         alert(data.error || 'Cập nhật thất bại');
       }
     } catch {
       alert('Lỗi kết nối máy chủ');
+    }
+  };
+
+  const handleDeleteReview = async (id: string) => {
+    if (
+      !window.confirm(
+        'Bạn có chắc chắn muốn xóa đánh giá này không? Thao tác này sẽ xóa vĩnh viễn đánh giá và các lượt bình chọn liên quan.'
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/reviews/${id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        setReviews((prev) => prev.filter((r) => r.id !== id));
+        fetchReviews();
+      } else {
+        alert(data.error || 'Xóa đánh giá thất bại');
+      }
+    } catch {
+      alert('Lỗi kết nối máy chủ khi xóa đánh giá');
     }
   };
 
@@ -108,7 +149,13 @@ export default function AdminReviewsPage() {
       if (data.success) {
         setReviews((prev) =>
           prev.map((r) =>
-            r.id === activeReview.id ? { ...r, adminReply: replyText.trim(), adminRepliedAt: new Date().toISOString() } : r
+            r.id === activeReview.id
+              ? {
+                  ...r,
+                  adminReply: replyText.trim(),
+                  adminRepliedAt: new Date().toISOString(),
+                }
+              : r
           )
         );
         setActiveReview(null);
@@ -122,11 +169,6 @@ export default function AdminReviewsPage() {
       setActionLoading(false);
     }
   };
-
-  // Thống kê nhanh
-  const totalCount = reviews.length;
-  const verifiedCount = reviews.filter((r) => r.isVerifiedBuyer).length;
-  const count5Stars = reviews.filter((r) => r.rating === 5).length;
 
   return (
     <div className="min-h-screen bg-gray-50/50 p-4 sm:p-6 lg:p-8">
@@ -160,47 +202,106 @@ export default function AdminReviewsPage() {
           </button>
         </div>
 
-        {/* 3 Thẻ thống kê nhanh */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs">
-            <div className="text-xs font-semibold text-gray-500 mb-1">Tổng Số Đánh Giá</div>
-            <div className="text-3xl font-black text-gray-900">{totalCount}</div>
-            <p className="text-[11px] text-gray-400 mt-1">Ghi nhận trên toàn hệ thống</p>
+        {/* 4 Thẻ thống kê nhanh */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Chờ Duyệt (PENDING) */}
+          <div
+            onClick={() => setFilterStatus('PENDING')}
+            className={`p-5 rounded-2xl border transition cursor-pointer ${
+              filterStatus === 'PENDING'
+                ? 'bg-amber-50/80 border-amber-300 ring-2 ring-amber-400/20 shadow-xs'
+                : 'bg-white border-gray-200/80 hover:border-amber-300 shadow-xs'
+            }`}
+          >
+            <div className="text-xs font-bold text-amber-800 mb-1 flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-amber-600" />
+              Chờ Kiểm Duyệt
+            </div>
+            <div className="text-3xl font-black text-amber-600">{counts.pendingCount}</div>
+            <p className="text-[11px] text-gray-500 mt-1">
+              {counts.pendingCount > 0
+                ? 'Cần duyệt trước khi hiển thị ra trang sản phẩm'
+                : 'Tất cả đánh giá đã được xử lý'}
+            </p>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs">
-            <div className="text-xs font-semibold text-emerald-700 mb-1 flex items-center gap-1">
-              <ShieldCheck className="w-4 h-4" /> Đã Mua Hàng (Verified)
+          {/* Card 2: Đã Duyệt (APPROVED) */}
+          <div
+            onClick={() => setFilterStatus('APPROVED')}
+            className={`p-5 rounded-2xl border transition cursor-pointer ${
+              filterStatus === 'APPROVED'
+                ? 'bg-emerald-50/80 border-emerald-300 ring-2 ring-emerald-400/20 shadow-xs'
+                : 'bg-white border-gray-200/80 hover:border-emerald-300 shadow-xs'
+            }`}
+          >
+            <div className="text-xs font-bold text-emerald-800 mb-1 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              Đã Duyệt Công Khai
             </div>
-            <div className="text-3xl font-black text-emerald-700">{verifiedCount}</div>
-            <p className="text-[11px] text-gray-400 mt-1">Khách có đơn hàng hoàn tất</p>
+            <div className="text-3xl font-black text-emerald-700">{counts.approvedCount}</div>
+            <p className="text-[11px] text-gray-500 mt-1">Đang hiển thị trên trang công khai</p>
           </div>
 
+          {/* Card 3: Đã Mua Hàng (Verified) */}
           <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs">
-            <div className="text-xs font-semibold text-amber-600 mb-1 flex items-center gap-1">
-              <Star className="w-4 h-4 fill-amber-400" /> Đánh Giá 5 Sao
+            <div className="text-xs font-bold text-teal-800 mb-1 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-teal-600" />
+              Đã Mua Hàng (Verified)
             </div>
-            <div className="text-3xl font-black text-amber-600">{count5Stars}</div>
-            <p className="text-[11px] text-gray-400 mt-1">Khách hàng rất hài lòng</p>
+            <div className="text-3xl font-black text-teal-700">{counts.verifiedCount}</div>
+            <p className="text-[11px] text-gray-500 mt-1">Có đơn hoàn tất đúng sản phẩm</p>
+          </div>
+
+          {/* Card 4: Tổng Số Đánh Giá */}
+          <div
+            onClick={() => setFilterStatus('ALL')}
+            className={`p-5 rounded-2xl border transition cursor-pointer ${
+              filterStatus === 'ALL'
+                ? 'bg-gray-100 border-gray-400 ring-2 ring-gray-400/20 shadow-xs'
+                : 'bg-white border-gray-200/80 hover:border-gray-400 shadow-xs'
+            }`}
+          >
+            <div className="text-xs font-bold text-gray-600 mb-1 flex items-center gap-1.5">
+              <Star className="w-4 h-4 text-gray-500" />
+              Tổng Số Đánh Giá
+            </div>
+            <div className="text-3xl font-black text-gray-900">{counts.total}</div>
+            <p className="text-[11px] text-gray-500 mt-1">Ghi nhận trong toàn bộ cơ sở dữ liệu</p>
           </div>
         </div>
 
-        {/* Bộ lọc */}
+        {/* Bộ lọc Tab & Tìm kiếm */}
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            {['ALL', 'APPROVED', 'HIDDEN'].map((st) => (
+            {[
+              { id: 'PENDING', label: 'Chờ duyệt', count: counts.pendingCount },
+              { id: 'APPROVED', label: 'Đã duyệt', count: counts.approvedCount },
+              { id: 'HIDDEN', label: 'Đã ẩn / Từ chối' },
+              { id: 'ALL', label: 'Tất cả', count: counts.total },
+            ].map((tab) => (
               <button
-                key={st}
-                onClick={() => setFilterStatus(st)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  filterStatus === st
-                    ? 'bg-gray-900 text-white'
+                key={tab.id}
+                onClick={() => setFilterStatus(tab.id)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  filterStatus === tab.id
+                    ? 'bg-gray-900 text-white shadow-xs'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {st === 'ALL' && 'Tất cả'}
-                {st === 'APPROVED' && 'Đang hiển thị'}
-                {st === 'HIDDEN' && 'Đang ẩn'}
+                <span>{tab.label}</span>
+                {typeof tab.count === 'number' && (
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                      filterStatus === tab.id
+                        ? 'bg-white/20 text-white'
+                        : tab.id === 'PENDING' && tab.count > 0
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-gray-200 text-gray-700'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -223,7 +324,9 @@ export default function AdminReviewsPage() {
           {loading ? (
             <div className="p-12 text-center text-xs text-gray-500">Đang tải danh sách đánh giá...</div>
           ) : reviews.length === 0 ? (
-            <div className="p-12 text-center text-xs text-gray-400">Không tìm thấy đánh giá nào</div>
+            <div className="p-12 text-center text-xs text-gray-400">
+              Không tìm thấy đánh giá nào {filterStatus === 'PENDING' && 'đang chờ duyệt'}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-gray-600">
@@ -246,9 +349,13 @@ export default function AdminReviewsPage() {
                         {r.customerPhone && (
                           <div className="text-[11px] text-gray-400">{r.customerPhone}</div>
                         )}
-                        {r.isVerifiedBuyer && (
+                        {r.isVerifiedBuyer ? (
                           <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200/60">
                             <CheckCircle2 className="w-2.5 h-2.5" /> Đã mua hàng
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full bg-gray-50 text-gray-500 text-[10px] font-medium border border-gray-200">
+                            Khách vãng lai
                           </span>
                         )}
                       </td>
@@ -295,29 +402,41 @@ export default function AdminReviewsPage() {
                       {/* Trạng thái */}
                       <td className="py-4 px-4 align-top text-center">
                         <span
-                          className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                          className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border ${
                             r.status === 'APPROVED'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-gray-100 text-gray-600'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : r.status === 'PENDING'
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : 'bg-gray-100 text-gray-600 border-gray-200'
                           }`}
                         >
-                          {r.status === 'APPROVED' ? 'Hiển thị' : 'Đang ẩn'}
+                          {r.status === 'APPROVED' && 'Đã duyệt'}
+                          {r.status === 'PENDING' && 'Chờ duyệt'}
+                          {r.status === 'HIDDEN' && 'Đang ẩn'}
                         </span>
                       </td>
 
                       {/* Thao tác */}
                       <td className="py-4 px-4 align-top text-right space-x-1 whitespace-nowrap">
-                        <button
-                          onClick={() => handleOpenReplyModal(r)}
-                          className="px-2.5 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-bold transition cursor-pointer"
-                        >
-                          Phản hồi
-                        </button>
-
-                        {r.status === 'APPROVED' ? (
+                        {r.status === 'PENDING' ? (
+                          <>
+                            <button
+                              onClick={() => handleUpdateStatus(r.id, 'APPROVED')}
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition cursor-pointer"
+                            >
+                              Duyệt
+                            </button>
+                            <button
+                              onClick={() => handleUpdateStatus(r.id, 'HIDDEN')}
+                              className="px-2.5 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-bold transition cursor-pointer"
+                            >
+                              Từ chối
+                            </button>
+                          </>
+                        ) : r.status === 'APPROVED' ? (
                           <button
                             onClick={() => handleUpdateStatus(r.id, 'HIDDEN')}
-                            className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold transition cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-[11px] font-bold transition cursor-pointer"
                           >
                             Ẩn
                           </button>
@@ -326,9 +445,24 @@ export default function AdminReviewsPage() {
                             onClick={() => handleUpdateStatus(r.id, 'APPROVED')}
                             className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold transition cursor-pointer"
                           >
-                            Hiện
+                            Duyệt lại
                           </button>
                         )}
+
+                        <button
+                          onClick={() => handleOpenReplyModal(r)}
+                          className="px-2.5 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-bold transition cursor-pointer"
+                        >
+                          Phản hồi
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteReview(r.id)}
+                          title="Xóa vĩnh viễn"
+                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold transition cursor-pointer inline-flex items-center"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -371,26 +505,27 @@ export default function AdminReviewsPage() {
                 rows={4}
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
-                placeholder="Dạ Thái Sơn Foods xin cảm ơn quý khách đã tin dùng sản phẩm..."
-                className="w-full p-3 text-xs rounded-xl border border-gray-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 resize-none"
+                placeholder="Ví dụ: Dạ Thái Sơn Foods xin cảm ơn anh/chị đã tin dùng..."
+                className="w-full p-3 text-xs rounded-xl border border-gray-200 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 resize-none bg-white"
               />
             </div>
 
-            <div className="flex justify-end gap-2 mt-4">
+            <div className="flex items-center justify-end gap-2 mt-4">
               <button
                 type="button"
                 onClick={() => setActiveReview(null)}
                 className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition cursor-pointer"
               >
-                Hủy
+                Hủy bỏ
               </button>
               <button
                 type="button"
                 disabled={actionLoading || !replyText.trim()}
                 onClick={handleSendReply}
-                className="px-5 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
-                {actionLoading ? 'Đang gửi...' : 'Lưu Phản Hồi'}
+                <Send className="w-3.5 h-3.5" />
+                {actionLoading ? 'Đang gửi...' : 'Gửi Phản Hồi'}
               </button>
             </div>
           </div>

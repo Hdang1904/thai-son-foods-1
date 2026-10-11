@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSession } from '@/lib/auth';
+import { hasPermission } from '@/lib/rbac';
 import { query } from '@/lib/db';
 import { ensureReviewsSchema, getAdminMemoryReviews } from '@/lib/reviews/repository';
 
@@ -16,6 +17,13 @@ export async function GET(req: NextRequest) {
     const session = await getAdminSession();
     if (!session) {
       return NextResponse.json({ success: false, error: 'Chưa đăng nhập quản trị' }, { status: 401 });
+    }
+
+    if (!hasPermission(session, 'reviews.view')) {
+      return NextResponse.json(
+        { success: false, error: 'Không có quyền truy cập đánh giá (yêu cầu reviews.view)' },
+        { status: 403 }
+      );
     }
 
     await ensureReviewsSchema();
@@ -40,6 +48,16 @@ export async function GET(req: NextRequest) {
     const countRes = await query(`SELECT count(*)::int as total FROM product_reviews WHERE ${where};`, params);
     const total = countRes.rows[0]?.total || 0;
 
+    const countsRes = await query(`
+      SELECT 
+        count(*)::int as total,
+        count(CASE WHEN status = 'PENDING' THEN 1 END)::int as "pendingCount",
+        count(CASE WHEN status = 'APPROVED' THEN 1 END)::int as "approvedCount",
+        count(CASE WHEN is_verified_buyer = true THEN 1 END)::int as "verifiedCount"
+      FROM product_reviews;
+    `);
+    const counts = countsRes.rows[0] || { total: 0, pendingCount: 0, approvedCount: 0, verifiedCount: 0 };
+
     const dataRes = await query(
       `SELECT 
         id, product_id AS "productId", user_id AS "userId", order_id AS "orderId",
@@ -59,6 +77,7 @@ export async function GET(req: NextRequest) {
       success: true,
       reviews: dataRes.rows,
       total,
+      counts,
       page,
       limit,
     });

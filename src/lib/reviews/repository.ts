@@ -669,6 +669,20 @@ export async function ensureReviewsSchema(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(review_id, fingerprint)
     );
+
+    CREATE TABLE IF NOT EXISTS review_rate_limits (
+      id VARCHAR(64) PRIMARY KEY,
+      ip_address VARCHAR(64) NOT NULL,
+      phone VARCHAR(30),
+      user_id VARCHAR(64),
+      product_id VARCHAR(100) NOT NULL,
+      comment_hash VARCHAR(64),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_rate_limits_ip_created ON review_rate_limits(ip_address, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_rate_limits_phone_prod ON review_rate_limits(phone, product_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_rate_limits_hash ON review_rate_limits(comment_hash, created_at DESC);
   `;
   try {
     await query(ddl);
@@ -1145,3 +1159,201 @@ export async function adminUpdateReview(
 
   return dbSuccess;
 }
+
+/**
+ * Quản trị Admin: Xóa đánh giá (xóa cascade vote liên quan)
+ */
+export async function adminDeleteReview(reviewId: string): Promise<boolean> {
+  let dbSuccess = false;
+  try {
+    await ensureReviewsSchema();
+    await query(`DELETE FROM review_helpful_votes WHERE review_id = $1;`, [reviewId]);
+    const res = await query(`DELETE FROM product_reviews WHERE id = $1;`, [reviewId]);
+    dbSuccess = (res.rowCount ?? 0) > 0;
+  } catch (err: any) {
+    console.warn('[adminDeleteReview] DB delete failed:', err?.message);
+  }
+
+  const memIdx = memoryReviews.findIndex((r) => r.id === reviewId);
+  if (memIdx !== -1) {
+    memoryReviews.splice(memIdx, 1);
+    return true;
+  }
+  return dbSuccess;
+}
+
+interface RateLimitCheckInput {
+  ip: string;
+  phone?: string;
+  userId?: string;
+  productId: string;
+  comment: string;
+}
+
+interface RateLimitResult {
+  allowed: boolean;
+  error?: string;
+}
+
+interface MemoryRateLimitEntry {
+  id: string;
+  ip: string;
+  phone?: string;
+  userId?: string;
+  productId: string;
+  commentHash: string;
+  createdAt: number;
+}
+
+const memoryRateLimitStore: MemoryRateLimitEntry[] = [];
+
+/**
+ * Kiểm tra và ghi nhận tần suất gửi đánh giá (Rate limit & Chống spam)
+ * - Tối đa 3 lượt gửi / IP / 1 giờ
+ * - Chặn trùng lặp SĐT hoặc user_id cùng sản phẩm trong 24 giờ
+ * - Chặn trùng lặp nội dung đánh giá trong 24 giờ
+ */
+export async function checkAndRecordReviewRateLimit(
+  input: RateLimitCheckInput
+): Promise<RateLimitResult> {
+  const normPhone = normalizePhoneNumber(input.phone);
+  const commentHash = crypto
+    .createHash('sha256')
+    .update(input.comment.trim().toLowerCase())
+    .digest('hex');
+  const now = Date.now();
+  const oneHourAgo = new Date(now - 60 * 60 * 1000);
+  const twentyFourHoursAgo = new Date(now - 24 * 60 * 60 * 1000);
+
+  try {
+    await ensureReviewsSchema();
+
+    // 1. Kiểm tra giới hạn IP: tối đa 3 lượt / IP / 1 giờ
+    const ipCountRes = await query(
+      `SELECT count(*)::int as count FROM review_rate_limits WHERE ip_address = $1 AND created_at >= $2;`,
+      [input.ip, oneHourAgo]
+    );
+    const ipCount = Number(ipCountRes.rows[0]?.count || 0);
+    if (ipCount >= 3) {
+      return {
+        allowed: false,
+        error: 'Bạn đã gửi đánh giá quá 3 lần trong 1 giờ qua. Vui lòng quay lại sau.',
+      };
+    }
+
+    // 2. Chặn trùng lặp theo SĐT hoặc user_id cùng sản phẩm trong 24h
+    if (normPhone) {
+      const phoneCountRes = await query(
+        `SELECT count(*)::int as count FROM review_rate_limits WHERE phone = $1 AND product_id = $2 AND created_at >= $3;`,
+        [normPhone, input.productId, twentyFourHoursAgo]
+      );
+      if (Number(phoneCountRes.rows[0]?.count || 0) > 0) {
+        return {
+          allowed: false,
+          error: 'Số điện thoại này đã gửi đánh giá cho sản phẩm trong vòng 24 giờ qua. Vui lòng không gửi trùng lặp.',
+        };
+      }
+    }
+
+    if (input.userId) {
+      const userCountRes = await query(
+        `SELECT count(*)::int as count FROM review_rate_limits WHERE user_id = $1 AND product_id = $2 AND created_at >= $3;`,
+        [input.userId, input.productId, twentyFourHoursAgo]
+      );
+      if (Number(userCountRes.rows[0]?.count || 0) > 0) {
+        return {
+          allowed: false,
+          error: 'Tài khoản này đã gửi đánh giá cho sản phẩm trong vòng 24 giờ qua. Vui lòng không gửi trùng lặp.',
+        };
+      }
+    }
+
+    // 3. Chặn trùng lặp nội dung giống hệt trong 24h
+    const hashCountRes = await query(
+      `SELECT count(*)::int as count FROM review_rate_limits WHERE comment_hash = $1 AND created_at >= $2;`,
+      [commentHash, twentyFourHoursAgo]
+    );
+    if (Number(hashCountRes.rows[0]?.count || 0) > 0) {
+      return {
+        allowed: false,
+        error: 'Nội dung đánh giá tương tự đã được gửi gần đây. Vui lòng không gửi trùng lặp.',
+      };
+    }
+
+    // Ghi nhận bản ghi rate limit
+    const newId = `rl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    await query(
+      `INSERT INTO review_rate_limits (id, ip_address, phone, user_id, product_id, comment_hash, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP);`,
+      [newId, input.ip, normPhone || null, input.userId || null, input.productId, commentHash]
+    );
+
+    return { allowed: true };
+  } catch (err: any) {
+    console.warn('[checkAndRecordReviewRateLimit] DB check failed, using memory store fallback:', err?.message);
+
+    const cutoff1h = now - 60 * 60 * 1000;
+    const cutoff24h = now - 24 * 60 * 60 * 1000;
+
+    while (memoryRateLimitStore.length > 0 && memoryRateLimitStore[0].createdAt < cutoff24h) {
+      memoryRateLimitStore.shift();
+    }
+
+    const ipCount = memoryRateLimitStore.filter(
+      (entry) => entry.ip === input.ip && entry.createdAt >= cutoff1h
+    ).length;
+    if (ipCount >= 3) {
+      return {
+        allowed: false,
+        error: 'Bạn đã gửi đánh giá quá 3 lần trong 1 giờ qua. Vui lòng quay lại sau.',
+      };
+    }
+
+    if (normPhone) {
+      const hasPhoneDuplicate = memoryRateLimitStore.some(
+        (entry) => entry.phone === normPhone && entry.productId === input.productId && entry.createdAt >= cutoff24h
+      );
+      if (hasPhoneDuplicate) {
+        return {
+          allowed: false,
+          error: 'Số điện thoại này đã gửi đánh giá cho sản phẩm trong vòng 24 giờ qua. Vui lòng không gửi trùng lặp.',
+        };
+      }
+    }
+
+    if (input.userId) {
+      const hasUserDuplicate = memoryRateLimitStore.some(
+        (entry) => entry.userId === input.userId && entry.productId === input.productId && entry.createdAt >= cutoff24h
+      );
+      if (hasUserDuplicate) {
+        return {
+          allowed: false,
+          error: 'Tài khoản này đã gửi đánh giá cho sản phẩm trong vòng 24 giờ qua. Vui lòng không gửi trùng lặp.',
+        };
+      }
+    }
+
+    const hasHashDuplicate = memoryRateLimitStore.some(
+      (entry) => entry.commentHash === commentHash && entry.createdAt >= cutoff24h
+    );
+    if (hasHashDuplicate) {
+      return {
+        allowed: false,
+        error: 'Nội dung đánh giá tương tự đã được gửi gần đây. Vui lòng không gửi trùng lặp.',
+      };
+    }
+
+    memoryRateLimitStore.push({
+      id: `rl_${now}_${Math.random().toString(36).substring(2, 7)}`,
+      ip: input.ip,
+      phone: normPhone || undefined,
+      userId: input.userId,
+      productId: input.productId,
+      commentHash,
+      createdAt: now,
+    });
+
+    return { allowed: true };
+  }
+}
+
