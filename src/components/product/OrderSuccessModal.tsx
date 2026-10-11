@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2, Copy, Check, ArrowRight, ShoppingBag } from 'lucide-react';
+import { CheckCircle2, Copy, Check, ArrowRight, ShoppingBag, Star } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
 import { formatPrice } from '@/lib/utils';
@@ -90,6 +90,30 @@ export default function OrderSuccessModal({
             </span>
             <span className="text-base font-bold text-green-primary">{formatPrice(total)}đ</span>
           </div>
+        </div>
+
+        {/* Lời nhắc đánh giá sản phẩm vừa mua */}
+        <div className="mb-6 p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 flex items-center justify-between gap-3 text-left">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+              <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-900">
+                {language === 'en' ? 'Review Your Purchase' : 'Đánh giá sản phẩm vừa mua'}
+              </p>
+              <p className="text-[11px] text-gray-500">
+                {language === 'en' ? 'Share your experience with others' : 'Nhận huy hiệu Đã mua hàng từ thương hiệu'}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/#danh-gia"
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shrink-0 transition-colors shadow-xs"
+          >
+            {language === 'en' ? 'Review' : 'Đánh giá'}
+          </Link>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">

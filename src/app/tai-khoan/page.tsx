@@ -19,6 +19,8 @@ import {
   ShoppingBag,
   AlertCircle,
   Save,
+  Star,
+  MessageCircle,
 } from 'lucide-react';
 import { useUserAuth } from '@/context/UserAuthContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -53,15 +55,32 @@ interface OrderRecord {
   items: OrderItem[];
 }
 
+interface UserReviewRecord {
+  id: string;
+  productId: string;
+  variantInfo: string;
+  rating: number;
+  title: string;
+  comment: string;
+  isVerifiedBuyer: boolean;
+  status: 'APPROVED' | 'PENDING' | 'HIDDEN';
+  helpfulCount: number;
+  adminReply?: string;
+  adminRepliedAt?: string;
+  createdAt: string;
+}
+
 function AccountContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isLoading, logout, updateProfile, openAuthModal } = useUserAuth();
   const { language } = useLanguage();
 
-  const [activeTab, setActiveTab] = useState<'orders' | 'profile'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'profile' | 'reviews'>('orders');
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [userReviews, setUserReviews] = useState<UserReviewRecord[]>([]);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [profileForm, setProfileForm] = useState({
     fullName: '',
     phone: '',
@@ -82,6 +101,8 @@ function AccountContent() {
       setActiveTab('profile');
     } else if (tabParam === 'orders') {
       setActiveTab('orders');
+    } else if (tabParam === 'reviews') {
+      setActiveTab('reviews');
     }
   }, [searchParams]);
 
@@ -99,7 +120,7 @@ function AccountContent() {
     }
   }, [user]);
 
-  // Load orders when authenticated
+  // Load orders and reviews when authenticated
   useEffect(() => {
     if (user) {
       setIsLoadingOrders(true);
@@ -112,6 +133,17 @@ function AccountContent() {
         })
         .catch((err) => console.error('Error fetching orders:', err))
         .finally(() => setIsLoadingOrders(false));
+
+      setIsLoadingReviews(true);
+      fetch('/api/user/reviews')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && Array.isArray(data.reviews)) {
+            setUserReviews(data.reviews);
+          }
+        })
+        .catch((err) => console.error('Error fetching reviews:', err))
+        .finally(() => setIsLoadingReviews(false));
     }
   }, [user]);
 
@@ -328,6 +360,29 @@ function AccountContent() {
           >
             <User className="w-5 h-5" />
             <span>{language === 'en' ? 'Account Details' : 'Thông tin tài khoản'}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('reviews')}
+            className={cn(
+              'w-full flex items-center justify-between p-4 rounded-2xl text-sm font-bold transition-all text-left cursor-pointer',
+              activeTab === 'reviews'
+                ? 'bg-[#1B5E3B] text-white shadow-xs'
+                : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-100'
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <Star className="w-5 h-5" />
+              <span>{language === 'en' ? 'My Reviews' : 'Đánh giá của tôi'}</span>
+            </div>
+            <span
+              className={cn(
+                'px-2 py-0.5 rounded-full text-xs font-bold',
+                activeTab === 'reviews' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+              )}
+            >
+              {userReviews.length}
+            </span>
           </button>
         </div>
 
@@ -613,6 +668,139 @@ function AccountContent() {
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* TAB 3: ĐÁNH GIÁ CỦA TÔI */}
+          {activeTab === 'reviews' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-3xl p-6 md:p-8 border border-gray-100 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                  <div>
+                    <h2 className="text-lg md:text-xl font-bold text-gray-900 font-heading">
+                      {language === 'en' ? 'My Product Reviews' : 'Đánh giá của tôi'}
+                    </h2>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {language === 'en'
+                        ? 'Track moderation status and brand responses for your reviews'
+                        : 'Theo dõi trạng thái kiểm duyệt và phản hồi chính thức từ Thái Sơn Foods'}
+                    </p>
+                  </div>
+                  <Link
+                    href="/#san-pham"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#1B5E3B] text-xs font-bold transition"
+                  >
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                    <span>{language === 'en' ? 'Review more products' : 'Đánh giá sản phẩm khác'}</span>
+                  </Link>
+                </div>
+
+                {isLoadingReviews ? (
+                  <div className="py-16 text-center text-xs text-gray-500">
+                    <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                    <span>Đang tải danh sách đánh giá của bạn...</span>
+                  </div>
+                ) : userReviews.length === 0 ? (
+                  <div className="py-16 text-center">
+                    <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center mx-auto mb-4">
+                      <Star className="w-8 h-8 fill-amber-400" />
+                    </div>
+                    <h3 className="text-base font-bold text-gray-800">
+                      {language === 'en' ? 'No reviews submitted yet' : 'Bạn chưa gửi đánh giá nào'}
+                    </h3>
+                    <p className="text-xs text-gray-500 max-w-sm mx-auto mt-1 mb-6">
+                      {language === 'en'
+                        ? 'Share your thoughts on products you enjoyed and get verified badges!'
+                        : 'Hãy chia sẻ cảm nhận chân thực về các sản phẩm bạn đã thưởng thức tại Thái Sơn Foods nhé!'}
+                    </p>
+                    <Link
+                      href="/#san-pham"
+                      className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#1B5E3B] text-white rounded-xl text-xs font-bold hover:bg-[#14482D] transition shadow-xs"
+                    >
+                      <ShoppingBag className="w-4 h-4" />
+                      <span>{language === 'en' ? 'Explore Products' : 'Khám phá sản phẩm'}</span>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {userReviews.map((rev) => (
+                      <article
+                        key={rev.id}
+                        className="border border-gray-100 rounded-2xl p-5 bg-gray-50/40 hover:bg-white hover:border-gray-200 transition-all space-y-3"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-900 text-sm">
+                                {rev.productId}
+                              </span>
+                              {rev.isVerifiedBuyer && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                                  <CheckCircle className="w-2.5 h-2.5" /> Đã mua hàng
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
+                              <span>{rev.variantInfo}</span>
+                              <span>•</span>
+                              <span>{new Date(rev.createdAt).toLocaleDateString('vi-VN')}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={cn(
+                                'px-2.5 py-1 rounded-full text-[11px] font-bold border',
+                                rev.status === 'APPROVED'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : rev.status === 'PENDING'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-gray-100 text-gray-500 border-gray-200'
+                              )}
+                            >
+                              {rev.status === 'APPROVED' && 'Đã đăng'}
+                              {rev.status === 'PENDING' && 'Chờ duyệt'}
+                              {rev.status === 'HIDDEN' && 'Bị ẩn'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Stars */}
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star
+                              key={s}
+                              className={cn(
+                                'w-4 h-4',
+                                s <= rev.rating
+                                  ? 'fill-amber-400 text-amber-400'
+                                  : 'fill-gray-200 text-gray-200'
+                              )}
+                            />
+                          ))}
+                        </div>
+
+                        {/* Title and comment */}
+                        {rev.title && <h4 className="font-bold text-gray-900 text-sm">{rev.title}</h4>}
+                        <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-line">
+                          {rev.comment}
+                        </p>
+
+                        {/* Brand official response if exists */}
+                        {rev.adminReply && (
+                          <div className="bg-emerald-50/70 border-l-4 border-emerald-600 p-3 rounded-r-xl text-xs space-y-1">
+                            <div className="flex items-center gap-1 font-bold text-emerald-900">
+                              <MessageCircle className="w-3.5 h-3.5 text-emerald-700" />
+                              <span>Phản hồi từ Thái Sơn Foods</span>
+                            </div>
+                            <p className="text-gray-700 leading-relaxed">{rev.adminReply}</p>
+                          </div>
+                        )}
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

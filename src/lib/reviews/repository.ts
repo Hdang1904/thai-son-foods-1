@@ -699,6 +699,17 @@ function normalizeProductIdVariants(productId: string): string[] {
   const clean = productId.trim().toLowerCase();
   const variants = new Set<string>([clean]);
 
+  // Hỗ trợ định danh combo tách bạch ("combo:<slug>", "combo-<slug>", "<slug>")
+  if (clean.startsWith('combo:')) {
+    const raw = clean.slice(6);
+    variants.add(raw);
+    variants.add(`combo-${raw}`);
+  } else if (clean.startsWith('combo-')) {
+    const raw = clean.slice(6);
+    variants.add(raw);
+    variants.add(`combo:${raw}`);
+  }
+
   if (clean.includes('sua-bap-nep') || clean.includes('sb-01')) {
     variants.add('sua-bap-nep-thai-son');
     variants.add('prod-sb-01');
