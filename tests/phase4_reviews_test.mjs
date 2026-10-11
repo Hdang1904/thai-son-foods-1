@@ -57,17 +57,17 @@ async function runReviewsSuite() {
       assert.equal(checkTables.rows.length, 2, 'Cả 2 bảng product_reviews và review_helpful_votes phải tồn tại');
     });
 
-    await itAsync('Summary: Tính toán baseline rating 4.8★ và phân bổ 5 sao chính xác', async () => {
+    await itAsync('Summary: Tính toán rating và breakdown từ dữ liệu đánh giá thật trong CSDL', async () => {
       const summary = await getProductReviewSummary(testProductId);
       assert.ok(summary, 'Phải trả về summary object');
-      assert.ok(summary.totalReviews >= 402, `Tổng số review tối thiểu là 402 (thực tế: ${summary.totalReviews})`);
-      assert.ok(summary.averageRating >= 4.5 && summary.averageRating <= 5.0, `Điểm trung bình hợp lệ: ${summary.averageRating}`);
+      assert.ok(typeof summary.totalReviews === 'number', `Tổng số review là số thực: ${summary.totalReviews}`);
+      assert.ok(summary.totalReviews >= 0, `Tổng số review >= 0 (thực tế: ${summary.totalReviews})`);
+      assert.ok(summary.averageRating >= 0 && summary.averageRating <= 5.0, `Điểm trung bình hợp lệ: ${summary.averageRating}`);
       assert.equal(summary.breakdown.length, 5, 'Phải có đủ 5 cấp sao từ 1 đến 5');
       
-      const fiveStar = summary.breakdown.find(b => b.stars === 5);
-      assert.ok(fiveStar, 'Phải có breakdown cho 5 sao');
-      assert.ok(fiveStar.percentage >= 80, `Tỷ lệ 5 sao phải >= 80% (thực tế: ${fiveStar.percentage}%)`);
-      assert.ok(summary.verifiedReviewsCount >= 390, 'Số lượt mua bảo chứng phải >= 390');
+      const sumBreakdownCounts = summary.breakdown.reduce((acc, b) => acc + b.count, 0);
+      assert.equal(sumBreakdownCounts, summary.totalReviews, 'Tổng số lượng trong breakdown phải bằng totalReviews');
+      assert.ok(summary.verifiedReviewsCount <= summary.totalReviews, 'Số lượt verified phải <= tổng số review');
     });
 
     // ── NHÓM 2: TRUY VẤN & BỘ LỌC ĐÁNH GIÁ ────────────────────────────

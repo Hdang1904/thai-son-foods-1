@@ -6,6 +6,19 @@ import {
   CreateReviewInput,
   ReviewFilterOptions,
 } from '@/types/reviews';
+import { containsBannedWords } from '@/config/bannedWords';
+
+/**
+ * Chuẩn hóa số điện thoại Việt Nam (loại bỏ ký tự lạ, chuyển +84 hoặc 84 về 0)
+ */
+export function normalizePhoneNumber(rawPhone?: string | null): string {
+  if (!rawPhone) return '';
+  let clean = rawPhone.replace(/\D/g, '');
+  if (clean.startsWith('84') && clean.length >= 11) {
+    clean = '0' + clean.slice(2);
+  }
+  return clean;
+}
 
 // Danh sách đánh giá mẫu chất lượng cao cho toàn bộ dòng sản phẩm Thái Sơn Foods
 export const SAMPLE_REVIEWS_SEED: Array<{
@@ -517,35 +530,32 @@ function computeMemoryReviewSummary(productKeys: string[]): ProductReviewSummary
     (item) => productKeys.includes(item.productId) && item.status === 'APPROVED'
   );
 
-  let count5 = 342;
-  let count4 = 40;
-  let count3 = 12;
-  let count2 = 4;
-  let count1 = 4;
-  let verifiedCount = 390;
+  let count5 = 0;
+  let count4 = 0;
+  let count3 = 0;
+  let count2 = 0;
+  let count1 = 0;
+  let verifiedCount = 0;
 
   for (const r of matching) {
-    // Chỉ cộng dồn những review người dùng mới gửi (không nằm trong seed mẫu ban đầu)
-    if (!SAMPLE_REVIEWS_SEED.some((s) => s.id === r.id)) {
-      if (r.rating === 5) count5++;
-      else if (r.rating === 4) count4++;
-      else if (r.rating === 3) count3++;
-      else if (r.rating === 2) count2++;
-      else if (r.rating === 1) count1++;
-      if (r.isVerifiedBuyer) verifiedCount++;
-    }
+    if (r.rating === 5) count5++;
+    else if (r.rating === 4) count4++;
+    else if (r.rating === 3) count3++;
+    else if (r.rating === 2) count2++;
+    else if (r.rating === 1) count1++;
+    if (r.isVerifiedBuyer) verifiedCount++;
   }
 
   const totalReviews = count5 + count4 + count3 + count2 + count1;
   const weightedSum = count5 * 5 + count4 * 4 + count3 * 3 + count2 * 2 + count1 * 1;
-  const averageRating = totalReviews > 0 ? Number((weightedSum / totalReviews).toFixed(1)) : 5.0;
+  const averageRating = totalReviews > 0 ? Number((weightedSum / totalReviews).toFixed(1)) : 0;
 
   const breakdown = [
-    { stars: 5, count: count5, percentage: Math.round((count5 / totalReviews) * 100) },
-    { stars: 4, count: count4, percentage: Math.round((count4 / totalReviews) * 100) },
-    { stars: 3, count: count3, percentage: Math.round((count3 / totalReviews) * 100) },
-    { stars: 2, count: count2, percentage: Math.round((count2 / totalReviews) * 100) },
-    { stars: 1, count: count1, percentage: Math.round((count1 / totalReviews) * 100) },
+    { stars: 5, count: count5, percentage: totalReviews > 0 ? Math.round((count5 / totalReviews) * 100) : 0 },
+    { stars: 4, count: count4, percentage: totalReviews > 0 ? Math.round((count4 / totalReviews) * 100) : 0 },
+    { stars: 3, count: count3, percentage: totalReviews > 0 ? Math.round((count3 / totalReviews) * 100) : 0 },
+    { stars: 2, count: count2, percentage: totalReviews > 0 ? Math.round((count2 / totalReviews) * 100) : 0 },
+    { stars: 1, count: count1, percentage: totalReviews > 0 ? Math.round((count1 / totalReviews) * 100) : 0 },
   ];
 
   return {
@@ -816,15 +826,15 @@ export async function getProductReviewSummary(productId: string): Promise<Produc
       [productKeys]
     );
 
-    // Thống kê nền tảng uy tín thực tế (Baseline: 402 lượt đánh giá, 4.8 sao theo giao diện mẫu)
-    let count5 = 342;
-    let count4 = 40;
-    let count3 = 12;
-    let count2 = 4;
-    let count1 = 4;
-    let verifiedCount = 390;
+    // Thống kê chính xác từ dữ liệu đánh giá thực tế trong cơ sở dữ liệu
+    let count5 = 0;
+    let count4 = 0;
+    let count3 = 0;
+    let count2 = 0;
+    let count1 = 0;
+    let verifiedCount = 0;
 
-    // Cộng dồn các đánh giá mới thêm vào cơ sở dữ liệu
+    // Cộng dồn các đánh giá đã được duyệt (APPROVED)
     for (const r of res.rows) {
       const star = Number(r.rating);
       const cnt = Number(r.count);
@@ -839,14 +849,14 @@ export async function getProductReviewSummary(productId: string): Promise<Produc
 
     const totalReviews = count5 + count4 + count3 + count2 + count1;
     const weightedSum = count5 * 5 + count4 * 4 + count3 * 3 + count2 * 2 + count1 * 1;
-    const averageRating = totalReviews > 0 ? Number((weightedSum / totalReviews).toFixed(1)) : 5.0;
+    const averageRating = totalReviews > 0 ? Number((weightedSum / totalReviews).toFixed(1)) : 0;
 
     const breakdown = [
-      { stars: 5, count: count5, percentage: Math.round((count5 / totalReviews) * 100) },
-      { stars: 4, count: count4, percentage: Math.round((count4 / totalReviews) * 100) },
-      { stars: 3, count: count3, percentage: Math.round((count3 / totalReviews) * 100) },
-      { stars: 2, count: count2, percentage: Math.round((count2 / totalReviews) * 100) },
-      { stars: 1, count: count1, percentage: Math.round((count1 / totalReviews) * 100) },
+      { stars: 5, count: count5, percentage: totalReviews > 0 ? Math.round((count5 / totalReviews) * 100) : 0 },
+      { stars: 4, count: count4, percentage: totalReviews > 0 ? Math.round((count4 / totalReviews) * 100) : 0 },
+      { stars: 3, count: count3, percentage: totalReviews > 0 ? Math.round((count3 / totalReviews) * 100) : 0 },
+      { stars: 2, count: count2, percentage: totalReviews > 0 ? Math.round((count2 / totalReviews) * 100) : 0 },
+      { stars: 1, count: count1, percentage: totalReviews > 0 ? Math.round((count1 / totalReviews) * 100) : 0 },
     ];
 
     return {
@@ -869,15 +879,17 @@ export async function createProductReview(
   userId?: string | null
 ): Promise<{ review: ReviewItem; isVerified: boolean }> {
   const id = `rev_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
-  const cleanPhone = (input.customerPhone || '').replace(/\D/g, '');
+  const cleanPhone = normalizePhoneNumber(input.customerPhone);
   const cleanName = (input.customerName || 'Khách hàng Thái Sơn').trim();
   const cleanTitle = (input.title || '').trim();
   const cleanComment = (input.comment || '').trim();
-  const rating = Math.min(5, Math.max(1, Number(input.rating) || 5));
+  const rating = Math.min(5, Math.max(1, Math.round(Number(input.rating) || 5)));
   const variant = input.variantInfo || 'Lốc 7 chai (330ml)';
   const images = Array.isArray(input.images) ? input.images : [];
 
-  // Tự động kiểm tra xem khách có đơn hàng COMPLETED cho sản phẩm này không
+  const productKeys = normalizeProductIdVariants(input.productId);
+
+  // Tự động kiểm tra xem khách có đơn hàng COMPLETED cho ĐÚNG sản phẩm này không
   let isVerifiedBuyer = false;
   let matchedOrderId: string | null = null;
 
@@ -885,21 +897,32 @@ export async function createProductReview(
     await ensureReviewsSchema();
 
     if (cleanPhone || userId) {
+      const phoneVariants = cleanPhone
+        ? [cleanPhone, '84' + (cleanPhone.startsWith('0') ? cleanPhone.slice(1) : cleanPhone)]
+        : [];
+
       let orderCheckSql = `
         SELECT o.id
         FROM orders o
         JOIN order_items oi ON o.id = oi.order_id
         WHERE o.status = 'COMPLETED'
+          AND (
+            oi.product_id = ANY($1)
+            OR oi.product_id ILIKE ANY($1)
+            OR lower(oi.name) = ANY($1)
+          )
       `;
-      const params: any[] = [];
-      if (cleanPhone && userId) {
-        orderCheckSql += ` AND (o.phone = $1 OR o.user_id = $2)`;
-        params.push(cleanPhone, userId);
-      } else if (cleanPhone) {
-        orderCheckSql += ` AND o.phone = $1`;
-        params.push(cleanPhone);
+      const params: any[] = [productKeys];
+      let pIdx = 2;
+
+      if (phoneVariants.length > 0 && userId) {
+        orderCheckSql += ` AND (regexp_replace(o.phone, '\\D', '', 'g') = ANY($${pIdx}) OR o.user_id = $${pIdx + 1})`;
+        params.push(phoneVariants, userId);
+      } else if (phoneVariants.length > 0) {
+        orderCheckSql += ` AND regexp_replace(o.phone, '\\D', '', 'g') = ANY($${pIdx})`;
+        params.push(phoneVariants);
       } else if (userId) {
-        orderCheckSql += ` AND o.user_id = $1`;
+        orderCheckSql += ` AND o.user_id = $${pIdx}`;
         params.push(userId);
       }
       orderCheckSql += ` LIMIT 1;`;
@@ -914,6 +937,10 @@ export async function createProductReview(
     console.warn('Notice in order verification (DB offline):', err?.message);
   }
 
+  // Quyết định số 1: Verified Buyer mua đúng sản phẩm và không dính từ khóa cấm -> APPROVED ngay. Mọi trường hợp khác -> PENDING.
+  const hasBadWords = containsBannedWords(cleanTitle) || containsBannedWords(cleanComment);
+  const reviewStatus: 'APPROVED' | 'PENDING' = (isVerifiedBuyer && !hasBadWords) ? 'APPROVED' : 'PENDING';
+
   const newReview: ReviewItem = {
     id,
     productId: input.productId,
@@ -926,7 +953,7 @@ export async function createProductReview(
     comment: cleanComment,
     images,
     isVerifiedBuyer,
-    status: 'APPROVED',
+    status: reviewStatus,
     helpfulCount: 0,
     adminReply: null,
     adminRepliedAt: null,
@@ -939,7 +966,7 @@ export async function createProductReview(
         id, product_id, user_id, order_id, customer_name, customer_phone,
         variant_info, rating, title, comment, images, is_verified_buyer,
         status, helpful_count, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'APPROVED', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       RETURNING 
         id, product_id AS "productId", user_id AS "userId", order_id AS "orderId",
         customer_name AS "customerName", variant_info AS "variantInfo", rating,
@@ -960,6 +987,7 @@ export async function createProductReview(
       cleanComment,
       JSON.stringify(images),
       isVerifiedBuyer,
+      reviewStatus,
     ]);
 
     if (res.rows?.[0]) {
@@ -967,6 +995,7 @@ export async function createProductReview(
       newReview.id = row.id;
       newReview.createdAt = new Date(row.createdAt).toISOString();
       newReview.isVerifiedBuyer = row.isVerifiedBuyer;
+      newReview.status = row.status;
     }
   } catch (dbErr: any) {
     console.warn('[createProductReview] Database write failed, saved in resilient memory store:', dbErr?.message);

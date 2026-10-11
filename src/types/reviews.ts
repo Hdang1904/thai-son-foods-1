@@ -28,10 +28,10 @@ export interface RatingBreakdownItem {
 }
 
 export interface ProductReviewSummary {
-  averageRating: number;       // Ví dụ: 4.8
-  totalReviews: number;        // Ví dụ: 402
-  verifiedReviewsCount: number; // Ví dụ: 390
-  breakdown: RatingBreakdownItem[]; // 5 sao (85%), 4 sao (10%)...
+  averageRating: number;       // Điểm trung bình làm tròn 1 chữ số, 0 nếu chưa có đánh giá
+  totalReviews: number;        // Tổng số đánh giá hợp lệ (APPROVED), 0 nếu chưa có
+  verifiedReviewsCount: number; // Số đánh giá từ người mua đã xác thực
+  breakdown: RatingBreakdownItem[]; // Thống kê 1-5 sao từ dữ liệu thật
   hasUserReviewed?: boolean;
 }
 

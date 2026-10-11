@@ -155,6 +155,32 @@ export default function ProductInfo({ product }: ProductInfoProps) {
   const [bestAlternativeStore, setBestAlternativeStore] = useState<any | null>(null);
   const [hasOtherBranchInStock, setHasOtherBranchInStock] = useState(false);
 
+  // Dữ liệu tóm tắt đánh giá thật từ API
+  const [reviewSummary, setReviewSummary] = useState<{
+    averageRating: number;
+    totalReviews: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const pId = product.slug || product.id;
+    if (!pId) return;
+    fetch(`/api/reviews/summary?productId=${encodeURIComponent(pId)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (isMounted && data.success && data.data) {
+          setReviewSummary({
+            averageRating: Number(data.data.averageRating) || 0,
+            totalReviews: Number(data.data.totalReviews) || 0,
+          });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [product.id, product.slug]);
+
   // Nạp dữ liệu tồn kho theo chi nhánh đang chọn cho sản phẩm này
   useEffect(() => {
     let isMounted = true;
@@ -384,23 +410,52 @@ export default function ProductInfo({ product }: ProductInfoProps) {
 
       {/* 3. Đánh giá & Lượt bán */}
       <div className="flex items-center gap-2 flex-wrap text-sm text-[#0F1111]">
-        <span className="font-semibold text-sm">4.0</span>
-        <div className="flex items-center gap-0.5">
-          {[1, 2, 3, 4, 5].map((s) => (
-            <Star
-              key={s}
-              className={`w-4 h-4 ${
-                s <= 4 ? 'fill-[#FFA41C] text-[#FFA41C]' : 'fill-gray-200 text-gray-200'
-              }`}
-            />
-          ))}
-        </div>
-        <Link
-          href="#danh-gia"
-          className="text-[#007185] hover:text-[#C7511F] hover:underline text-xs sm:text-sm"
-        >
-          (402) lượt
-        </Link>
+        {reviewSummary && reviewSummary.totalReviews > 0 ? (
+          <>
+            <span className="font-semibold text-sm">{reviewSummary.averageRating.toFixed(1)}</span>
+            <div className="flex items-center gap-0.5">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <Star
+                  key={s}
+                  className={`w-4 h-4 ${
+                    s <= Math.round(reviewSummary.averageRating)
+                      ? 'fill-[#FFA41C] text-[#FFA41C]'
+                      : 'fill-gray-200 text-gray-200'
+                  }`}
+                />
+              ))}
+            </div>
+            <a
+              href="#danh-gia"
+              onClick={(e) => {
+                e.preventDefault();
+                const el = document.getElementById('danh-gia') || document.getElementById('danh-gia-khach-hang');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="text-[#007185] hover:text-[#C7511F] hover:underline text-xs sm:text-sm cursor-pointer font-medium"
+            >
+              ({reviewSummary.totalReviews}) đánh giá
+            </a>
+          </>
+        ) : (
+          <a
+            href="#danh-gia"
+            onClick={(e) => {
+              e.preventDefault();
+              const el = document.getElementById('danh-gia') || document.getElementById('danh-gia-khach-hang');
+              el?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-500 hover:text-emerald-700 cursor-pointer group"
+          >
+            <div className="flex items-center gap-0.5">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <Star key={s} className="w-3.5 h-3.5 fill-gray-200 text-gray-200 group-hover:fill-amber-300" />
+              ))}
+            </div>
+            <span className="text-gray-600 group-hover:underline">Chưa có đánh giá</span>
+            <span className="text-emerald-700 font-medium text-xs">(Viết nhận xét đầu tiên)</span>
+          </a>
+        )}
         <span className="text-gray-300">|</span>
         <span className="text-xs sm:text-sm text-[#565959]">
           Hơn 200 sản phẩm đã được mua trong tháng trước.

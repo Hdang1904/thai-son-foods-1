@@ -69,15 +69,15 @@ export default function ProductReviewsSection({
   // State dữ liệu
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [summary, setSummary] = useState<ProductReviewSummary>({
-    averageRating: 4.8,
-    totalReviews: 402,
-    verifiedReviewsCount: 390,
+    averageRating: 0,
+    totalReviews: 0,
+    verifiedReviewsCount: 0,
     breakdown: [
-      { stars: 5, count: 342, percentage: 85 },
-      { stars: 4, count: 40, percentage: 10 },
-      { stars: 3, count: 12, percentage: 3 },
-      { stars: 2, count: 4, percentage: 1 },
-      { stars: 1, count: 4, percentage: 1 },
+      { stars: 5, count: 0, percentage: 0 },
+      { stars: 4, count: 0, percentage: 0 },
+      { stars: 3, count: 0, percentage: 0 },
+      { stars: 2, count: 0, percentage: 0 },
+      { stars: 1, count: 0, percentage: 0 },
     ],
   });
 
@@ -222,17 +222,21 @@ export default function ProductReviewsSection({
 
       const data = await res.json();
       if (data.success) {
-        setSubmitMessage({ text: data.message || 'Gửi đánh giá thành công! Cảm ơn bạn.' });
+        const isPending = data.data?.status === 'PENDING';
+        const successMsg = data.message || (isPending
+          ? 'Cảm ơn bạn, đánh giá sẽ hiển thị sau khi được duyệt.'
+          : 'Gửi đánh giá thành công! Cảm ơn bạn.');
+        setSubmitMessage({ text: successMsg });
         // Tải lại danh sách
         fetchSummary();
         fetchReviews();
-        // Reset form và tự đóng sau 1.5s
+        // Reset form và tự đóng
         setTimeout(() => {
           setIsModalOpen(false);
           setFormTitle('');
           setFormComment('');
           setSubmitMessage(null);
-        }, 1500);
+        }, isPending ? 2500 : 1500);
       } else {
         setSubmitMessage({ text: data.error || 'Có lỗi xảy ra, vui lòng thử lại.', isError: true });
       }
@@ -272,27 +276,40 @@ export default function ProductReviewsSection({
               Đánh giá chung
             </h3>
 
-            {/* Điểm số: 4.8 / 5.0 + 5 sao vàng #FFA41C */}
-            <div>
-              <div className="flex items-baseline gap-2 mb-1.5">
-                <span className="text-4xl font-extrabold text-gray-900 font-heading">
-                  {summary.averageRating.toFixed(1)}
-                </span>
-                <span className="text-base text-gray-400 font-normal">/ 5.0</span>
-                <div className="flex items-center gap-1 ml-2">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <Star
-                      key={s}
-                      className="w-4.5 h-4.5 fill-[#FFA41C] text-[#FFA41C]"
-                    />
-                  ))}
-                </div>
+            {/* Điểm số trung bình hoặc trạng thái chưa có đánh giá */}
+            {summary.totalReviews === 0 ? (
+              <div className="py-2">
+                <p className="text-xl font-bold text-gray-800">Chưa có đánh giá</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Hãy là người đầu tiên chia sẻ cảm nhận về {productName}!
+                </p>
               </div>
+            ) : (
+              <div>
+                <div className="flex items-baseline gap-2 mb-1.5">
+                  <span className="text-4xl font-extrabold text-gray-900 font-heading">
+                    {summary.averageRating.toFixed(1)}
+                  </span>
+                  <span className="text-base text-gray-400 font-normal">/ 5.0</span>
+                  <div className="flex items-center gap-1 ml-2">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star
+                        key={s}
+                        className={`w-4.5 h-4.5 ${
+                          s <= Math.round(summary.averageRating)
+                            ? 'fill-[#FFA41C] text-[#FFA41C]'
+                            : 'fill-gray-200 text-gray-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
 
-              <p className="text-xs text-gray-500">
-                Dựa trên {summary.totalReviews} lượt đánh giá từ khách hàng
-              </p>
-            </div>
+                <p className="text-xs text-gray-500">
+                  Dựa trên {summary.totalReviews} lượt đánh giá từ khách hàng
+                </p>
+              </div>
+            )}
 
             {/* 5 Thanh tỉ lệ sao */}
             <div className="space-y-2.5">
@@ -416,8 +433,16 @@ export default function ProductReviewsSection({
               ) : reviews.length === 0 ? (
                 <div className="border border-gray-200 rounded-2xl p-10 bg-white text-center text-gray-500 mt-6">
                   <MessageCircle className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                  <p className="font-semibold text-gray-700">Chưa có đánh giá nào phù hợp với bộ lọc</p>
-                  <p className="text-xs text-gray-400 mt-1">Hãy là người đầu tiên để lại đánh giá cho sản phẩm này!</p>
+                  <p className="font-semibold text-gray-700">
+                    {summary.totalReviews === 0
+                      ? 'Chưa có đánh giá nào cho sản phẩm này'
+                      : 'Chưa có đánh giá nào phù hợp với bộ lọc'}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {summary.totalReviews === 0
+                      ? 'Hãy là người đầu tiên để lại đánh giá cho sản phẩm này!'
+                      : 'Thử chọn mức sao hoặc bộ lọc khác để xem thêm đánh giá.'}
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-4 mt-6">
