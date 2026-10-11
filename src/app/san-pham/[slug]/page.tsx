@@ -12,6 +12,7 @@ import ProductFeatureShowcase from '@/components/product/ProductFeatureShowcase'
 import ProductCombosSidebar from '@/components/product/ProductCombosSidebar';
 import ProductSection from '@/components/home/ProductSection';
 import SubscribeSaveSection from '@/components/home/SubscribeSaveSection';
+import { MEMBERSHIP_CONFIG } from '@/config/membership';
 import ProductReviewsSection from '@/components/product/ProductReviewsSection';
 import ProductSponsoredBanner from '@/components/product/ProductSponsoredBanner';
 import ProductSidebarSponsoredCard from '@/components/product/ProductSidebarSponsoredCard';
@@ -273,13 +274,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <ProductReviewsSection productId={product.slug || product.id} productName={product.name} />
         </div>
 
-        {/* 1 DÒNG 8 SẢN PHẨM / 8 COMBO GIAO ĐỊNH KỲ (SUBSCRIBE & SAVE) */}
-        <div className="border-t border-gray-200 bg-white">
-          <SubscribeSaveSection
-            title="Đăng Ký Giao Định Kỳ — 8 Sản Phẩm & Combo Tiết Kiệm 15%"
-            subtitle="Tự động nhận nước uống tươi ngon mỗi tuần tận nhà. Miễn phí vận chuyển 100%, linh hoạt đổi vị và tạm dừng bất kỳ lúc nào."
-          />
-        </div>
+        {/* 1 DÒNG 8 SẢN PHẨM / 8 COMBO GIAO ĐỊNH KỲ (SUBSCRIBE & SAVE) — Tạm tắt khi chưa chốt với doanh nghiệp */}
+        {MEMBERSHIP_CONFIG.ENABLE_SUBSCRIBE_SAVE && (
+          <div className="border-t border-gray-200 bg-white">
+            <SubscribeSaveSection
+              title="Đăng Ký Giao Định Kỳ — 8 Sản Phẩm & Combo Tiết Kiệm 15%"
+              subtitle="Tự động nhận nước uống tươi ngon mỗi tuần tận nhà. Miễn phí vận chuyển 100%, linh hoạt đổi vị và tạm dừng bất kỳ lúc nào."
+            />
+          </div>
+        )}
       </div>
     </div>
   );
