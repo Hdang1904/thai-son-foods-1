@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/dang-nhap?error=facebook_no_code`);
+    return NextResponse.redirect(`${origin}/?auth=login&error=facebook_no_code`);
   }
 
   try {
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     const redirectUri = `${origin}/api/auth/callback/facebook`;
 
     if (!fbClientId || !fbClientSecret) {
-      return NextResponse.redirect(`${origin}/dang-nhap?error=facebook_missing_credentials`);
+      return NextResponse.redirect(`${origin}/?auth=login&error=facebook_missing_credentials`);
     }
 
     // 1. Exchange code for access token
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
 
     if (!tokenRes.ok || !tokenData.access_token) {
       console.error('Facebook token exchange error:', tokenData);
-      return NextResponse.redirect(`${origin}/dang-nhap?error=facebook_token_failed`);
+      return NextResponse.redirect(`${origin}/?auth=login&error=facebook_token_failed`);
     }
 
     // 2. Fetch user profile from Facebook Graph API
@@ -118,6 +118,6 @@ export async function GET(req: NextRequest) {
     return response;
   } catch (error: any) {
     console.error('Facebook callback exception:', error);
-    return NextResponse.redirect(`${origin}/dang-nhap?error=facebook_auth_exception`);
+    return NextResponse.redirect(`${origin}/?auth=login&error=facebook_auth_exception`);
   }
 }

@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/dang-nhap?error=google_no_code`);
+    return NextResponse.redirect(`${origin}/?auth=login&error=google_no_code`);
   }
 
   try {
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     const redirectUri = `${origin}/api/auth/callback/google`;
 
     if (!googleClientId || !googleClientSecret) {
-      return NextResponse.redirect(`${origin}/dang-nhap?error=google_missing_credentials`);
+      return NextResponse.redirect(`${origin}/?auth=login&error=google_missing_credentials`);
     }
 
     // 1. Exchange authorization code for access token
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     const tokenData = await tokenRes.json();
     if (!tokenRes.ok || !tokenData.access_token) {
       console.error('Google token exchange error:', tokenData);
-      return NextResponse.redirect(`${origin}/dang-nhap?error=google_token_failed`);
+      return NextResponse.redirect(`${origin}/?auth=login&error=google_token_failed`);
     }
 
     // 2. Fetch user profile from Google
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     const profile = await userinfoRes.json();
 
     if (!profile.email) {
-      return NextResponse.redirect(`${origin}/dang-nhap?error=google_no_email`);
+      return NextResponse.redirect(`${origin}/?auth=login&error=google_no_email`);
     }
 
     const email = profile.email.toLowerCase().trim();
@@ -119,6 +119,6 @@ export async function GET(req: NextRequest) {
     return response;
   } catch (error: any) {
     console.error('Google callback exception:', error);
-    return NextResponse.redirect(`${origin}/dang-nhap?error=google_auth_exception`);
+    return NextResponse.redirect(`${origin}/?auth=login&error=google_auth_exception`);
   }
 }

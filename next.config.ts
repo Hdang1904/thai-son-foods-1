@@ -82,6 +82,20 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: '/dang-nhap',
+        destination: '/?auth=login',
+        permanent: true,
+      },
+      {
+        source: '/dang-ky',
+        destination: '/?auth=register',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

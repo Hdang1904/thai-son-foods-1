@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       mockUrl.searchParams.set('returnUrl', returnUrl);
       return NextResponse.redirect(mockUrl.toString());
     }
-    const errorUrl = new URL('/dang-nhap', origin);
+    const errorUrl = new URL('/?auth=login', origin);
     errorUrl.searchParams.set('error', 'oauth_not_configured');
     return NextResponse.redirect(errorUrl.toString());
   }

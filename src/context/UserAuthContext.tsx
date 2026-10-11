@@ -88,6 +88,16 @@ export function UserAuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthModalOpen(false);
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const auth = params.get('auth');
+      if (auth === 'login' || auth === 'register') {
+        openAuthModal(auth);
+      }
+    }
+  }, [openAuthModal]);
+
   const login = async (email: string, password: string) => {
     try {
       const res = await fetch('/api/auth/login', {
