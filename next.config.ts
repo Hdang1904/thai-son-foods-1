@@ -94,6 +94,21 @@ const nextConfig: NextConfig = {
         destination: '/?auth=register',
         permanent: true,
       },
+      {
+        source: '/member',
+        destination: '/',
+        permanent: false,
+      },
+      {
+        source: '/tai-khoan/dinh-ky',
+        destination: '/',
+        permanent: false,
+      },
+      {
+        source: '/dai-ly',
+        destination: '/',
+        permanent: false,
+      },
     ];
   },
 };
