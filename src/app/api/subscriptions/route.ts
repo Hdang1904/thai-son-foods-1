@@ -142,16 +142,18 @@ export async function POST(req: NextRequest) {
 
     // 6. Tính toán giá snapshot và chiết khấu định kỳ 15%
     let totalOrderValue = 0;
+    let totalRetailValue = 0;
     const processedItems = items.map((it: any) => {
       const retailPrice = Number(it.retailPrice || it.price || 126000);
-      const discountRate = 0.15; // 15% chuẩn cho Subscribe & Save
+      const discountRate = MEMBERSHIP_CONFIG.SUBSCRIPTION_DISCOUNT_RATE;
       const priceCalc = calculateSubscriptionItemPrice({
         snapshotRetailPrice: retailPrice,
-        discountPercent: 15,
+        discountPercent: MEMBERSHIP_CONFIG.SUBSCRIPTION_DISCOUNT_PERCENT,
       });
       const quantity = Math.max(1, Number(it.quantity) || 1);
       const lineTotal = priceCalc.appliedFinalPrice * quantity;
       totalOrderValue += lineTotal;
+      totalRetailValue += retailPrice * quantity;
 
       return {
         productId: (it.productId || it.id).toString(),
@@ -165,12 +167,12 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // 7. Thẩm định ngưỡng đơn hàng tối thiểu (>= 120.000đ) bảo vệ biên lợi nhuận
-    if (totalOrderValue < MEMBERSHIP_CONFIG.MIN_SUBSCRIPTION_ORDER_VALUE) {
+    // 7. Thẩm định ngưỡng đơn hàng tối thiểu (>= 120.000đ giá niêm yết, tương đương tối thiểu 1 lốc/combo)
+    if (totalRetailValue < MEMBERSHIP_CONFIG.MIN_SUBSCRIPTION_ORDER_VALUE) {
       return NextResponse.json(
         {
           success: false,
-          error: `Đơn hàng đăng ký định kỳ phải có giá trị tối thiểu từ ${MEMBERSHIP_CONFIG.MIN_SUBSCRIPTION_ORDER_VALUE.toLocaleString('vi-VN')} đ (tối thiểu 1 lốc) để được miễn phí vận chuyển xe lạnh 100%.`,
+          error: `Đơn hàng đăng ký định kỳ phải có giá trị niêm yết tối thiểu từ ${MEMBERSHIP_CONFIG.MIN_SUBSCRIPTION_ORDER_VALUE.toLocaleString('vi-VN')} đ (tối thiểu 1 lốc hoặc 1 combo) để được chiết khấu 15% và miễn phí vận chuyển xe lạnh 100%.`,
         },
         { status: 400 }
       );

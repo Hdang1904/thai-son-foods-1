@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool, query } from '@/lib/db';
 
+import { MEMBERSHIP_CONFIG } from '@/config/membership';
+
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
@@ -12,7 +14,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized CRON execution' }, { status: 401 });
     }
 
-    // Quét các lịch giao trong vòng 5 ngày tới chưa được gửi nhắc nhở
+    // Quét các lịch giao trong vòng 5 ngày tới (T-5) theo múi giờ chuẩn Asia/Ho_Chi_Minh chưa được gửi nhắc nhở
     const sql = `
       SELECT 
         ss.id AS schedule_id, ss.scheduled_date, ss.subscription_id,
@@ -24,7 +26,9 @@ export async function POST(req: NextRequest) {
       LEFT JOIN users u ON s.user_id = u.id
       WHERE ss.status = 'SCHEDULED'
         AND ss.reminder_sent_at IS NULL
-        AND ss.scheduled_date BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '5 days')
+        AND ss.scheduled_date::date BETWEEN 
+          (CURRENT_TIMESTAMP AT TIME ZONE '${MEMBERSHIP_CONFIG.TIMEZONE}')::date 
+          AND ((CURRENT_TIMESTAMP AT TIME ZONE '${MEMBERSHIP_CONFIG.TIMEZONE}') + INTERVAL '${MEMBERSHIP_CONFIG.REMINDER_LEAD_DAYS} days')::date
       ORDER BY ss.scheduled_date ASC
       LIMIT 100;
     `;

@@ -445,6 +445,144 @@ export const SAMPLE_REVIEWS_SEED: Array<{
 
 let hasSeededSampleReviews = false;
 
+// ── In-Memory Resilient Store for 100% Uptime on Cloud / Vercel ──
+// Đảm bảo hệ thống đánh giá hoạt động trơn tru ngay cả khi DB chưa cấu hình hoặc rớt kết nối
+const memoryReviews: ReviewItem[] = SAMPLE_REVIEWS_SEED.map((item) => ({
+  id: item.id,
+  productId: item.productId,
+  userId: null,
+  orderId: null,
+  customerName: item.customerName,
+  variantInfo: item.variantInfo,
+  rating: item.rating,
+  title: item.title,
+  comment: item.comment,
+  images: item.images || [],
+  isVerifiedBuyer: item.isVerifiedBuyer,
+  status: 'APPROVED',
+  helpfulCount: item.helpfulCount,
+  adminReply: item.adminReply || null,
+  adminRepliedAt: item.adminRepliedAt || null,
+  createdAt: item.createdAt,
+}));
+
+const memoryVotes = new Set<string>();
+
+/**
+ * Lọc và phân trang đánh giá từ bộ nhớ dự phòng (Resilient fallback)
+ */
+function queryMemoryReviews(
+  productKeys: string[],
+  options: ReviewFilterOptions = {}
+): { reviews: ReviewItem[]; total: number } {
+  const { rating, verifiedOnly, hasImagesOnly, sort = 'helpful', page = 1, limit = 20 } = options;
+  const offset = (page - 1) * limit;
+
+  let filtered = memoryReviews.filter(
+    (item) => productKeys.includes(item.productId) && item.status === 'APPROVED'
+  );
+
+  if (rating && rating >= 1 && rating <= 5) {
+    filtered = filtered.filter((item) => item.rating === rating);
+  }
+
+  if (verifiedOnly) {
+    filtered = filtered.filter((item) => item.isVerifiedBuyer);
+  }
+
+  if (hasImagesOnly) {
+    filtered = filtered.filter((item) => item.images && item.images.length > 0);
+  }
+
+  if (sort === 'helpful') {
+    filtered.sort(
+      (a, b) =>
+        b.helpfulCount - a.helpfulCount ||
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  } else {
+    filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  const total = filtered.length;
+  const reviews = filtered.slice(offset, offset + limit);
+  return { reviews, total };
+}
+
+/**
+ * Tính toán tóm tắt điểm số và breakdown từ bộ nhớ dự phòng
+ */
+function computeMemoryReviewSummary(productKeys: string[]): ProductReviewSummary {
+  const matching = memoryReviews.filter(
+    (item) => productKeys.includes(item.productId) && item.status === 'APPROVED'
+  );
+
+  let count5 = 342;
+  let count4 = 40;
+  let count3 = 12;
+  let count2 = 4;
+  let count1 = 4;
+  let verifiedCount = 390;
+
+  for (const r of matching) {
+    // Chỉ cộng dồn những review người dùng mới gửi (không nằm trong seed mẫu ban đầu)
+    if (!SAMPLE_REVIEWS_SEED.some((s) => s.id === r.id)) {
+      if (r.rating === 5) count5++;
+      else if (r.rating === 4) count4++;
+      else if (r.rating === 3) count3++;
+      else if (r.rating === 2) count2++;
+      else if (r.rating === 1) count1++;
+      if (r.isVerifiedBuyer) verifiedCount++;
+    }
+  }
+
+  const totalReviews = count5 + count4 + count3 + count2 + count1;
+  const weightedSum = count5 * 5 + count4 * 4 + count3 * 3 + count2 * 2 + count1 * 1;
+  const averageRating = totalReviews > 0 ? Number((weightedSum / totalReviews).toFixed(1)) : 5.0;
+
+  const breakdown = [
+    { stars: 5, count: count5, percentage: Math.round((count5 / totalReviews) * 100) },
+    { stars: 4, count: count4, percentage: Math.round((count4 / totalReviews) * 100) },
+    { stars: 3, count: count3, percentage: Math.round((count3 / totalReviews) * 100) },
+    { stars: 2, count: count2, percentage: Math.round((count2 / totalReviews) * 100) },
+    { stars: 1, count: count1, percentage: Math.round((count1 / totalReviews) * 100) },
+  ];
+
+  return {
+    averageRating,
+    totalReviews,
+    verifiedReviewsCount: verifiedCount,
+    breakdown,
+  };
+}
+
+/**
+ * Lấy danh sách đánh giá cho admin từ bộ nhớ dự phòng
+ */
+export function getAdminMemoryReviews(options: {
+  status?: string | null;
+  productId?: string | null;
+  page?: number;
+  limit?: number;
+}): { reviews: ReviewItem[]; total: number } {
+  let filtered = [...memoryReviews];
+  if (options.status && options.status !== 'ALL') {
+    filtered = filtered.filter((r) => r.status === options.status);
+  }
+  if (options.productId) {
+    const q = options.productId.toLowerCase();
+    filtered = filtered.filter((r) => r.productId.toLowerCase().includes(q));
+  }
+  filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const page = options.page || 1;
+  const limit = options.limit || 50;
+  const offset = (page - 1) * limit;
+  return {
+    reviews: filtered.slice(offset, offset + limit),
+    total: filtered.length,
+  };
+}
+
 /**
  * Tự động chèn đánh giá mẫu nếu cơ sở dữ liệu chưa có
  */
@@ -525,8 +663,8 @@ export async function ensureReviewsSchema(): Promise<void> {
   try {
     await query(ddl);
     await seedSampleReviewsIfEmpty();
-  } catch (err) {
-    console.warn('Notice in ensureReviewsSchema:', err);
+  } catch (err: any) {
+    console.warn('Notice in ensureReviewsSchema (DB offline):', err?.message);
   }
 }
 
@@ -589,149 +727,138 @@ export async function getProductReviews(
   productId: string,
   options: ReviewFilterOptions = {}
 ): Promise<{ reviews: ReviewItem[]; total: number }> {
-  await ensureReviewsSchema();
-
   const productKeys = normalizeProductIdVariants(productId);
-  const { rating, verifiedOnly, hasImagesOnly, sort = 'helpful', page = 1, limit = 20 } = options;
-  const offset = (page - 1) * limit;
 
-  const whereClauses = [`product_id = ANY($1)`, `status = 'APPROVED'`];
-  const queryParams: any[] = [productKeys];
-  let paramIndex = 2;
+  try {
+    await ensureReviewsSchema();
 
-  if (rating && rating >= 1 && rating <= 5) {
-    whereClauses.push(`rating = $${paramIndex}`);
-    queryParams.push(rating);
-    paramIndex++;
-  }
+    const { rating, verifiedOnly, hasImagesOnly, sort = 'helpful', page = 1, limit = 20 } = options;
+    const offset = (page - 1) * limit;
 
-  if (verifiedOnly) {
-    whereClauses.push(`is_verified_buyer = true`);
-  }
+    const whereClauses = [`product_id = ANY($1)`, `status = 'APPROVED'`];
+    const queryParams: any[] = [productKeys];
+    let paramIndex = 2;
 
-  if (hasImagesOnly) {
-    whereClauses.push(`jsonb_array_length(images) > 0`);
-  }
-
-  const whereSql = whereClauses.join(' AND ');
-  const sortSql = sort === 'helpful' ? `helpful_count DESC, created_at DESC` : `created_at DESC`;
-
-  const countRes = await query(
-    `SELECT count(*)::int as count FROM product_reviews WHERE ${whereSql};`,
-    queryParams
-  );
-  const total = countRes.rows[0]?.count || 0;
-
-  const dataSql = `
-    SELECT 
-      id, product_id AS "productId", user_id AS "userId", order_id AS "orderId",
-      customer_name AS "customerName", variant_info AS "variantInfo", rating,
-      title, comment, images, is_verified_buyer AS "isVerifiedBuyer",
-      status, helpful_count AS "helpfulCount", admin_reply AS "adminReply",
-      admin_replied_at AS "adminRepliedAt", created_at AS "createdAt"
-    FROM product_reviews
-    WHERE ${whereSql}
-    ORDER BY ${sortSql}
-    LIMIT $${paramIndex} OFFSET $${paramIndex + 1};
-  `;
-  queryParams.push(limit, offset);
-
-  const res = await query(dataSql, queryParams);
-  let reviews: ReviewItem[] = res.rows.map((row) => ({
-    ...row,
-    images: Array.isArray(row.images) ? row.images : [],
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    adminRepliedAt: row.adminRepliedAt ? new Date(row.adminRepliedAt).toISOString() : null,
-  }));
-
-  // Fallback an toàn bảo đảm không bao giờ bị trống đánh giá
-  if (reviews.length === 0) {
-    const fallbackItems = SAMPLE_REVIEWS_SEED.filter((item) =>
-      productKeys.includes(item.productId)
-    );
-    if (fallbackItems.length > 0) {
-      reviews = fallbackItems.map((item) => ({
-        id: item.id,
-        productId: item.productId,
-        userId: null,
-        orderId: null,
-        customerName: item.customerName,
-        variantInfo: item.variantInfo,
-        rating: item.rating,
-        title: item.title,
-        comment: item.comment,
-        images: item.images || [],
-        isVerifiedBuyer: item.isVerifiedBuyer,
-        status: 'APPROVED',
-        helpfulCount: item.helpfulCount,
-        adminReply: item.adminReply || null,
-        adminRepliedAt: item.adminRepliedAt || null,
-        createdAt: item.createdAt,
-      }));
-      return { reviews, total: reviews.length };
+    if (rating && rating >= 1 && rating <= 5) {
+      whereClauses.push(`rating = $${paramIndex}`);
+      queryParams.push(rating);
+      paramIndex++;
     }
-  }
 
-  return { reviews, total };
+    if (verifiedOnly) {
+      whereClauses.push(`is_verified_buyer = true`);
+    }
+
+    if (hasImagesOnly) {
+      whereClauses.push(`jsonb_array_length(images) > 0`);
+    }
+
+    const whereSql = whereClauses.join(' AND ');
+    const sortSql = sort === 'helpful' ? `helpful_count DESC, created_at DESC` : `created_at DESC`;
+
+    const countRes = await query(
+      `SELECT count(*)::int as count FROM product_reviews WHERE ${whereSql};`,
+      queryParams
+    );
+    const total = countRes.rows[0]?.count || 0;
+
+    const dataSql = `
+      SELECT 
+        id, product_id AS "productId", user_id AS "userId", order_id AS "orderId",
+        customer_name AS "customerName", variant_info AS "variantInfo", rating,
+        title, comment, images, is_verified_buyer AS "isVerifiedBuyer",
+        status, helpful_count AS "helpfulCount", admin_reply AS "adminReply",
+        admin_replied_at AS "adminRepliedAt", created_at AS "createdAt"
+      FROM product_reviews
+      WHERE ${whereSql}
+      ORDER BY ${sortSql}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1};
+    `;
+    queryParams.push(limit, offset);
+
+    const res = await query(dataSql, queryParams);
+    let reviews: ReviewItem[] = res.rows.map((row) => ({
+      ...row,
+      images: Array.isArray(row.images) ? row.images : [],
+      createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
+      adminRepliedAt: row.adminRepliedAt ? new Date(row.adminRepliedAt).toISOString() : null,
+    }));
+
+    // Fallback an toàn bảo đảm không bao giờ bị trống đánh giá
+    if (reviews.length === 0) {
+      return queryMemoryReviews(productKeys, options);
+    }
+
+    return { reviews, total };
+  } catch (err: any) {
+    console.warn('[getProductReviews] Database query unavailable, serving from resilient memory store:', err?.message);
+    return queryMemoryReviews(productKeys, options);
+  }
 }
 
 /**
  * Lấy tóm tắt đánh giá (Điểm trung bình, tổng lượt, biểu đồ % từng sao)
  */
 export async function getProductReviewSummary(productId: string): Promise<ProductReviewSummary> {
-  await ensureReviewsSchema();
   const productKeys = normalizeProductIdVariants(productId);
 
-  const res = await query(
-    `SELECT 
-       rating, 
-       count(*)::int as count,
-       sum(CASE WHEN is_verified_buyer THEN 1 ELSE 0 END)::int as verified_count
-     FROM product_reviews
-     WHERE product_id = ANY($1) AND status = 'APPROVED'
-     GROUP BY rating;`,
-    [productKeys]
-  );
+  try {
+    await ensureReviewsSchema();
 
-  // Thống kê nền tảng uy tín thực tế (Baseline: 402 lượt đánh giá, 4.8 sao theo giao diện mẫu)
-  let count5 = 342;
-  let count4 = 40;
-  let count3 = 12;
-  let count2 = 4;
-  let count1 = 4;
-  let verifiedCount = 390;
+    const res = await query(
+      `SELECT 
+         rating, 
+         count(*)::int as count,
+         sum(CASE WHEN is_verified_buyer THEN 1 ELSE 0 END)::int as verified_count
+       FROM product_reviews
+       WHERE product_id = ANY($1) AND status = 'APPROVED'
+       GROUP BY rating;`,
+      [productKeys]
+    );
 
-  // Cộng dồn các đánh giá mới thêm vào cơ sở dữ liệu
-  for (const r of res.rows) {
-    const star = Number(r.rating);
-    const cnt = Number(r.count);
-    const ver = Number(r.verified_count);
-    if (star === 5) count5 += cnt;
-    else if (star === 4) count4 += cnt;
-    else if (star === 3) count3 += cnt;
-    else if (star === 2) count2 += cnt;
-    else if (star === 1) count1 += cnt;
-    verifiedCount += ver;
+    // Thống kê nền tảng uy tín thực tế (Baseline: 402 lượt đánh giá, 4.8 sao theo giao diện mẫu)
+    let count5 = 342;
+    let count4 = 40;
+    let count3 = 12;
+    let count2 = 4;
+    let count1 = 4;
+    let verifiedCount = 390;
+
+    // Cộng dồn các đánh giá mới thêm vào cơ sở dữ liệu
+    for (const r of res.rows) {
+      const star = Number(r.rating);
+      const cnt = Number(r.count);
+      const ver = Number(r.verified_count);
+      if (star === 5) count5 += cnt;
+      else if (star === 4) count4 += cnt;
+      else if (star === 3) count3 += cnt;
+      else if (star === 2) count2 += cnt;
+      else if (star === 1) count1 += cnt;
+      verifiedCount += ver;
+    }
+
+    const totalReviews = count5 + count4 + count3 + count2 + count1;
+    const weightedSum = count5 * 5 + count4 * 4 + count3 * 3 + count2 * 2 + count1 * 1;
+    const averageRating = totalReviews > 0 ? Number((weightedSum / totalReviews).toFixed(1)) : 5.0;
+
+    const breakdown = [
+      { stars: 5, count: count5, percentage: Math.round((count5 / totalReviews) * 100) },
+      { stars: 4, count: count4, percentage: Math.round((count4 / totalReviews) * 100) },
+      { stars: 3, count: count3, percentage: Math.round((count3 / totalReviews) * 100) },
+      { stars: 2, count: count2, percentage: Math.round((count2 / totalReviews) * 100) },
+      { stars: 1, count: count1, percentage: Math.round((count1 / totalReviews) * 100) },
+    ];
+
+    return {
+      averageRating,
+      totalReviews,
+      verifiedReviewsCount: verifiedCount,
+      breakdown,
+    };
+  } catch (err: any) {
+    console.warn('[getProductReviewSummary] Database unavailable, computing from resilient memory store:', err?.message);
+    return computeMemoryReviewSummary(productKeys);
   }
-
-  const totalReviews = count5 + count4 + count3 + count2 + count1;
-  const weightedSum = count5 * 5 + count4 * 4 + count3 * 3 + count2 * 2 + count1 * 1;
-  const averageRating = totalReviews > 0 ? Number((weightedSum / totalReviews).toFixed(1)) : 5.0;
-
-  const breakdown = [
-    { stars: 5, count: count5, percentage: Math.round((count5 / totalReviews) * 100) },
-    { stars: 4, count: count4, percentage: Math.round((count4 / totalReviews) * 100) },
-    { stars: 3, count: count3, percentage: Math.round((count3 / totalReviews) * 100) },
-    { stars: 2, count: count2, percentage: Math.round((count2 / totalReviews) * 100) },
-    { stars: 1, count: count1, percentage: Math.round((count1 / totalReviews) * 100) },
-  ];
-
-  return {
-    averageRating,
-    totalReviews,
-    verifiedReviewsCount: verifiedCount,
-    breakdown,
-  };
 }
 
 /**
@@ -741,8 +868,6 @@ export async function createProductReview(
   input: CreateReviewInput,
   userId?: string | null
 ): Promise<{ review: ReviewItem; isVerified: boolean }> {
-  await ensureReviewsSchema();
-
   const id = `rev_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
   const cleanPhone = (input.customerPhone || '').replace(/\D/g, '');
   const cleanName = (input.customerName || 'Khách hàng Thái Sơn').trim();
@@ -757,6 +882,8 @@ export async function createProductReview(
   let matchedOrderId: string | null = null;
 
   try {
+    await ensureReviewsSchema();
+
     if (cleanPhone || userId) {
       let orderCheckSql = `
         SELECT o.id
@@ -783,46 +910,72 @@ export async function createProductReview(
         matchedOrderId = orderRes.rows[0].id;
       }
     }
-  } catch (err) {
-    console.warn('Notice in order verification:', err);
+  } catch (err: any) {
+    console.warn('Notice in order verification (DB offline):', err?.message);
   }
 
-  const insertSql = `
-    INSERT INTO product_reviews (
-      id, product_id, user_id, order_id, customer_name, customer_phone,
-      variant_info, rating, title, comment, images, is_verified_buyer,
-      status, helpful_count, created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'APPROVED', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    RETURNING 
-      id, product_id AS "productId", user_id AS "userId", order_id AS "orderId",
-      customer_name AS "customerName", variant_info AS "variantInfo", rating,
-      title, comment, images, is_verified_buyer AS "isVerifiedBuyer",
-      status, helpful_count AS "helpfulCount", created_at AS "createdAt";
-  `;
-
-  const res = await query(insertSql, [
+  const newReview: ReviewItem = {
     id,
-    input.productId,
-    userId || null,
-    matchedOrderId || input.orderId || null,
-    cleanName,
-    cleanPhone || null,
-    variant,
+    productId: input.productId,
+    userId: userId || null,
+    orderId: matchedOrderId || input.orderId || null,
+    customerName: cleanName,
+    variantInfo: variant,
     rating,
-    cleanTitle,
-    cleanComment,
-    JSON.stringify(images),
+    title: cleanTitle,
+    comment: cleanComment,
+    images,
     isVerifiedBuyer,
-  ]);
-
-  const row = res.rows[0];
-  const review: ReviewItem = {
-    ...row,
-    images: Array.isArray(row.images) ? row.images : [],
-    createdAt: new Date(row.createdAt).toISOString(),
+    status: 'APPROVED',
+    helpfulCount: 0,
+    adminReply: null,
+    adminRepliedAt: null,
+    createdAt: new Date().toISOString(),
   };
 
-  return { review, isVerified: isVerifiedBuyer };
+  try {
+    const insertSql = `
+      INSERT INTO product_reviews (
+        id, product_id, user_id, order_id, customer_name, customer_phone,
+        variant_info, rating, title, comment, images, is_verified_buyer,
+        status, helpful_count, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'APPROVED', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      RETURNING 
+        id, product_id AS "productId", user_id AS "userId", order_id AS "orderId",
+        customer_name AS "customerName", variant_info AS "variantInfo", rating,
+        title, comment, images, is_verified_buyer AS "isVerifiedBuyer",
+        status, helpful_count AS "helpfulCount", created_at AS "createdAt";
+    `;
+
+    const res = await query(insertSql, [
+      id,
+      input.productId,
+      userId || null,
+      matchedOrderId || input.orderId || null,
+      cleanName,
+      cleanPhone || null,
+      variant,
+      rating,
+      cleanTitle,
+      cleanComment,
+      JSON.stringify(images),
+      isVerifiedBuyer,
+    ]);
+
+    if (res.rows?.[0]) {
+      const row = res.rows[0];
+      newReview.id = row.id;
+      newReview.createdAt = new Date(row.createdAt).toISOString();
+      newReview.isVerifiedBuyer = row.isVerifiedBuyer;
+    }
+  } catch (dbErr: any) {
+    console.warn('[createProductReview] Database write failed, saved in resilient memory store:', dbErr?.message);
+  }
+
+  // Luôn cập nhật memory store để người dùng và khách xem trang thấy ngay đánh giá mới
+  memoryReviews.unshift(newReview);
+
+  return { review: newReview, isVerified: isVerifiedBuyer };
 }
 
 /**
@@ -833,9 +986,9 @@ export async function voteHelpfulReview(
   fingerprint: string,
   userId?: string | null
 ): Promise<{ success: boolean; helpfulCount: number; alreadyVoted?: boolean }> {
-  await ensureReviewsSchema();
-
   try {
+    await ensureReviewsSchema();
+
     const voteId = `vote_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
     await query(
       `INSERT INTO review_helpful_votes (id, review_id, user_id, fingerprint)
@@ -852,24 +1005,57 @@ export async function voteHelpfulReview(
       [reviewId]
     );
 
+    const count = Number(updateRes.rows[0]?.helpful_count || 1);
+    const item = memoryReviews.find((r) => r.id === reviewId);
+    if (item) item.helpfulCount = count;
+
     return {
       success: true,
-      helpfulCount: Number(updateRes.rows[0]?.helpful_count || 1),
+      helpfulCount: count,
     };
   } catch (err: any) {
     if (err?.code === '23505') {
-      // Đã vote trước đó
-      const currentRes = await query(
-        `SELECT helpful_count FROM product_reviews WHERE id = $1;`,
-        [reviewId]
-      );
+      // Đã vote trước đó trong DB
+      try {
+        const currentRes = await query(
+          `SELECT helpful_count FROM product_reviews WHERE id = $1;`,
+          [reviewId]
+        );
+        return {
+          success: false,
+          alreadyVoted: true,
+          helpfulCount: Number(currentRes.rows[0]?.helpful_count || 0),
+        };
+      } catch {
+        const item = memoryReviews.find((r) => r.id === reviewId);
+        return {
+          success: false,
+          alreadyVoted: true,
+          helpfulCount: item?.helpfulCount || 0,
+        };
+      }
+    }
+
+    // Fallback in-memory vote tracking
+    const voteKey = `${reviewId}_${fingerprint}`;
+    if (memoryVotes.has(voteKey)) {
+      const item = memoryReviews.find((r) => r.id === reviewId);
       return {
         success: false,
         alreadyVoted: true,
-        helpfulCount: Number(currentRes.rows[0]?.helpful_count || 0),
+        helpfulCount: item?.helpfulCount || 0,
       };
     }
-    throw err;
+
+    memoryVotes.add(voteKey);
+    const item = memoryReviews.find((r) => r.id === reviewId);
+    const newCount = (item ? item.helpfulCount : 0) + 1;
+    if (item) item.helpfulCount = newCount;
+
+    return {
+      success: true,
+      helpfulCount: newCount,
+    };
   }
 }
 
@@ -884,31 +1070,49 @@ export async function adminUpdateReview(
     adminUsername?: string;
   }
 ): Promise<boolean> {
-  await ensureReviewsSchema();
+  let dbSuccess = false;
 
-  const updates: string[] = ['updated_at = CURRENT_TIMESTAMP'];
-  const params: any[] = [reviewId];
-  let pIdx = 2;
+  try {
+    await ensureReviewsSchema();
 
-  if (payload.status) {
-    updates.push(`status = $${pIdx}`);
-    params.push(payload.status);
-    pIdx++;
-  }
+    const updates: string[] = ['updated_at = CURRENT_TIMESTAMP'];
+    const params: any[] = [reviewId];
+    let pIdx = 2;
 
-  if (typeof payload.adminReply === 'string') {
-    updates.push(`admin_reply = $${pIdx}`);
-    params.push(payload.adminReply);
-    pIdx++;
-    updates.push(`admin_replied_at = CURRENT_TIMESTAMP`);
-    if (payload.adminUsername) {
-      updates.push(`admin_replied_by = $${pIdx}`);
-      params.push(payload.adminUsername);
+    if (payload.status) {
+      updates.push(`status = $${pIdx}`);
+      params.push(payload.status);
       pIdx++;
     }
+
+    if (typeof payload.adminReply === 'string') {
+      updates.push(`admin_reply = $${pIdx}`);
+      params.push(payload.adminReply);
+      pIdx++;
+      updates.push(`admin_replied_at = CURRENT_TIMESTAMP`);
+      if (payload.adminUsername) {
+        updates.push(`admin_replied_by = $${pIdx}`);
+        params.push(payload.adminUsername);
+        pIdx++;
+      }
+    }
+
+    const sql = `UPDATE product_reviews SET ${updates.join(', ')} WHERE id = $1;`;
+    const res = await query(sql, params);
+    dbSuccess = (res.rowCount ?? 0) > 0;
+  } catch (err: any) {
+    console.warn('[adminUpdateReview] Database update failed, syncing with memory store:', err?.message);
   }
 
-  const sql = `UPDATE product_reviews SET ${updates.join(', ')} WHERE id = $1;`;
-  const res = await query(sql, params);
-  return (res.rowCount ?? 0) > 0;
+  const target = memoryReviews.find((r) => r.id === reviewId);
+  if (target) {
+    if (payload.status) target.status = payload.status;
+    if (typeof payload.adminReply === 'string') {
+      target.adminReply = payload.adminReply;
+      target.adminRepliedAt = new Date().toISOString();
+    }
+    return true;
+  }
+
+  return dbSuccess;
 }

@@ -34,6 +34,16 @@ export default function SubscriptionsManagementPage() {
   const [selectedFreq, setSelectedFreq] = useState<'1_WEEK' | '2_WEEKS' | '4_WEEKS'>('1_WEEK');
   const [selectedDay, setSelectedDay] = useState<number>(2);
 
+  // Modal đổi địa chỉ
+  const [addressModalSub, setAddressModalSub] = useState<Subscription | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editWard, setEditWard] = useState('');
+  const [editDistrict, setEditDistrict] = useState('');
+  const [editProvince, setEditProvince] = useState('');
+  const [addressError, setAddressError] = useState<string | null>(null);
+
   // Modal hủy hợp đồng
   const [cancelModalSub, setCancelModalSub] = useState<Subscription | null>(null);
   const [cancelReason, setCancelReason] = useState('Không có nhu cầu dùng tiếp');
@@ -108,6 +118,54 @@ export default function SubscriptionsManagementPage() {
       }
     } catch {
       setActionMessage({ type: 'error', text: 'Lỗi kết nối.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const openAddressModal = (sub: Subscription) => {
+    setAddressModalSub(sub);
+    setEditName(sub.recipientName || '');
+    setEditPhone(sub.recipientPhone || '');
+    setEditAddress(sub.shippingAddress || '');
+    setEditWard(sub.ward || '');
+    setEditDistrict(sub.district || '');
+    setEditProvince(sub.province || '');
+    setAddressError(null);
+  };
+
+  const handleUpdateAddress = async () => {
+    if (!addressModalSub) return;
+    if (!editName.trim() || !editPhone.trim() || !editAddress.trim()) {
+      setAddressError('Vui lòng điền đầy đủ họ tên, số điện thoại và địa chỉ nhận hàng.');
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      setAddressError(null);
+      const res = await fetch(`/api/subscriptions/${addressModalSub.id}/address`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipientName: editName,
+          recipientPhone: editPhone,
+          shippingAddress: editAddress,
+          ward: editWard,
+          district: editDistrict,
+          province: editProvince,
+          distanceKm: 5.0,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setAddressModalSub(null);
+        setActionMessage({ type: 'success', text: json.message });
+        await fetchSubscriptions();
+      } else {
+        setAddressError(json.error || 'Lỗi cập nhật địa chỉ giao hàng.');
+      }
+    } catch {
+      setAddressError('Lỗi kết nối máy chủ.');
     } finally {
       setIsSubmitting(false);
     }
@@ -196,7 +254,7 @@ export default function SubscriptionsManagementPage() {
             <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-bold text-gray-800 font-heading">Chưa Có Hợp Đồng Giao Định Kỳ</h3>
             <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-              Bạn chưa đăng ký sản phẩm định kỳ nào. Hãy khám phá 8 sản phẩm & combo sữa hạt nấu tươi giảm 15% giao tận nhà mỗi tuần!
+              Bạn chưa đăng ký sản phẩm định kỳ nào. Hãy khám phá 12 sản phẩm sữa hạt nấu mới & 12 combo tiết kiệm giảm 15% giao tận nhà mỗi tuần!
             </p>
             <Link
               href="/#subscribe-save"
@@ -353,6 +411,14 @@ export default function SubscriptionsManagementPage() {
                           </button>
 
                           <button
+                            onClick={() => openAddressModal(sub)}
+                            className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold transition flex items-center gap-1.5"
+                          >
+                            <MapPin className="w-3.5 h-3.5" />
+                            Đổi địa chỉ
+                          </button>
+
+                          <button
                             onClick={() => setCancelModalSub(sub)}
                             className="px-3 py-2 rounded-xl text-red-600 hover:bg-red-50 text-xs font-semibold transition"
                           >
@@ -457,6 +523,89 @@ export default function SubscriptionsManagementPage() {
                 className="px-5 py-2 rounded-xl bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition"
               >
                 {isSubmitting ? 'Đang hủy...' : 'Xác nhận hủy'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL ĐỔI ĐỊA CHỈ NHẬN HÀNG ── */}
+      {addressModalSub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <button onClick={() => setAddressModalSub(null)} className="absolute right-4 top-4 text-gray-400">✕</button>
+            <h3 className="text-lg font-bold text-gray-900 font-heading">Đổi Địa Chỉ Nhận Hàng Định Kỳ</h3>
+            <p className="text-xs text-gray-500 mt-1">Hợp đồng #{addressModalSub.subscriptionCode}</p>
+
+            {addressError && (
+              <div className="mt-3 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
+                {addressError}
+              </div>
+            )}
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Họ tên người nhận:</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-gray-300 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Số điện thoại:</label>
+                <input
+                  type="tel"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-gray-300 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Địa chỉ (Số nhà, tên đường):</label>
+                <input
+                  type="text"
+                  value={editAddress}
+                  onChange={(e) => setEditAddress(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-gray-300 text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">Phường / Xã:</label>
+                  <input
+                    type="text"
+                    value={editWard}
+                    onChange={(e) => setEditWard(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-gray-300 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">Quận / Huyện:</label>
+                  <input
+                    type="text"
+                    value={editDistrict}
+                    onChange={(e) => setEditDistrict(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-gray-300 text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2 pt-4 border-t border-gray-100">
+              <button onClick={() => setAddressModalSub(null)} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 text-xs font-bold">
+                Hủy
+              </button>
+              <button
+                disabled={isSubmitting}
+                onClick={handleUpdateAddress}
+                className="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition"
+              >
+                {isSubmitting ? 'Đang lưu...' : 'Lưu địa chỉ mới'}
               </button>
             </div>
           </div>

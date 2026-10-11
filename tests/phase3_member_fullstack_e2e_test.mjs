@@ -14,6 +14,7 @@ import {
   getUserSubscriptions,
   skipSubscriptionNextDelivery,
   updateSubscriptionFrequency,
+  updateSubscriptionAddress,
   cancelSubscription,
   cancelUserMembership,
 } from '../src/lib/membership/repository.ts';
@@ -169,6 +170,8 @@ async function runFullstackSuite() {
       assert.equal(sub.status, 'ACTIVE');
       assert.equal(sub.items.length, 2);
       assert.equal(sub.items[0].finalPrice, 107100);
+      // Kiểm tra định dạng mã hợp đồng #SUB-xxxx (4 chữ số duy nhất)
+      assert.match(sub.subscriptionCode, /^SUB-\d{4}$/, 'Mã hợp đồng phải có định dạng #SUB-xxxx');
       createdSubId = sub.id;
     });
 
@@ -177,6 +180,31 @@ async function runFullstackSuite() {
       assert.equal(subs.length >= 1, true);
       assert.equal(subs[0].id, createdSubId);
       assert.equal(subs[0].items.length, 2);
+    });
+
+    await itAsync('Address: Cập nhật địa chỉ nhận hàng thành công khi trong bán kính 25km', async () => {
+      const updated = await updateSubscriptionAddress(createdSubId, testUserId, {
+        recipientName: 'Nguyễn Văn Test Prime Đã Đổi',
+        recipientPhone: '0909876543',
+        shippingAddress: '456 Nguyễn Hữu Thọ, P. Tân Hưng, Quận 7',
+        distanceKm: 6.5,
+      });
+      assert.equal(updated.recipientName, 'Nguyễn Văn Test Prime Đã Đổi');
+      assert.equal(updated.shippingAddress, '456 Nguyễn Hữu Thọ, P. Tân Hưng, Quận 7');
+    });
+
+    await itAsync('Address: Từ chối cập nhật địa chỉ khi khoảng cách vượt quá 25km', async () => {
+      await assert.rejects(
+        async () => {
+          await updateSubscriptionAddress(createdSubId, testUserId, {
+            recipientName: 'Khách Ở Xa',
+            recipientPhone: '0909876543',
+            shippingAddress: 'Tỉnh Lộ 8, Củ Chi',
+            distanceKm: 32.0,
+          });
+        },
+        /vượt quá bán kính phục vụ/
+      );
     });
 
     // ── NHÓM 4: THAO TÁC MINH BẠCH BỎ QUA KỲ GIAO (SKIP) ────────────────

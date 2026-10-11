@@ -30,6 +30,6 @@ export async function PUT(req: NextRequest, context: RouteContext) {
     });
   } catch (error: any) {
     console.error('Error in skip subscription:', error);
-    return NextResponse.json({ success: false, error: error.message || 'Lỗi thao tác bỏ qua kỳ giao.' }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message || 'Lỗi thao tác bỏ qua kỳ giao.' }, { status: 400 });
   }
 }

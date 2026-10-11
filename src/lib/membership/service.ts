@@ -71,9 +71,57 @@ export function calculateNextDeliveryDate(
 /**
  * Kiểm tra xem đã qua giờ cắt đơn (Cutoff Time) cho ngày mai chưa (18:00 giờ VN)
  */
-export function isCutoffTimePassed(currentDate: Date = new Date(), cutoffHour: number = 18): boolean {
+export function isCutoffTimePassed(
+  currentDate: Date = new Date(),
+  cutoffHour: number = MEMBERSHIP_CONFIG.CUTOFF_HOUR
+): boolean {
   const vnDate = getVietnamDate(currentDate);
   return vnDate.getHours() >= cutoffHour;
+}
+
+/**
+ * Tính mốc thời gian cắt đơn (18:00 của ngày T-1 trước ngày giao hàng) theo giờ Việt Nam
+ */
+export function getDeliveryCutoffTime(
+  scheduledDateInput: Date | string,
+  cutoffHour: number = MEMBERSHIP_CONFIG.CUTOFF_HOUR
+): Date {
+  const schedVn = getVietnamDate(scheduledDateInput);
+  const cutoff = new Date(schedVn);
+  cutoff.setDate(cutoff.getDate() - 1);
+  cutoff.setHours(cutoffHour, 0, 0, 0);
+  return cutoff;
+}
+
+/**
+ * Kiểm tra xem khách có được quyền Bỏ qua kỳ này (One-Click Skip) không:
+ * - Được phép: Bấm trước 18:00 ngày T-1
+ * - Bị từ chối: Bấm từ 18:00 ngày T-1 trở đi (xưởng đã nấu đêm và xếp xe lạnh)
+ */
+export function isSkipAllowed(
+  scheduledDateInput: Date | string,
+  nowInput: Date | string = new Date(),
+  cutoffHour: number = MEMBERSHIP_CONFIG.CUTOFF_HOUR
+): {
+  allowed: boolean;
+  cutoffTime: Date;
+  reason?: string;
+} {
+  const cutoffTime = getDeliveryCutoffTime(scheduledDateInput, cutoffHour);
+  const nowVn = getVietnamDate(nowInput);
+
+  if (nowVn.getTime() >= cutoffTime.getTime()) {
+    return {
+      allowed: false,
+      cutoffTime,
+      reason: `Đã qua giờ cắt đơn (${cutoffHour}:00 ngày T-1). Xưởng nấu đêm đã lên lịch sản xuất và điều phối xe lạnh, không thể bỏ qua kỳ giao này.`,
+    };
+  }
+
+  return {
+    allowed: true,
+    cutoffTime,
+  };
 }
 
 // ==============================================================================
@@ -105,7 +153,7 @@ export function calculateSubscriptionItemPrice(input: PriceSnapshotCalculationIn
 } {
   const snap = input.priceSnapshot ?? input.snapshotRetailPrice ?? 0;
   const cat = input.catalogPrice ?? snap;
-  const rate = input.discountRate ?? ((input.discountPercent ?? 15) / 100);
+  const rate = input.discountRate ?? ((input.discountPercent ?? MEMBERSHIP_CONFIG.SUBSCRIPTION_DISCOUNT_PERCENT) / 100);
   const qty = input.quantity ?? 1;
   const useCatalogPriceIfLower = input.useCatalogPriceIfLower ?? true;
 

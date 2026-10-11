@@ -16,8 +16,28 @@ export const MEMBERSHIP_CONFIG = {
   // Bán kính giao hàng tối đa cho đơn định kỳ (km)
   MAX_DELIVERY_RADIUS_KM: 25,
 
-  // Ngưỡng đơn hàng tối thiểu được áp dụng Subscribe & Save
+  // Ngưỡng đơn hàng tối thiểu tính theo giá niêm yết (VND) để áp dụng Subscribe & Save
   MIN_SUBSCRIPTION_ORDER_VALUE: 120_000,
+
+  // Tỷ lệ chiết khấu cố định Subscribe & Save (15%)
+  SUBSCRIPTION_DISCOUNT_RATE: 0.15,
+  SUBSCRIPTION_DISCOUNT_PERCENT: 15,
+
+  // Giờ cắt đơn T-1 (18:00 giờ Việt Nam)
+  CUTOFF_HOUR: 18,
+
+  // Số ngày gửi nhắc lịch trước ngày giao (T-5)
+  REMINDER_LEAD_DAYS: 5,
+  REMINDER_DAYS_BEFORE: [5, 3] as const,
+
+  // Phí giao hàng xe lạnh cho đơn định kỳ (Freeship 100%)
+  FREE_SHIPPING_FEE: 0,
+
+  // Quy cách đóng gói tiêu chuẩn
+  PACK_SPECS: {
+    BOTTLE_7_PACK_ML: 330,
+    BOTTLE_5_PACK_ML: 568,
+  },
 
   // Cấu hình các gói hội viên chuẩn
   TIERS: {
@@ -52,16 +72,13 @@ export const MEMBERSHIP_CONFIG = {
     },
   },
 
-  // Cấu hình chu kỳ giao hàng định kỳ
+  // Cấu hình 3 chu kỳ giao hàng định kỳ chuẩn
   DELIVERY_FREQUENCIES: {
-    '1_WEEK': { code: '1_WEEK', days: 7, label: 'Giao mỗi tuần' },
-    '2_WEEKS': { code: '2_WEEKS', days: 14, label: 'Giao mỗi 2 tuần' },
-    '4_WEEKS': { code: '4_WEEKS', days: 28, label: 'Giao mỗi 4 tuần (1 tháng)' },
+    '1_WEEK': { code: '1_WEEK', days: 7, label: 'Mỗi tuần (1 tuần/lần)' },
+    '2_WEEKS': { code: '2_WEEKS', days: 14, label: '2 tuần/lần' },
+    '4_WEEKS': { code: '4_WEEKS', days: 28, label: 'Mỗi tháng (4 tuần/lần)' },
   },
 
   // Giờ chốt tạo đơn JIT (Hours before scheduled delivery date)
   JIT_ORDER_LEAD_HOURS: 24,
-
-  // Ngày nhắc trước (Days before delivery)
-  REMINDER_DAYS_BEFORE: [5, 3],
 } as const;

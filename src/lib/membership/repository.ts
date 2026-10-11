@@ -8,7 +8,11 @@ import {
   SubscriptionItem,
   SubscriptionFrequency,
 } from '@/types/membership';
-import { calculateNextDeliveryDate } from '@/lib/membership/service';
+import {
+  calculateNextDeliveryDate,
+  isSkipAllowed,
+  validateDeliveryRadius,
+} from '@/lib/membership/service';
 
 /**
  * Data Access Layer (DAL) / Repository cho Phân hệ Hội viên & Subscribe & Save
@@ -90,28 +94,38 @@ export async function ensureMembershipSchema(): Promise<void> {
 
     CREATE TABLE IF NOT EXISTS subscriptions (
       id VARCHAR(64) PRIMARY KEY,
+      subscription_code VARCHAR(50) UNIQUE,
       user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
       delivery_frequency VARCHAR(20) NOT NULL DEFAULT '1_WEEK',
       preferred_day_of_week INT NOT NULL DEFAULT 2,
+      preferred_time_slot VARCHAR(50) NOT NULL DEFAULT '08:00-12:00',
       next_delivery_date DATE NOT NULL,
+      last_delivered_date TIMESTAMPTZ,
+      cancel_reason TEXT,
       recipient_name VARCHAR(150) NOT NULL,
       recipient_phone VARCHAR(30) NOT NULL,
       shipping_address TEXT NOT NULL,
       province VARCHAR(100),
       district VARCHAR(100),
       ward VARCHAR(100),
-      store_code VARCHAR(30) NOT NULL,
+      store_code VARCHAR(30),
       payment_method VARCHAR(30) NOT NULL DEFAULT 'vietqr',
       created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS subscription_code VARCHAR(50);
+    ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS preferred_time_slot VARCHAR(50) DEFAULT '08:00-12:00';
+    ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS last_delivered_date TIMESTAMPTZ;
+    ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS cancel_reason TEXT;
+
     CREATE TABLE IF NOT EXISTS subscription_items (
       id VARCHAR(64) PRIMARY KEY,
       subscription_id VARCHAR(64) NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
       product_id VARCHAR(100) NOT NULL,
-      product_name VARCHAR(255) NOT NULL,
+      variant_id VARCHAR(100),
+      name VARCHAR(255) NOT NULL,
       unit VARCHAR(50) NOT NULL,
       price_snapshot NUMERIC(12, 2) NOT NULL,
       discount_rate NUMERIC(4, 2) NOT NULL DEFAULT 0.15,
@@ -126,11 +140,15 @@ export async function ensureMembershipSchema(): Promise<void> {
       scheduled_date DATE NOT NULL,
       status VARCHAR(30) NOT NULL DEFAULT 'SCHEDULED',
       order_id VARCHAR(64),
+      generated_order_id VARCHAR(64),
       skip_reason TEXT,
       reminder_sent_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+
+    ALTER TABLE subscription_schedules ADD COLUMN IF NOT EXISTS generated_order_id VARCHAR(64);
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_sub_schedule_date ON subscription_schedules(subscription_id, scheduled_date);
 
     CREATE TABLE IF NOT EXISTS loyalty_point_ledger (
       id VARCHAR(64) PRIMARY KEY,
@@ -439,7 +457,13 @@ export async function createSubscription(input: CreateSubscriptionInput): Promis
     await client.query('BEGIN;');
 
     const subId = `sub_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
-    const subCode = `SUB-${Date.now().toString().slice(-4)}${crypto.randomInt(100, 999)}`;
+    // Sinh mã hợp đồng định dạng chuẩn #SUB-xxxx (4 chữ số duy nhất)
+    let subCode = `SUB-${crypto.randomInt(1000, 9999)}`;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const codeCheck = await client.query('SELECT 1 FROM subscriptions WHERE subscription_code = $1 LIMIT 1;', [subCode]);
+      if (codeCheck.rows.length === 0) break;
+      subCode = `SUB-${crypto.randomInt(1000, 9999)}`;
+    }
     const nextDeliveryDate = calculateNextDeliveryDate(
       new Date(),
       input.deliveryFrequency,
@@ -633,12 +657,29 @@ export async function skipSubscriptionNextDelivery(
     const sub = subRes.rows[0];
     const currentNextDate = new Date(sub.next_delivery_date);
 
+    // Kiểm tra giờ cắt đơn (Cutoff Time: 18:00 ngày T-1)
+    const skipCheck = isSkipAllowed(currentNextDate, new Date());
+    if (!skipCheck.allowed) {
+      throw new Error(skipCheck.reason || 'Đã qua giờ cắt đơn (18:00 hôm trước). Không thể bỏ qua kỳ giao này.');
+    }
+
     // Đánh dấu schedule hiện tại là SKIPPED
     await client.query(
       `UPDATE subscription_schedules 
        SET status = 'SKIPPED', skip_reason = $3, updated_at = CURRENT_TIMESTAMP
        WHERE subscription_id = $1 AND scheduled_date = $2;`,
       [subscriptionId, currentNextDate, reason]
+    );
+
+    // Giải phóng giữ chỗ tồn kho (nếu có)
+    await client.query(
+      `UPDATE stock_reservations
+       SET status = 'released', released_at = CURRENT_TIMESTAMP
+       WHERE order_id IN (
+         SELECT generated_order_id FROM subscription_schedules 
+         WHERE subscription_id = $1 AND scheduled_date = $2 AND generated_order_id IS NOT NULL
+       ) AND status = 'active';`,
+      [subscriptionId, currentNextDate]
     );
 
     // Tính ngày giao kế tiếp sau kỳ vừa bỏ qua
@@ -731,4 +772,54 @@ export async function cancelSubscription(
   `;
   const res = await query(sql, [subscriptionId, userId, reason]);
   return (res.rowCount ?? 0) > 0;
+}
+
+export async function updateSubscriptionAddress(
+  subscriptionId: string,
+  userId: string,
+  addressData: {
+    recipientName: string;
+    recipientPhone: string;
+    shippingAddress: string;
+    province?: string;
+    district?: string;
+    ward?: string;
+    distanceKm?: number;
+  }
+): Promise<Subscription> {
+  const distanceKm = addressData.distanceKm ?? 5.0;
+  const radiusCheck = validateDeliveryRadius(distanceKm);
+  if (!radiusCheck.isValid) {
+    throw new Error(radiusCheck.error || 'Địa chỉ mới vượt quá bán kính phục vụ 25km.');
+  }
+
+  const sql = `
+    UPDATE subscriptions
+    SET recipient_name = $3,
+        recipient_phone = $4,
+        shipping_address = $5,
+        province = COALESCE($6, province),
+        district = COALESCE($7, district),
+        ward = COALESCE($8, ward),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1 AND user_id = $2 AND status = 'ACTIVE'
+    RETURNING id;
+  `;
+  const res = await query(sql, [
+    subscriptionId,
+    userId,
+    addressData.recipientName.trim(),
+    addressData.recipientPhone.trim(),
+    addressData.shippingAddress.trim(),
+    addressData.province || null,
+    addressData.district || null,
+    addressData.ward || null,
+  ]);
+
+  if ((res.rowCount ?? 0) === 0) {
+    throw new Error('Hợp đồng không tồn tại hoặc đã bị hủy.');
+  }
+
+  const updatedSub = await getSubscriptionById(subscriptionId, userId);
+  return updatedSub!;
 }

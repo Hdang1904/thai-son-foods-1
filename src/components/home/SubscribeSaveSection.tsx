@@ -148,7 +148,7 @@ export const SUBSCRIBE_PRODUCTS: SubscribeItem[] = [
   },
   {
     id: 'sub-tsa-01',
-    nameVi: 'Trà Sữa Ciao Trân Châu (Lốc 7 chai 270ml)',
+    nameVi: 'Trà Sữa Ciao Trân Châu (Lốc 7 chai 330ml)',
     nameEn: 'Ciao Milk Tea with Topping (Pack of 7)',
     unitVi: 'Lốc 7 chai',
     unitEn: 'Pack of 7',
@@ -156,12 +156,12 @@ export const SUBSCRIBE_PRODUCTS: SubscribeItem[] = [
     discountRate: 15,
     rating: 4.9,
     reviewCount: 520,
-    badgeText: '5% | 15%',
+    badgeText: '-15%',
     image: '/images/products/1200x900-tsa1.jpg',
   },
   {
     id: 'sub-mac-01',
-    nameVi: 'Matcha Trà Sữa Ciao (Lốc 7 chai 270ml)',
+    nameVi: 'Matcha Trà Sữa Ciao (Lốc 7 chai 330ml)',
     nameEn: 'Ciao Japanese Matcha Milk Tea (Pack of 7)',
     unitVi: 'Lốc 7 chai',
     unitEn: 'Pack of 7',
@@ -169,7 +169,7 @@ export const SUBSCRIBE_PRODUCTS: SubscribeItem[] = [
     discountRate: 15,
     rating: 4.9,
     reviewCount: 430,
-    badgeText: '5% | 15%',
+    badgeText: '-15%',
     image: '/images/products/1200x900-mac1.jpg',
   },
   {
@@ -368,7 +368,6 @@ export const SUBSCRIBE_ITEMS: SubscribeItem[] = [
 const FREQUENCY_OPTIONS = [
   { value: 'weekly', labelVi: 'Mỗi tuần', labelEn: 'Weekly' },
   { value: 'biweekly', labelVi: '2 tuần/lần', labelEn: '2 weeks' },
-  { value: 'twice-weekly', labelVi: '2 lần/tuần', labelEn: '2x/week' },
   { value: 'monthly', labelVi: 'Mỗi tháng', labelEn: 'Monthly' },
 ];
 
@@ -581,10 +580,10 @@ export default function SubscribeSaveSection({
         className="bg-white rounded-lg border border-gray-200/90 shadow-2xs hover:shadow-md hover:border-amber-400 transition-all duration-200 p-1.5 sm:p-2 flex flex-col justify-between group h-full"
       >
         <div>
-          {/* Huy hiệu chiết khấu đặc trưng kiểu Amazon (5% | 15%) */}
+          {/* Huy hiệu chiết khấu cố định 15% theo đặc tả nghiệp vụ */}
           <div className="flex items-center justify-between gap-0.5 mb-1">
             <span className="px-1 py-0.5 bg-orange-600 text-white font-extrabold text-[8px] sm:text-[9px] rounded leading-none shrink-0">
-              {item.badgeText}
+              -15%
             </span>
             <span className="text-[8px] sm:text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200 leading-none shrink-0 truncate">
               Freeship
