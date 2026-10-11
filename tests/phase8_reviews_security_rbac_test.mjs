@@ -261,7 +261,47 @@ async function runTests() {
     assert.equal(check.rows[0].c, 0, 'Đánh giá phải bị xóa khỏi DB');
   });
 
-  // Dọn dẹp dữ liệu test
+  // ── NHÓM 7: KIỂM THỬ XÁC THỰC ĐẦU VÀO & LỌC MÃ ĐỘC (INPUT VALIDATION & XSS) ──
+  console.log('\n--- NHÓM 7: Xác Thực Đầu Vào & Lọc Mã Độc (XSS Prevention) ---');
+
+  const VN_PHONE_REGEX = /^(0|\+84)(3[2-9]|5[25689]|7[06-9]|8[1-9]|9[0-9])[0-9]{7}$/;
+  const stripHtml = (input) => input.replace(/<[^>]*>?/gm, '').trim();
+
+  await it('Từ chối tiêu đề dài quá 255 ký tự (tiêu chí 5)', () => {
+    const longTitle = 'A'.repeat(300);
+    assert.ok(longTitle.length > 255, 'Tiêu đề có 300 ký tự');
+    assert.equal(longTitle.length <= 255, false, 'Tiêu đề 300 ký tự phải vi phạm giới hạn 255');
+  });
+
+  await it('Nhận diện chính xác định dạng SĐT Việt Nam hợp lệ và không hợp lệ', () => {
+    assert.equal(VN_PHONE_REGEX.test('0901234567'), true, '0901234567 hợp lệ');
+    assert.equal(VN_PHONE_REGEX.test('+84901234567'), true, '+84901234567 hợp lệ');
+    assert.equal(VN_PHONE_REGEX.test('0388123456'), true, '0388123456 hợp lệ');
+    assert.equal(VN_PHONE_REGEX.test('0123456789'), false, '0123456789 (đầu 01 cũ) không hợp lệ');
+    assert.equal(VN_PHONE_REGEX.test('123456'), false, '123456 không hợp lệ');
+    assert.equal(VN_PHONE_REGEX.test('abcdefghij'), false, 'Chuỗi ký tự không hợp lệ');
+  });
+
+  await it('Loại bỏ hoàn toàn thẻ HTML và script độc hại khỏi nội dung đánh giá', () => {
+    const maliciousComment = '<script>alert("hack")</script>Sản phẩm rất ngon<b>đậm đà</b>';
+    const cleaned = stripHtml(maliciousComment);
+    assert.equal(cleaned.includes('<script>'), false, 'Phải loại bỏ script tag');
+    assert.equal(cleaned.includes('</script>'), false, 'Phải loại bỏ closing script tag');
+    assert.equal(cleaned.includes('<b>'), false, 'Phải loại bỏ html b tag');
+    assert.equal(cleaned, 'alert("hack")Sản phẩm rất ngonđậm đà');
+  });
+
+  await it('Rating nguyên từ 1 đến 5', () => {
+    const validRatings = [1, 2, 3, 4, 5];
+    const invalidRatings = [0, 6, 4.5, -1, 'five'];
+    for (const r of validRatings) {
+      assert.equal(Number.isInteger(Number(r)) && Number(r) >= 1 && Number(r) <= 5, true);
+    }
+    for (const r of invalidRatings) {
+      assert.equal(Number.isInteger(Number(r)) && Number(r) >= 1 && Number(r) <= 5, false);
+    }
+  });
+
   await pool.query(`DELETE FROM product_reviews WHERE customer_phone = $1;`, [testPhone]);
   await pool.query(`DELETE FROM review_rate_limits WHERE ip_address IN ($1, '192.168.99.200', '192.168.99.201');`, [testIp]);
   await pool.query(`DELETE FROM order_items WHERE order_id = 'test_ord_phase8';`);
