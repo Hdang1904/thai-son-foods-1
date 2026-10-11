@@ -364,6 +364,9 @@ export default function AdminPage() {
     mustChangePassword?: boolean;
   } | null>(null);
 
+  // Review & Social Proof Management
+  const [pendingReviewsCount, setPendingReviewsCount] = useState<number>(0);
+
   // Admin Users Management (Super Admin only)
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [adminUsersLoading, setAdminUsersLoading] = useState(false);
@@ -596,6 +599,17 @@ export default function AdminPage() {
             setActiveTab('orders');
           } else {
             setActiveTab('overview');
+          }
+
+          if (hasPermission(data.user, 'reviews.view')) {
+            fetch('/api/admin/reviews?limit=1')
+              .then((r) => r.json())
+              .then((rData) => {
+                if (rData.success && rData.counts?.pendingCount !== undefined) {
+                  setPendingReviewsCount(rData.counts.pendingCount);
+                }
+              })
+              .catch((err) => console.warn('Error fetching pending reviews count:', err));
           }
         }
       })
@@ -2647,6 +2661,28 @@ export default function AdminPage() {
                     Audit
                   </span>
                 </button>
+              )}
+
+              {/* PHÂN HỆ ĐÁNH GIÁ SẢN PHẨM & SOCIAL PROOF */}
+              {hasPermission(currentUser, 'reviews.view') && (
+                <Link
+                  href="/admin/reviews"
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
+                >
+                  <div className="flex items-center gap-3">
+                    <Star className="w-4 h-4 text-amber-400 fill-amber-400/20" />
+                    <span>Đánh giá khách hàng</span>
+                  </div>
+                  {pendingReviewsCount > 0 ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono animate-pulse">
+                      {pendingReviewsCount} chờ duyệt
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 font-mono">
+                      Reviews
+                    </span>
+                  )}
+                </Link>
               )}
 
               {/* PHÂN HỆ ĐỐI TÁC THÁI SƠN FOODS: CTV & ĐẠI LÝ */}
