@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Error in admin login API:', error);
     return NextResponse.json(
-      { success: false, error: 'Lỗi máy chủ khi đăng nhập: ' + (error.message || 'Lỗi không xác định') },
+      { success: false, error: 'Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.' },
       { status: 500 }
     );
   }

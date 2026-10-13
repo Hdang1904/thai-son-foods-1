@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { findPreciseCoordinates, VIETNAM_ADDRESSES } from '@/data/vietnam-addresses';
+import { findStreetCoordinates } from '@/data/vietnam-streets';
+import { matchStandardAdministrative, isKhuPho, removeKhuPho } from '@/lib/geo';
 
 export const dynamic = 'force-dynamic';
 
 function cleanComponent(val: string): string {
-  return val.replace(/^(Thành phố|Tỉnh|Quận|Huyện|Thị xã|Phường|Xã|Thị trấn)\s+/i, '').trim();
+  return val.replace(/^(Thành phố|Tỉnh|Quận|Huyện|Thị xã|Phường|Xã|Thị trấn|Khu phố|Tổ dân phố|KP|Tổ)\s+/i, '').trim();
 }
 
 /**
@@ -12,140 +14,16 @@ function cleanComponent(val: string): string {
  */
 function extractStreetFromAddress(fullAddr?: string): string | undefined {
   if (!fullAddr) return undefined;
-  const parts = fullAddr.split(',').map((p) => p.trim());
+  const cleaned = removeKhuPho(fullAddr);
+  const parts = cleaned.split(',').map((p) => p.trim());
   const streetParts = parts.filter(
     (p) =>
-      !/^(phường|xã|thị trấn|quận|huyện|thị xã|tp\.?|thành phố|khu phố|tổ\s+\d+|tỉnh|việt nam)\b/i.test(p)
+      !/^(phường|xã|thị trấn|quận|huyện|thị xã|tp\.?|thành phố|khu phố|kp|tổ\s+\d+|tỉnh|việt nam)\b/i.test(p)
   );
   if (streetParts.length > 0) {
-    return streetParts.join(', ');
+    return removeKhuPho(streetParts.join(', '));
   }
-  return parts[0];
-}
-
-function matchStandardAdministrative(
-  provInput?: string,
-  distInput?: string,
-  wardInput?: string,
-  addressContext?: string
-) {
-  let matchedProv: string | undefined;
-  let matchedDist: string | undefined;
-  let matchedWard: string | undefined;
-
-  let pQuery = provInput;
-  if (!pQuery && addressContext) {
-    const pFoundByAddr = VIETNAM_ADDRESSES.find((p) =>
-      addressContext.toLowerCase().includes(cleanComponent(p.name).toLowerCase())
-    );
-    if (pFoundByAddr) pQuery = pFoundByAddr.name;
-  }
-
-  if (pQuery) {
-    const pClean = cleanComponent(pQuery).toLowerCase();
-    const pFound = VIETNAM_ADDRESSES.find((p) => {
-      const pNameClean = cleanComponent(p.name).toLowerCase();
-      return (
-        pNameClean === pClean ||
-        p.name.toLowerCase().includes(pClean) ||
-        pClean.includes(pNameClean)
-      );
-    });
-
-    if (pFound) {
-      matchedProv = pFound.name;
-
-      let dQuery = distInput;
-      if (!dQuery && addressContext) {
-        const dFoundByAddr = pFound.districts.find((d) =>
-          addressContext.toLowerCase().includes(cleanComponent(d.name).toLowerCase())
-        );
-        if (dFoundByAddr) dQuery = dFoundByAddr.name;
-      }
-
-      if (dQuery) {
-        const dClean = cleanComponent(dQuery).toLowerCase();
-        const dFound = pFound.districts.find((d) => {
-          const dNameClean = cleanComponent(d.name).toLowerCase();
-          return (
-            dNameClean === dClean ||
-            d.name.toLowerCase().includes(dClean) ||
-            dClean.includes(dNameClean)
-          );
-        });
-
-        if (dFound) {
-          matchedDist = dFound.name;
-
-          if (wardInput) {
-            const wClean = cleanComponent(wardInput).toLowerCase();
-            let wFound = dFound.wards.find(
-              (w) => w.name.toLowerCase() === wardInput.toLowerCase()
-            );
-            if (!wFound) {
-              wFound = dFound.wards.find(
-                (w) => cleanComponent(w.name).toLowerCase() === wClean
-              );
-            }
-            if (!wFound) {
-              wFound = dFound.wards.find((w) =>
-                w.aliases?.some((a) => {
-                  const aClean = cleanComponent(a).toLowerCase();
-                  return (
-                    a.toLowerCase() === wardInput.toLowerCase() ||
-                    aClean === wClean
-                  );
-                })
-              );
-            }
-            if (wFound) {
-              matchedWard = wFound.name;
-            }
-          }
-
-          // Khớp bổ sung từ addressContext nếu chưa có ward
-          if (!matchedWard && addressContext) {
-            const addrLower = addressContext.toLowerCase();
-            // Giai đoạn 1: Ưu tiên tên phường chính thức đầy đủ (VD: "Phường Tân Bình")
-            for (const w of dFound.wards) {
-              const wNameLower = w.name.toLowerCase();
-              const wClean = cleanComponent(w.name).toLowerCase();
-              if (
-                addrLower.includes(wNameLower) ||
-                new RegExp(`\\b(phường|p\\.?)\\s*${wClean}\\b`, 'i').test(addrLower)
-              ) {
-                matchedWard = w.name;
-                break;
-              }
-            }
-
-            // Giai đoạn 2: Nếu chưa tìm thấy tên chính thức, mới thử tìm qua tên cũ/alias có tiền tố phường
-            if (!matchedWard) {
-              for (const w of dFound.wards) {
-                const aliasMatch = w.aliases?.some((a) => {
-                  const aClean = cleanComponent(a).toLowerCase();
-                  if (/^\d+$/.test(aClean)) {
-                    return new RegExp(`(?:phường|p\\.?)\\s*${aClean}(?!\\d)`, 'i').test(addrLower);
-                  }
-                  return new RegExp(`(?:phường|p\\.?)\\s*${aClean}(?!\\w)`, 'i').test(addrLower);
-                });
-                if (aliasMatch) {
-                  matchedWard = w.name;
-                  break;
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return {
-    province: matchedProv || provInput,
-    district: matchedDist || distInput,
-    ward: matchedWard || wardInput,
-  };
+  return removeKhuPho(parts[0]);
 }
 
 export async function GET(req: NextRequest) {
@@ -325,22 +203,24 @@ export async function GET(req: NextRequest) {
             let rawDist = addr.city_district || addr.county || districtParam;
             let rawWard = wardParam;
 
-            // Xử lý suburb/quarter trong OpenStreetMap Việt Nam:
-            // Suburb thường là "Phường ..." (cấp phường), quarter là "Khu phố ..."
+            // Xử lý suburb/quarter trong OpenStreetMap Việt Nam (loại bỏ hoàn toàn Khu phố)
             if (addr.suburb && /^(phường|xã|thị trấn)\s+/i.test(addr.suburb)) {
               rawWard = addr.suburb;
             } else if (addr.quarter && /^(phường|xã|thị trấn)\s+/i.test(addr.quarter)) {
               rawWard = addr.quarter;
-            } else if (addr.suburb) {
+            } else if (addr.suburb && !isKhuPho(addr.suburb)) {
               if (rawDist && rawDist !== addr.suburb) {
                 rawWard = addr.suburb;
               } else {
                 rawDist = addr.suburb;
-                rawWard = addr.quarter || addr.neighbourhood || addr.village || wardParam;
+                const candidate = addr.village || wardParam;
+                rawWard = isKhuPho(candidate) ? wardParam : candidate;
               }
             } else {
-              rawWard = addr.quarter || addr.neighbourhood || addr.village || wardParam;
+              const candidate = addr.village || wardParam;
+              rawWard = isKhuPho(candidate) ? wardParam : candidate;
             }
+            if (isKhuPho(rawWard)) rawWard = '';
 
             const rawStreet = [addr.house_number, addr.road].filter(Boolean).join(' ');
 
@@ -350,10 +230,11 @@ export async function GET(req: NextRequest) {
               success: true,
               lat,
               lng,
-              formattedAddress: item.display_name,
+              formattedAddress: removeKhuPho(item.display_name),
               components: {
                 ...matched,
-                street: rawStreet || extractStreetFromAddress(address) || address,
+                ward: matched.ward && !isKhuPho(matched.ward) ? removeKhuPho(matched.ward) : undefined,
+                street: removeKhuPho(rawStreet || extractStreetFromAddress(address) || address),
               },
               source: 'nominatim',
             });
@@ -364,13 +245,48 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 4. Fallback Local Vietnam Administrative Dataset
+    // 4. Fallback Local Vietnam Administrative & Streets Dataset
     const matched = matchStandardAdministrative(
       provinceParam,
       districtParam,
       wardParam,
       address
     );
+
+    // 4.1. Ưu tiên phân giải tọa độ chính xác theo tuyến đường
+    if (address) {
+      const streetMatch = findStreetCoordinates(
+        address,
+        matched.district || districtParam,
+        matched.province || provinceParam
+      );
+
+      if (streetMatch) {
+        const resolvedStreet = [streetMatch.houseNumber, streetMatch.matchedStreet.streetName]
+          .filter(Boolean)
+          .join(' ') || extractStreetFromAddress(address) || address;
+
+        const resolvedWard = matched.ward || streetMatch.matchedStreet.wardHint;
+        const resolvedDist = streetMatch.matchedStreet.district || matched.district;
+        const resolvedProv = streetMatch.matchedStreet.province || matched.province;
+
+        return NextResponse.json({
+          success: true,
+          lat: streetMatch.lat,
+          lng: streetMatch.lng,
+          formattedAddress: [resolvedStreet, resolvedWard, resolvedDist, resolvedProv]
+            .filter(Boolean)
+            .join(', '),
+          components: {
+            province: resolvedProv,
+            district: resolvedDist,
+            ward: resolvedWard,
+            street: resolvedStreet,
+          },
+          source: 'local',
+        });
+      }
+    }
 
     const localCoords = findPreciseCoordinates(
       matched.province,

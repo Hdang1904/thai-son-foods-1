@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { safeFetchJson } from '@/lib/utils';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -113,22 +114,17 @@ export default function PartnerPortalPage() {
   const fetchPortalData = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/partner/profile');
-      if (res.status === 401) {
-        setPartner(null);
-        setLoading(false);
-        return;
-      }
-      const data = await res.json();
-      if (data.success && data.partner) {
+      const data = await safeFetchJson<{ success: boolean; partner: any }>('/api/partner/profile');
+      if (data?.success && data.partner) {
         setPartner(data.partner);
 
         // Fetch stats
-        const statsRes = await fetch('/api/partner/stats');
-        const statsData = await statsRes.json();
-        if (statsData.success) {
+        const statsData = await safeFetchJson<{ success: boolean; stats: any }>('/api/partner/stats');
+        if (statsData?.success) {
           setStats(statsData.stats);
         }
+      } else {
+        setPartner(null);
       }
     } catch (err) {
       console.error('Error fetching partner portal data:', err);
@@ -146,25 +142,21 @@ export default function PartnerPortalPage() {
     if (!partner) return;
 
     if (activeTab === 'orders') {
-      fetch('/api/partner/orders')
-        .then((r) => r.json())
-        .then((d) => d.success && setOrders(d.orders || []))
+      safeFetchJson<{ success: boolean; orders: any[] }>('/api/partner/orders')
+        .then((d) => d?.success && setOrders(d.orders || []))
         .catch(console.error);
     } else if (activeTab === 'ledger') {
-      fetch('/api/partner/ledger')
-        .then((r) => r.json())
-        .then((d) => d.success && setLedgerEntries(d.entries || []))
+      safeFetchJson<{ success: boolean; entries: any[] }>('/api/partner/ledger')
+        .then((d) => d?.success && setLedgerEntries(d.entries || []))
         .catch(console.error);
     } else if (activeTab === 'payouts') {
-      fetch('/api/partner/payouts')
-        .then((r) => r.json())
-        .then((d) => d.success && setPayouts(d.payouts || []))
+      safeFetchJson<{ success: boolean; payouts: any[] }>('/api/partner/payouts')
+        .then((d) => d?.success && setPayouts(d.payouts || []))
         .catch(console.error);
     } else if (activeTab === 'dealer') {
-      fetch('/api/dealer/products')
-        .then((r) => r.json())
+      safeFetchJson<{ success: boolean; products: any[] }>('/api/dealer/products')
         .then((d) => {
-          if (d.success && d.products) {
+          if (d?.success && d.products) {
             setDealerProducts(d.products);
           }
         })
@@ -811,9 +803,8 @@ export default function PartnerPortalPage() {
               </div>
               <button
                 onClick={() => {
-                  fetch('/api/partner/orders')
-                    .then((r) => r.json())
-                    .then((d) => d.success && setOrders(d.orders || []));
+                  safeFetchJson<{ success: boolean; orders: any[] }>('/api/partner/orders')
+                    .then((d) => d?.success && setOrders(d.orders || []));
                 }}
                 className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500"
               >

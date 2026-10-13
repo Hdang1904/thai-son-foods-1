@@ -3,6 +3,9 @@
  * Tách riêng hàm tính khoảng cách để dễ dàng tích hợp Google Maps Distance Matrix hoặc OSRM sau này.
  */
 
+import { findStreetCoordinates } from '@/data/vietnam-streets';
+import { VIETNAM_ADDRESSES } from '@/data/vietnam-addresses';
+
 export function calculateHaversineDistance(
   lat1: number,
   lon1: number,
@@ -120,6 +123,14 @@ export function estimateCoordinatesFromAddress(
   district?: string | null,
   address?: string | null
 ): { lat: number; lng: number } | null {
+  // 1. Ưu tiên phân giải theo tuyến đường chính xác từ danh mục đường phố
+  if (address) {
+    const streetMatch = findStreetCoordinates(address, district, province);
+    if (streetMatch) {
+      return { lat: streetMatch.lat, lng: streetMatch.lng };
+    }
+  }
+
   const combined = normalizeVietnamese(`${district || ''} ${address || ''} ${province || ''}`);
 
   // Tìm match dài trước (ưu tiên cụm từ đầy đủ như "tan phu", "binh thanh")
@@ -187,5 +198,218 @@ export function findNearestStore<T extends StoreGeoItem>(
 ): StoreDistanceResult<T> | null {
   const sorted = calculateStoreDistances(stores, customerLat, customerLng, maxRadiusKm);
   return sorted.length > 0 ? sorted[0] : null;
+}
+
+export function cleanAdministrativeComponent(val: string): string {
+  return (val || '')
+    .replace(/^(Thành phố|Tỉnh|Quận|Huyện|Thị xã|Phường|Xã|Thị trấn|Khu phố|Tổ dân phố|KP|Tổ)\s+/i, '')
+    .trim();
+}
+
+/**
+ * Kiểm tra xem chuỗi có phải là đơn vị Khu phố / Tổ dân phố hay không
+ */
+export function isKhuPho(text?: string): boolean {
+  if (!text) return false;
+  return /^\s*(?:khu\s+phố|tổ\s+dân\s+phố|kp|tổ)\b/i.test(text.trim());
+}
+
+/**
+ * Loại bỏ triệt để các thông tin "Khu phố", "Tổ dân phố", "KP" khỏi chuỗi địa chỉ
+ * Ví dụ: "Khu phố 15, Phường 14, Quận Gò Vấp" -> "Phường 14, Quận Gò Vấp"
+ * "123 Dương Quảng Hàm, Khu phố 3, Phường 5" -> "123 Dương Quảng Hàm, Phường 5"
+ */
+export function removeKhuPho(addressText?: string): string {
+  if (!addressText) return '';
+  return addressText
+    .replace(/(?:,\s*)?\b(?:khu\s+phố|tổ\s+dân\s+phố|kp|tổ)\s*[\d\w\-]+(?=,|$)/gi, '')
+    .replace(/^\s*(?:khu\s+phố|tổ\s+dân\s+phố|kp|tổ)\s*[\d\w\-]+(?:,\s*|\s+)/gi, '')
+    .replace(/,\s*,/g, ',')
+    .replace(/^\s*,\s*|\s*,\s*$/g, '')
+    .trim();
+}
+
+/**
+ * Khớp tên hành chính với danh mục chuẩn VIETNAM_ADDRESSES 2026.
+ * Tự động suy ngược Quận/Huyện từ Phường/Xã nếu Quận bị thiếu hoặc nhầm lẫn.
+ */
+export function matchStandardAdministrative(
+  provInput?: string,
+  distInput?: string,
+  wardInput?: string,
+  addressContext?: string
+): {
+  province?: string;
+  district?: string;
+  ward?: string;
+} {
+  let matchedProv: string | undefined;
+  let matchedDist: string | undefined;
+  let matchedWard: string | undefined;
+
+  // Bỏ qua nếu đầu vào là cấp khu phố / tổ dân phố
+  if (wardInput && isKhuPho(wardInput)) {
+    wardInput = undefined;
+  }
+
+  let pQuery = provInput;
+  if (!pQuery && addressContext) {
+    const pFoundByAddr = VIETNAM_ADDRESSES.find((p) =>
+      addressContext.toLowerCase().includes(cleanAdministrativeComponent(p.name).toLowerCase())
+    );
+    if (pFoundByAddr) pQuery = pFoundByAddr.name;
+  }
+
+  // Mặc định TP. Hồ Chí Minh nếu không có ngữ cảnh tỉnh cụ thể (trung tâm hoạt động chính của Thái Sơn Foods)
+  if (!pQuery) {
+    pQuery = 'TP. Hồ Chí Minh';
+  }
+
+  if (pQuery) {
+    const pClean = cleanAdministrativeComponent(pQuery).toLowerCase();
+    const pFound = VIETNAM_ADDRESSES.find((p) => {
+      const pNameClean = cleanAdministrativeComponent(p.name).toLowerCase();
+      return (
+        pNameClean === pClean ||
+        p.name.toLowerCase().includes(pClean) ||
+        pClean.includes(pNameClean)
+      );
+    });
+
+    if (pFound) {
+      matchedProv = pFound.name;
+
+      let dQuery = distInput;
+      if (!dQuery && addressContext) {
+        const dFoundByAddr = pFound.districts.find((d) => {
+          const dClean = cleanAdministrativeComponent(d.name).toLowerCase();
+          if (/^\d+$/.test(dClean)) {
+            return new RegExp(`(?:quận|q\\.?|q\\s*)\\s*${dClean}(?!\\d)`, 'i').test(addressContext);
+          }
+          return (
+            new RegExp(`(?:quận|q\\.?|huyện|h\\.?|tx\\.?|tp\\.?)?\\s*${dClean}\\b`, 'i').test(addressContext) ||
+            addressContext.toLowerCase().includes(d.name.toLowerCase())
+          );
+        });
+        if (dFoundByAddr) dQuery = dFoundByAddr.name;
+      }
+
+      if (dQuery) {
+        const dClean = cleanAdministrativeComponent(dQuery).toLowerCase();
+        const dFound = pFound.districts.find((d) => {
+          const dNameClean = cleanAdministrativeComponent(d.name).toLowerCase();
+          return (
+            dNameClean === dClean ||
+            d.name.toLowerCase().includes(dClean) ||
+            dClean.includes(dNameClean)
+          );
+        });
+
+        if (dFound) {
+          matchedDist = dFound.name;
+
+          if (wardInput) {
+            const wClean = cleanAdministrativeComponent(wardInput).toLowerCase();
+            let wFound = dFound.wards.find(
+              (w) => w.name.toLowerCase() === wardInput.toLowerCase()
+            );
+            if (!wFound) {
+              wFound = dFound.wards.find(
+                (w) => cleanAdministrativeComponent(w.name).toLowerCase() === wClean
+              );
+            }
+            if (!wFound) {
+              wFound = dFound.wards.find((w) =>
+                w.aliases?.some((a) => {
+                  const aClean = cleanAdministrativeComponent(a).toLowerCase();
+                  return (
+                    a.toLowerCase() === wardInput.toLowerCase() ||
+                    aClean === wClean
+                  );
+                })
+              );
+            }
+            if (wFound) {
+              matchedWard = wFound.name;
+            }
+          }
+        }
+      }
+
+      // Suy ngược Quận từ Phường nếu district bị thiếu hoặc nhầm lẫn (cực kỳ quan trọng cho OSM & Google Maps)
+      if (!matchedDist && pFound) {
+        // Ưu tiên dùng wardInput (tránh để số nhà trong addressContext gây nhiễu)
+        const targetWardText = (wardInput || addressContext || '').toLowerCase();
+        const targetWardClean = cleanAdministrativeComponent(targetWardText).toLowerCase();
+        for (const d of pFound.districts) {
+          const wFound = d.wards.find((w) => {
+            const wClean = cleanAdministrativeComponent(w.name).toLowerCase();
+            if (/^\d+$/.test(wClean)) {
+              return new RegExp(`(?:phường|p\\.?|p\\s*)\\s*${wClean}(?!\\d)`, 'i').test(targetWardText);
+            }
+            return (
+              targetWardText.includes(w.name.toLowerCase()) ||
+              targetWardText.includes(wClean) ||
+              (targetWardClean.length >= 3 && wClean.includes(targetWardClean)) ||
+              new RegExp(`\\b(phường|p\\.?)\\s*${wClean}\\b`, 'i').test(targetWardText) ||
+              w.aliases?.some((a) => {
+                const aClean = cleanAdministrativeComponent(a).toLowerCase();
+                if (/^\d+$/.test(aClean)) {
+                  return new RegExp(`(?:phường|p\\.?|p\\s*)\\s*${aClean}(?!\\d)`, 'i').test(targetWardText);
+                }
+                return (
+                  targetWardText.includes(aClean) ||
+                  (targetWardClean.length >= 3 && aClean.includes(targetWardClean)) ||
+                  new RegExp(`(?:phường|p\\.?)\\s*${aClean}\\b`, 'i').test(targetWardText)
+                );
+              })
+            );
+          });
+          if (wFound) {
+            matchedDist = d.name;
+            if (!matchedWard) matchedWard = wFound.name;
+            break;
+          }
+        }
+      }
+
+      // Suy ngược Quận và Phường từ Tuyến đường GPS nếu vẫn chưa xác định được Quận
+      if ((!matchedDist || !matchedWard) && addressContext) {
+        try {
+          const streetFound = findStreetCoordinates(addressContext, matchedDist, matchedProv);
+          if (streetFound?.matchedStreet) {
+            if (!matchedDist && streetFound.matchedStreet.district) {
+              const dTarget = streetFound.matchedStreet.district;
+              const dExact = pFound.districts.find(
+                (d) => cleanAdministrativeComponent(d.name).toLowerCase() === cleanAdministrativeComponent(dTarget).toLowerCase()
+              );
+              if (dExact) matchedDist = dExact.name;
+            }
+            if (!matchedWard && streetFound.matchedStreet.wardHint) {
+              const wTarget = streetFound.matchedStreet.wardHint;
+              const currentDistObj = pFound.districts.find((d) => d.name === matchedDist);
+              if (currentDistObj) {
+                const wExact = currentDistObj.wards.find(
+                  (w) => cleanAdministrativeComponent(w.name).toLowerCase() === cleanAdministrativeComponent(wTarget).toLowerCase()
+                );
+                if (wExact) matchedWard = wExact.name;
+                else matchedWard = wTarget;
+              } else {
+                matchedWard = wTarget;
+              }
+            }
+          }
+        } catch {
+          // ignore lookup error
+        }
+      }
+    }
+  }
+
+  return {
+    province: matchedProv || provInput || 'TP. Hồ Chí Minh',
+    district: matchedDist || distInput,
+    ward: matchedWard || (wardInput && !isKhuPho(wardInput) ? removeKhuPho(wardInput) : undefined),
+  };
 }
 

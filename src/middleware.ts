@@ -11,14 +11,169 @@ const CSRF_EXEMPT_ROUTES: readonly string[] = [
   '/api/cron/',
   '/api/payment/webhook',
   '/api/webhooks/',
+  '/api/inventory/check',
+  '/api/stores/recommend',
 ];
+
+// ─── WAF & Bot Armor: Chống Hacker Quét Lỗ Hổng & Botnet Reconnaissance ───
+const tempJailMap = new Map<string, number>();
+const SCANNER_PATH_REGEX = /\.(env|git|svn|hg|ds_store|bak|old|sql|tar|gz|zip|yml|yaml|ini|conf|config)$/i;
+const BOT_PROBE_PATH_REGEX = /(?:wp-admin|wp-login|xmlrpc\.php|phpmyadmin|\bpma\b|\badminer\b|actuator|boaform|cgi-bin|\.aws|\.vscode|web\.config)/i;
+
+// ─── In-Memory Rate Limiting cho middleware (global public API) ───────────
+interface RateBucket {
+  count: number;
+  resetAt: number;
+}
+const globalRateLimitStore = new Map<string, RateBucket>();
+const GLOBAL_MAX_REQUESTS = 60; // 60 requests
+const GLOBAL_WINDOW_MS = 60 * 1000; // per minute
+
+// Tự động dọn dẹp mỗi 5 phút (edge runtime an toàn)
+if (typeof setInterval !== 'undefined') {
+  const t = setInterval(() => {
+    const now = Date.now();
+    for (const [key, bucket] of globalRateLimitStore.entries()) {
+      if (bucket.resetAt <= now) globalRateLimitStore.delete(key);
+    }
+    for (const [ip, unjailAt] of tempJailMap.entries()) {
+      if (now >= unjailAt) tempJailMap.delete(ip);
+    }
+  }, 5 * 60 * 1000);
+  if (t.unref) t.unref();
+}
+
+function checkGlobalRateLimit(ip: string): { blocked: boolean; remaining: number; resetInSec: number } {
+  const now = Date.now();
+  let bucket = globalRateLimitStore.get(ip);
+  if (!bucket || bucket.resetAt <= now) {
+    bucket = { count: 1, resetAt: now + GLOBAL_WINDOW_MS };
+    globalRateLimitStore.set(ip, bucket);
+    return { blocked: false, remaining: GLOBAL_MAX_REQUESTS - 1, resetInSec: Math.ceil(GLOBAL_WINDOW_MS / 1000) };
+  }
+  bucket.count += 1;
+  const resetInSec = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+  if (bucket.count > GLOBAL_MAX_REQUESTS) {
+    return { blocked: true, remaining: 0, resetInSec };
+  }
+  return { blocked: false, remaining: GLOBAL_MAX_REQUESTS - bucket.count, resetInSec };
+}
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const isApiRoute = pathname.startsWith('/api/');
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
+  const isLoopback = ip === '127.0.0.1' || ip === '::1' || ip === 'unknown' || ip === 'localhost';
 
-  // 1. Chống tấn công CSRF (Cross-Origin Request Forgery) trên các API quản trị thay đổi dữ liệu
+  // ═══════════════════════════════════════════════════════════════
+  // -1. KIỂM TRA IP TRONG DANH SÁCH GIÁM SÁT (IP JAIL CHECK)
+  // ═══════════════════════════════════════════════════════════════
+  const jailedUntil = !isLoopback ? tempJailMap.get(ip) : null;
+  if (jailedUntil) {
+    if (Date.now() < jailedUntil) {
+      return new NextResponse(
+        JSON.stringify({ error: 'Yêu cầu bị từ chối do phát hiện hành vi quét lỗ hổng hoặc bất thường.', code: 'IP_TEMPORARILY_BLOCKED' }),
+        {
+          status: 403,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Retry-After': String(Math.ceil((jailedUntil - Date.now()) / 1000)),
+            'Cache-Control': 'no-store, private',
+          },
+        }
+      );
+    } else {
+      tempJailMap.delete(ip);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // -0.5. WAF BOT SHIELD: CHẶN BOT QUÉT FILE NHẠY CẢM & DÒ ĐƯỜNG DẪN
+  // ═══════════════════════════════════════════════════════════════
+  if (SCANNER_PATH_REGEX.test(pathname) || BOT_PROBE_PATH_REGEX.test(pathname)) {
+    // Đưa IP vào Jail 15 phút (trừ loopback)
+    if (!isLoopback) {
+      tempJailMap.set(ip, Date.now() + 15 * 60 * 1000);
+    }
+    return new NextResponse(
+      JSON.stringify({ error: 'Truy cập bị từ chối bởi Chính sách An ninh Máy chủ Thái Sơn Foods.', code: 'WAF_PROBE_BLOCKED' }),
+      {
+        status: 403,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'X-Robots-Tag': 'noindex, nofollow',
+          'Cache-Control': 'no-store, private',
+        },
+      }
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // -0.3. CHỐNG PAYLOAD BOMB (DoS bằng dung lượng body khổng lồ)
+  // ═══════════════════════════════════════════════════════════════
+  if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+    const contentLength = parseInt(req.headers.get('content-length') || '0', 10);
+    const maxAllowed = pathname.startsWith('/api/admin/upload') ? 10 * 1024 * 1024 : 2 * 1024 * 1024;
+    if (contentLength > maxAllowed) {
+      return new NextResponse(
+        JSON.stringify({ error: 'Dung lượng payload vượt quá giới hạn an toàn máy chủ cho phép.', code: 'PAYLOAD_TOO_LARGE' }),
+        { status: 413, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // -0.2. WAF QUERY INSPECTION: CHẶN PATH TRAVERSAL TRÊN URL
+  // ═══════════════════════════════════════════════════════════════
+  const search = req.nextUrl.search;
+  if (search && search.length > 0) {
+    const decodedSearch = decodeURIComponent(search).toLowerCase();
+    const isMalicious =
+      decodedSearch.includes('../') ||
+      decodedSearch.includes('..\\') ||
+      decodedSearch.includes('%00') ||
+      decodedSearch.includes('waitfor delay') ||
+      decodedSearch.includes('sleep(');
+    if (isMalicious) {
+      if (!isLoopback) {
+        tempJailMap.set(ip, Date.now() + 5 * 60 * 1000);
+      }
+      return new NextResponse(
+        JSON.stringify({ error: 'Tham số truy vấn chứa mẫu ký tự bị cấm bởi hệ thống an ninh.', code: 'MALICIOUS_PARAM_BLOCKED' }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 0. GLOBAL RATE LIMITING cho mọi public API (60 req/phút/IP)
+  // ═══════════════════════════════════════════════════════════════
+  if (isApiRoute && !pathname.startsWith('/api/admin/')) {
+    const rl = checkGlobalRateLimit(`global:${ip}`);
+    if (rl.blocked) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng chờ một lát rồi thử lại.',
+          code: 'RATE_LIMITED',
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rl.resetInSec),
+            'X-RateLimit-Limit': String(GLOBAL_MAX_REQUESTS),
+            'X-RateLimit-Remaining': '0',
+          },
+        }
+      );
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 1. Chống tấn công CSRF trên TẤT CẢ API state-changing routes
+  // ═══════════════════════════════════════════════════════════════
   const isStateChanging = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method);
-  if (pathname.startsWith('/api/admin/') && isStateChanging) {
+  if (isApiRoute && isStateChanging) {
     const isExempt = CSRF_EXEMPT_ROUTES.some((route) => pathname.startsWith(route));
 
     if (!isExempt) {
@@ -84,12 +239,16 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════
   // 2. Whitelist auth API routes
+  // ═══════════════════════════════════════════════════════════════
   if (pathname.startsWith('/api/admin/auth/')) {
-    return NextResponse.next();
+    return addSecurityHeaders(NextResponse.next(), pathname);
   }
 
-  // 3. Check token from cookie
+  // ═══════════════════════════════════════════════════════════════
+  // 3. Check admin token from cookie
+  // ═══════════════════════════════════════════════════════════════
   const token = req.cookies.get(ADMIN_COOKIE_NAME)?.value;
   let isAuthenticated = false;
   let mustChangePassword = false;
@@ -110,7 +269,7 @@ export async function middleware(req: NextRequest) {
       // Already logged in, redirect to admin dashboard
       return NextResponse.redirect(new URL('/admin', req.url));
     }
-    return NextResponse.next();
+    return addSecurityHeaders(NextResponse.next(), pathname);
   }
 
   // 5. Protected Admin API routes
@@ -131,7 +290,7 @@ export async function middleware(req: NextRequest) {
         { status: 403 }
       );
     }
-    return NextResponse.next();
+    return addSecurityHeaders(NextResponse.next(), pathname);
   }
 
   // 5. Protected Admin Pages (/admin and sub-pages)
@@ -143,16 +302,16 @@ export async function middleware(req: NextRequest) {
       }
       return NextResponse.redirect(loginUrl);
     }
-    return NextResponse.next();
+    return addSecurityHeaders(NextResponse.next(), pathname);
   }
 
-  // 6. Protected Partner API routes
   // 6. Protected Partner & Dealer API routes
   if (pathname.startsWith('/api/partner/') || pathname.startsWith('/api/dealer/')) {
     const isPublicPartnerRoute =
       pathname.startsWith('/api/partner/register') ||
       pathname.startsWith('/api/partner/otp/') ||
-      pathname.startsWith('/api/partner/click');
+      pathname.startsWith('/api/partner/click') ||
+      pathname.startsWith('/api/partner/auth/logout');
 
     if (!isPublicPartnerRoute) {
       let userToken = req.cookies.get('tsf_user_session')?.value;
@@ -178,7 +337,7 @@ export async function middleware(req: NextRequest) {
         );
       }
     }
-    return NextResponse.next();
+    return addSecurityHeaders(NextResponse.next(), pathname);
   }
 
   // 7. Protected Partner Portal Pages (/doi-tac and sub-pages)
@@ -198,12 +357,42 @@ export async function middleware(req: NextRequest) {
       loginUrl.searchParams.set('from', pathname);
       return NextResponse.redirect(loginUrl);
     }
-    return NextResponse.next();
+    return addSecurityHeaders(NextResponse.next(), pathname);
   }
 
-  return NextResponse.next();
+  return addSecurityHeaders(NextResponse.next(), pathname);
+}
+
+/**
+ * Thêm security headers cho mọi response đi qua middleware
+ */
+function addSecurityHeaders(response: NextResponse, pathname: string): NextResponse {
+  // Admin API responses: Ngăn cache dữ liệu nhạy cảm
+  if (pathname.startsWith('/api/admin/')) {
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    response.headers.set('Pragma', 'no-cache');
+  }
+
+  // Tiêu chuẩn bảo mật trình duyệt
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
+  response.headers.set('X-DNS-Prefetch-Control', 'on');
+
+  return response;
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/api/admin/:path*', '/doi-tac/:path*', '/api/partner/:path*', '/api/dealer/:path*'],
+  matcher: [
+    /*
+     * Áp dụng WAF và Security Policy cho toàn bộ site ngoại trừ static assets:
+     * - _next/static (chứa bundle js, css tĩnh)
+     * - _next/image (tối ưu hóa hình ảnh Next.js)
+     * - images/ (thư mục ảnh public)
+     * - favicon.ico (icon trình duyệt)
+     */
+    '/((?!_next/static|_next/image|images/|favicon.ico).*)',
+  ],
 };
+

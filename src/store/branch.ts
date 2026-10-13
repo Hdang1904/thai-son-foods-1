@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { safeFetchJson } from '@/lib/utils';
 
 export interface StoreBranch {
   id: string;
@@ -17,6 +18,17 @@ export interface StoreBranch {
   longitude?: number | null;
   distanceKm?: number;
   stockStatus?: 'in_stock' | 'low_stock' | 'out_of_stock';
+  areaLabel?: string | null;
+  provinceCode?: string | null;
+  addressNew?: string;
+  addressOld?: string;
+  supportsDelivery?: boolean;
+  supportsPickup?: boolean;
+  deliveryRadiusKm?: number;
+  prepMinutes?: number;
+  isAcceptingOrders?: boolean;
+  openingHours?: any;
+  holidayOverrides?: any;
 }
 
 interface BranchState {
@@ -64,19 +76,17 @@ export const useBranchStore = create<BranchState>()(
       fetchBranches: async () => {
         try {
           set({ isLoading: true });
-          const res = await fetch('/api/stores');
-          const data = await res.json();
-          if (data.success && Array.isArray(data.stores)) {
+          const data = await safeFetchJson<{ success: boolean; stores: StoreBranch[] }>('/api/stores');
+          if (data?.success && Array.isArray(data.stores) && data.stores.length > 0) {
             set({ branches: data.stores });
-            // Nếu chưa có chi nhánh hoặc chi nhánh không còn hợp lệ
             const current = get().selectedBranch;
             if (!current || !data.stores.some((s: StoreBranch) => s.code === current.code)) {
               const matched = data.stores.find((s: StoreBranch) => s.code === 'NH') || data.stores[0];
               if (matched) set({ selectedBranch: matched });
             }
           }
-        } catch (err) {
-          console.error('[BranchStore] Error fetching branches:', err);
+        } catch {
+          // im lặng fallback, giữ chi nhánh mặc định
         } finally {
           set({ isLoading: false });
         }

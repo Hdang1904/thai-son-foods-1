@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Error in GET /api/reviews:', error);
     return NextResponse.json(
-      { success: false, error: 'Lỗi tải danh sách đánh giá: ' + (error?.message || 'Lỗi hệ thống') },
+      { success: false, error: 'Đã xảy ra lỗi khi tải danh sách đánh giá. Vui lòng thử lại sau.' },
       { status: 500 }
     );
   }
@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Error in POST /api/reviews:', error);
     return NextResponse.json(
-      { success: false, error: 'Lỗi khi gửi đánh giá: ' + (error?.message || 'Lỗi hệ thống') },
+      { success: false, error: 'Đã xảy ra lỗi khi gửi đánh giá. Vui lòng thử lại sau.' },
       { status: 500 }
     );
   }

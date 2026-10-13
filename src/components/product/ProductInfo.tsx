@@ -505,7 +505,15 @@ export default function ProductInfo({ product }: ProductInfoProps) {
           <strong className="font-bold">{currentUnit} ({currentVolume})</strong>
         </div>
 
-        <div className="grid grid-cols-3 gap-2.5">
+        <div
+          className={
+            displayVariants.length === 2
+              ? 'grid grid-cols-2 gap-2.5'
+              : displayVariants.length === 1
+              ? 'grid grid-cols-1 gap-2.5 max-w-xs'
+              : 'grid grid-cols-3 gap-2.5'
+          }
+        >
           {displayVariants.map((v) => {
             const isSelected = activeVariant === v.id;
             const vPerBottle = Math.round(v.price / (v.quantity || 1));

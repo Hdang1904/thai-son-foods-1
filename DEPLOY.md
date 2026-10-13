@@ -1,0 +1,111 @@
+# HƯỚNG DẪN DEPLOY WEBSITE THÁI SƠN FOODS LÊN VERCEL VÀ GẮN TÊN MIỀN CÔNG TY
+
+Tài liệu này hướng dẫn chi tiết quy trình đưa website Thái Sơn Foods lên Production trên **Vercel**, tạo Database Cloud (PostgreSQL) và gắn tên miền **thaisonfoods.vn** / **shop.thaisonfoods.vn** qua **Cloudflare**.
+
+---
+
+## I. TẠI SAO CẦN DATABASE CLOUD CHO VERCEL?
+
+- **Vercel** là nền tảng Serverless (chạy các hàm Stateless trên Cloud), không chứa sẵn dịch vụ PostgreSQL cục bộ (`127.0.0.1`).
+- Khi chạy cục bộ, dự án kết nối qua `127.0.0.1:5432`.
+- Để website chạy ổn định trên Vercel, chúng ta cần một cơ sở dữ liệu PostgreSQL trực tuyến (Cloud Database).
+
+---
+
+## II. BƯỚC 1: TẠO POSTGRESQL DATABASE CHO VERCEL (CHỌN 1 TRONG 2 CÁCH MIỄN PHÍ)
+
+### Cách 1: Vercel Postgres / Neon (Khuyên dùng nhất - 1 Click)
+1. Đăng nhập vào [vercel.com](https://vercel.com) và vào Project **thai-son-foods**.
+2. Chọn tab **Storage** trên thanh menu dự án.
+3. Bấm **Create Database** -> Chọn **Postgres (Serverless by Neon)**.
+4. Đặt tên database: `webtsf-production`.
+5. Chọn khu vực (Region): **Singapore (sin1)** để tốc độ truy cập từ Việt Nam nhanh nhất.
+6. Bấm **Create**. Vercel sẽ tự động cấu hình các biến môi trường:
+   - `DATABASE_URL`
+   - `POSTGRES_URL`
+   - `POSTGRES_PRISMA_URL`
+
+### Cách 2: Supabase PostgreSQL (Máy chủ Singapore `ap-southeast-1`)
+1. Truy cập [supabase.com](https://supabase.com) và bấm **Start your project** (Đăng nhập qua GitHub).
+2. Tạo Project mới:
+   - Name: `WebTSF-Production`
+   - Database Password: Tự đặt mật khẩu mạnh (ví dụ: `Tsf@2026SecureDb`)
+   - Region: **Singapore (`ap-southeast-1`)**
+3. Vào **Project Settings** -> **Database** -> Mục **Connection string**, chọn tab **URI** (hoặc Transaction Pooler).
+4. Copy chuỗi kết nối dạng:
+   ```text
+   postgresql://postgres.[REF]:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+   ```
+5. Vào Vercel -> Project **Settings** -> **Environment Variables** -> Thêm biến:
+   - Key: `DATABASE_URL`
+   - Value: Chuỗi kết nối vừa copy (áp dụng cho cả Production, Preview).
+
+---
+
+## III. BƯỚC 2: CHUYỂN TOÀN BỘ DỮ LIỆU TỪ MÁY NÀY LÊN CLOUD DATABASE
+
+Hệ thống đã chuẩn bị sẵn file dump chứa đầy đủ 37 bảng, 12 sản phẩm mới, 38 chi nhánh và kho hàng tại:
+`backups/WebTSF_production_ready.sql`
+
+Chỉ cần mở Terminal và chạy lệnh sau (thay thế bằng chuỗi kết nối Cloud Database của bạn):
+
+```bash
+node scripts/restore_to_cloud_db.mjs "postgresql://user:password@host:port/dbname?sslmode=require"
+```
+
+*Quá trình import tự động hoàn tất trong khoảng 3 - 5 giây.*
+
+---
+
+## IV. BƯỚC 3: CẤU HÌNH BIẾN MÔI TRƯỜNG TRÊN VERCEL
+
+Vào **Settings** -> **Environment Variables** trên Vercel và đảm bảo có các biến sau:
+
+| Tên biến | Giá trị mẫu | Mục đích |
+| :--- | :--- | :--- |
+| `DATABASE_URL` | `postgresql://...` | Kết nối Cloud Database |
+| `NEXT_PUBLIC_APP_URL` | `https://shop.thaisonfoods.vn` | URL chính thức của website |
+| `JWT_SECRET` | Khóa bảo mật ngẫu nhiên dài >= 32 ký tự | Xác thực phiên đăng nhập |
+| `ADMIN_REGISTER_KEY` | `tsf@admin2026` | Khóa tạo tài khoản Super Admin ban đầu |
+| `ENABLE_MOCK_OAUTH` | `false` | **Bắt buộc false** trên Production |
+| `SMTP_HOST` | `smtp.gmail.com` | Máy chủ gửi email đơn hàng |
+| `SMTP_PORT` | `587` | Cổng SMTP |
+| `SMTP_USER` | `sbnts.gam2@gmail.com` | Email gửi tin |
+| `SMTP_PASS` | `vuja exnm aexa aejp` | Mật khẩu ứng dụng Gmail |
+| `EMAIL_FROM` | `Thái Sơn Foods <sbnts.gam2@gmail.com>` | Tiêu đề người gửi |
+
+---
+
+## V. BƯỚC 4: GẮN TÊN MIỀN CÔNG TY TRÊN CLOUDFLARE
+
+Vì tên miền `thaisonfoods.vn` và `shop.thaisonfoods.vn` đang được quản lý DNS tại **Cloudflare**:
+
+1. **Trên Vercel:**
+   - Vào Vercel -> Project **Settings** -> **Domains**.
+   - Thêm tên miền: `shop.thaisonfoods.vn` (hoặc `thaisonfoods.vn`).
+
+2. **Trên Cloudflare Dashboard:**
+   - Chọn tên miền `thaisonfoods.vn` -> Chọn tab **DNS** -> **Records**.
+   - Bấm **Add record**:
+     - **Type:** `CNAME`
+     - **Name:** `shop` (nếu dùng subdomain `shop.thaisonfoods.vn`)
+     - **Target:** `cname.vercel-dns.com`
+     - **Proxy status:** Bật **DNS only** (biểu tượng đám mây xám) để Vercel tự động cấp và quản lý SSL Let's Encrypt (hoặc bật Proxied nếu dùng SSL Full/Strict trên Cloudflare).
+     - **TTL:** Auto.
+   - Bấm **Save**.
+
+3. **Xác thực:**
+   - Quay lại Vercel, bấm **Refresh** tại mục Domains.
+   - Khi trạng thái chuyển sang tích xanh ✅ **Valid Configuration**, website đã chính thức chạy trên tên miền công ty với HTTPS an toàn.
+
+---
+
+## VI. BƯỚC 5: PUSH CODE ĐỂ VERCEL TỰ ĐỘNG BUILD LẠI
+
+Mã nguồn cục bộ hiện có 15 commit cải tiến đã build test thành công 100%. Để đẩy lên Vercel:
+
+```bash
+git push origin main
+```
+
+Vercel sẽ tự động kích hoạt tiến trình Build & Deploy bản mới nhất trong vòng 1-2 phút!

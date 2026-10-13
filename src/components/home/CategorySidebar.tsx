@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useLanguage } from '@/context/LanguageContext';
+import { safeFetchJson } from '@/lib/utils';
 
 interface ProductItem {
   name: string;
@@ -76,32 +77,34 @@ export default function CategorySidebar() {
   const [groups, setGroups] = useState<CategoryGroup[]>(productCategoryGroups);
 
   useEffect(() => {
-    fetch('/api/categories')
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          const liveGroups: CategoryGroup[] = json.data
-            .filter((c: any) => Array.isArray(c.items) && c.items.length > 0)
-            .map((c: any) => ({
-              title: c.name,
-              href: '/#san-pham',
-              items: c.items.map((it: any) => {
-                const short = PRODUCT_SHORT_NAMES[it.slug];
-                const cleanVi = short?.vi || (it.name.includes(',') ? it.name.split(',')[0].trim() : it.name);
-                const cleanEn = short?.en || (it.nameEn ? (it.nameEn.includes(',') ? it.nameEn.split(',')[0].trim() : it.nameEn) : cleanVi);
-                return {
-                  name: cleanVi,
-                  nameEn: cleanEn,
-                  slug: it.slug,
-                };
-              }),
-            }));
-          if (liveGroups.length > 0) {
-            setGroups(liveGroups);
-          }
+    let active = true;
+    safeFetchJson<{ success: boolean; data: any[] }>('/api/categories').then((json) => {
+      if (!active || !json?.success) return;
+      if (Array.isArray(json.data) && json.data.length > 0) {
+        const liveGroups: CategoryGroup[] = json.data
+          .filter((c: any) => Array.isArray(c.items) && c.items.length > 0)
+          .map((c: any) => ({
+            title: c.name,
+            href: '/#san-pham',
+            items: c.items.map((it: any) => {
+              const short = PRODUCT_SHORT_NAMES[it.slug];
+              const cleanVi = short?.vi || (it.name.includes(',') ? it.name.split(',')[0].trim() : it.name);
+              const cleanEn = short?.en || (it.nameEn ? (it.nameEn.includes(',') ? it.nameEn.split(',')[0].trim() : it.nameEn) : cleanVi);
+              return {
+                name: cleanVi,
+                nameEn: cleanEn,
+                slug: it.slug,
+              };
+            }),
+          }));
+        if (liveGroups.length > 0) {
+          setGroups(liveGroups);
         }
-      })
-      .catch((err) => console.error('Failed to fetch categories in CategorySidebar:', err));
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (

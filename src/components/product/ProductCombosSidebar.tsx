@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { combos } from '@/data/combos';
 import { Combo } from '@/types';
-import { formatPrice, cn } from '@/lib/utils';
+import { formatPrice, cn, safeFetchJson } from '@/lib/utils';
 import { useCartStore } from '@/store/cart';
 import { useFlyToCart } from '@/context/FlyToCartContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -34,14 +34,16 @@ export default function ProductCombosSidebar({
   const [canScrollRight, setCanScrollRight] = useState(false);
 
   useEffect(() => {
-    fetch('/api/combos')
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          setComboList(json.data.filter((c: Combo) => c.isActive !== false));
-        }
-      })
-      .catch((err) => console.error('Failed to fetch combos in ProductCombosSidebar:', err));
+    let active = true;
+    safeFetchJson<{ success: boolean; data: Combo[] }>('/api/combos').then((json) => {
+      if (!active || !json?.success) return;
+      if (Array.isArray(json.data) && json.data.length > 0) {
+        setComboList(json.data.filter((c: Combo) => c.isActive !== false));
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const sectionTitle = title === 'Combo tiết kiệm'

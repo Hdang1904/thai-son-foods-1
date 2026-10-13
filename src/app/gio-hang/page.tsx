@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCartStore, getItemBottleMultiplier, getItemMaxQuantity } from '@/store/cart';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, safeFetchJson } from '@/lib/utils';
 import {
   Trash2,
   ShoppingBag,
@@ -123,19 +123,17 @@ export default function CartPage() {
   const [promoCombos, setPromoCombos] = useState(combos.filter((c) => c.isActive !== false).slice(0, 12));
 
   useEffect(() => {
-    fetch('/api/products')
-      .then((res) => res.json())
+    safeFetchJson<{ success: boolean; data: any[] }>('/api/products')
       .then((json) => {
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
           setShelfProducts(json.data.filter((p: any) => p.isActive !== false).slice(0, 12));
         }
       })
       .catch((err) => console.error('Failed to fetch shelf products:', err));
 
-    fetch('/api/combos')
-      .then((res) => res.json())
+    safeFetchJson<{ success: boolean; data: any[] }>('/api/combos')
       .then((json) => {
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
           setPromoCombos(json.data.filter((c: any) => c.isActive !== false).slice(0, 12));
         }
       })

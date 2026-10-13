@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useBranchStore } from '@/store/branch';
 import { products } from '@/data/products';
+import { safeFetchJson } from '@/lib/utils';
 
 export function useBranchStockMap() {
   const { selectedBranch, openBranchModal } = useBranchStore();
@@ -17,14 +18,13 @@ export function useBranchStockMap() {
       .filter((p) => p.isActive)
       .map((p) => ({ productId: p.id, quantity: 9999 }));
 
-    fetch('/api/inventory/check', {
+    safeFetchJson<{ success: boolean; itemsDetail: any[] }>('/api/inventory/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ storeCode, items }),
     })
-      .then((res) => res.json())
       .then((data) => {
-        if (!active) return;
+        if (!active || !data) return;
         if (data.success && Array.isArray(data.itemsDetail)) {
           const map: Record<string, number> = {};
           for (const item of data.itemsDetail) {
@@ -33,7 +33,6 @@ export function useBranchStockMap() {
           setStockMap(map);
         }
       })
-      .catch((err) => console.error('Error fetching branch stock map:', err))
       .finally(() => {
         if (active) setIsLoading(false);
       });

@@ -69,7 +69,7 @@ export async function GET() {
   } catch (error: any) {
     console.error('Error fetching customer orders:', error);
     return NextResponse.json(
-      { success: false, error: 'Lỗi tải đơn hàng: ' + (error.message || 'Lỗi hệ thống') },
+      { success: false, error: 'Đã xảy ra lỗi khi tải danh sách đơn hàng. Vui lòng thử lại sau.' },
       { status: 500 }
     );
   }

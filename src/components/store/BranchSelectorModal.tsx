@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useBranchStore, StoreBranch } from '@/store/branch';
 import { calculateHaversineDistance } from '@/lib/geo';
-import { cn } from '@/lib/utils';
+import { cn, safeFetchJson } from '@/lib/utils';
 
 interface BranchSelectorModalProps {
   productId?: string; // Tùy chọn nếu đang mở từ trang sản phẩm để hiển thị tồn kho của món đó
@@ -52,9 +52,10 @@ export default function BranchSelectorModal({ productId, onSelect }: BranchSelec
   // Nếu có productId, truy vấn tình trạng kho của sản phẩm tại các chi nhánh
   useEffect(() => {
     if (isBranchModalOpen && productId) {
-      fetch(`/api/stores?productId=${encodeURIComponent(productId)}`)
-        .then((res) => res.json())
+      let active = true;
+      safeFetchJson<{ success: boolean; stores: any[] }>(`/api/stores?productId=${encodeURIComponent(productId)}`)
         .then((data) => {
+          if (!active || !data) return;
           if (data.success && Array.isArray(data.stores)) {
             const map: Record<string, 'in_stock' | 'low_stock' | 'out_of_stock'> = {};
             data.stores.forEach((s: any) => {
@@ -62,8 +63,10 @@ export default function BranchSelectorModal({ productId, onSelect }: BranchSelec
             });
             setStoreStockMap(map);
           }
-        })
-        .catch((err) => console.error('[BranchModal] Error loading product stock per branch:', err));
+        });
+      return () => {
+        active = false;
+      };
     }
   }, [isBranchModalOpen, productId]);
 

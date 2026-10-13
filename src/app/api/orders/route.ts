@@ -5,6 +5,10 @@ import { getUserSession } from '@/lib/auth';
 import { sendOrderEmail } from '@/lib/email/service';
 import { checkRequestRateLimit, isTrackingCodeBlocked, recordFailedTrackingAttempt } from '@/lib/rateLimit';
 
+function stripHtml(input: string): string {
+  return input.replace(/<[^>]*>?/gm, '').trim();
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -31,24 +35,32 @@ export async function POST(request: Request) {
 
     // 2. Chuẩn hóa thông tin người nhận
     const customerObj = body.customer || {};
-    const fullName =
-      (body.fullName || body.customerName || body.full_name || customerObj.fullName || customerObj.full_name || 'Khách hàng').toString().trim();
-    const phone =
-      (body.phone || body.customerPhone || customerObj.phone || '').toString().trim();
-    const email =
-      body.email || body.customerEmail || customerObj.email || null;
+    const rawFullName = (body.fullName || body.customerName || body.full_name || customerObj.fullName || customerObj.full_name || 'Khách hàng').toString();
+    const fullName = stripHtml(rawFullName).slice(0, 100) || 'Khách hàng';
+    const phone = (body.phone || body.customerPhone || customerObj.phone || '').toString().trim().slice(0, 20);
+    const rawEmail = body.email || body.customerEmail || customerObj.email || null;
+    const email = rawEmail ? stripHtml(rawEmail.toString()).slice(0, 100) : null;
 
     // 3. Chuẩn hóa địa chỉ giao hàng
-    const rawAddress = (body.address || body.shippingAddress || customerObj.address || '').toString().trim();
+    const uncleanedAddress = (body.address || body.shippingAddress || customerObj.address || '').toString();
+    const rawAddress = stripHtml(uncleanedAddress).slice(0, 255);
     const address = rawAddress || 'Địa chỉ liên hệ qua điện thoại';
-    const province = (body.province || customerObj.province || 'Đặt hàng nhanh').toString().trim();
-    const district = (body.district || customerObj.district || '').toString().trim();
-    const ward = (body.ward || customerObj.ward || '').toString().trim();
-    const note = body.note || customerObj.note || (body.shippingAddress ? 'Đơn đặt hàng nhanh COD' : null);
+    const province = stripHtml((body.province || customerObj.province || 'Đặt hàng nhanh').toString()).slice(0, 100);
+    const district = stripHtml((body.district || customerObj.district || '').toString()).slice(0, 100);
+    const ward = stripHtml((body.ward || customerObj.ward || '').toString()).slice(0, 100);
+    const rawNote = body.note || customerObj.note || (body.shippingAddress ? 'Đơn đặt hàng nhanh COD' : null);
+    const note = rawNote ? stripHtml(rawNote.toString()).slice(0, 500) : null;
     const storeCode = body.storeCode || body.store_code || customerObj.storeCode || customerObj.store_code || null;
     const storeAddress = body.storeAddress || body.store_address || customerObj.storeAddress || customerObj.store_address || null;
     const rawLat = typeof body.latitude === 'number' ? body.latitude : (typeof body.lat === 'number' ? body.lat : null);
     const rawLng = typeof body.longitude === 'number' ? body.longitude : (typeof body.lng === 'number' ? body.lng : null);
+    const locationConfirmed = Boolean(body.locationConfirmed ?? body.location_confirmed);
+    const locationConfirmedBy = (body.locationConfirmedBy || body.location_confirmed_by || (locationConfirmed ? 'USER_MAP_PIN' : (rawLat ? 'USER_GEOCODE' : null)))?.toString().slice(0, 50) || null;
+    const addressNew = body.addressNew || body.address_new || null;
+    const addressOld = body.addressOld || body.address_old || null;
+    const recommendedStoreId = (body.recommendedStoreId || body.recommended_store_id || null)?.toString().slice(0, 50) || null;
+    const wasOverridden = Boolean(body.wasOverridden ?? body.was_overridden ?? (recommendedStoreId && storeCode && recommendedStoreId !== storeCode));
+    const rankingSnapshot = body.rankingSnapshot ? JSON.stringify(body.rankingSnapshot) : null;
 
     // 4. Chuẩn hóa phương thức & phí
     const paymentMethod = body.paymentMethod || customerObj.paymentMethod || 'cod';
@@ -311,6 +323,22 @@ export async function POST(request: Request) {
         );
       }
 
+      // 5.2. IN-MEMORY GATEKEEPER / CIRCUIT BREAKER SHIELD
+      // Kiểm tra và cấp Permit trên RAM trước khi mở Transaction và khóa row Database
+      const { gatekeeperAcquirePermit, gatekeeperCommitPermit, gatekeeperRollbackPermit } = await import('@/lib/inventoryGatekeeper');
+      const gatekeeper = await gatekeeperAcquirePermit(targetStoreCode, expandedBottles);
+      if (!gatekeeper.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Một số sản phẩm không đủ tồn kho khả dụng tại chi nhánh đã chọn',
+            insufficientItems: gatekeeper.insufficientItems,
+          },
+          { status: 409 }
+        );
+      }
+      const gatekeeperPermitId = gatekeeper.permitId;
+
       let finalEmail = email;
       if ((!finalEmail || !finalEmail.includes('@')) && userId) {
         try {
@@ -426,8 +454,20 @@ export async function POST(request: Request) {
           await client.query('BEGIN;');
 
           await client.query(
-            `INSERT INTO orders (id, order_code, full_name, phone, email, province, district, ward, address, note, payment_method, shipping_fee, subtotal, total, status, user_id, store_code, store_address, items_total_count, items_resolved_count, order_channel)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+            `INSERT INTO orders (
+               id, order_code, full_name, phone, email, province, district, ward, address, note,
+               payment_method, shipping_fee, subtotal, total, status, user_id, store_code, store_address,
+               items_total_count, items_resolved_count, order_channel,
+               latitude, longitude, location_confirmed, location_confirmed_by, address_new, address_old,
+               recommended_store_id, was_overridden, ranking_snapshot
+             )
+             VALUES (
+               $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+               $11, $12, $13, $14, $15, $16, $17, $18,
+               $19, $20, $21,
+               $22, $23, $24, $25, $26, $27,
+               $28, $29, $30
+             )`,
             [
               orderId,
               orderCode,
@@ -450,6 +490,15 @@ export async function POST(request: Request) {
               revalidatedItems.length,
               revalidatedItems.length,
               orderChannel,
+              rawLat,
+              rawLng,
+              locationConfirmed,
+              locationConfirmedBy,
+              addressNew,
+              addressOld,
+              recommendedStoreId,
+              wasOverridden,
+              rankingSnapshot,
             ]
           );
 
@@ -573,8 +622,10 @@ export async function POST(request: Request) {
           }
 
           await client.query('COMMIT;');
+          gatekeeperCommitPermit(gatekeeperPermitId);
           break; // Đặt hàng thành công! Thoát khỏi vòng lặp retry
         } catch (err: any) {
+          gatekeeperRollbackPermit(gatekeeperPermitId);
           try {
             await client.query('ROLLBACK;');
           } catch (_) {}
@@ -646,7 +697,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: dbError.message || 'Lỗi khi lưu đơn hàng vào cơ sở dữ liệu',
+          error: 'Lỗi khi lưu đơn hàng. Vui lòng thử lại hoặc liên hệ hotline.',
           savedToPostgres: false,
         },
         { status: 500 }
@@ -656,7 +707,7 @@ export async function POST(request: Request) {
     }
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: 'Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.' },
       { status: 500 }
     );
   }

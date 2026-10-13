@@ -249,6 +249,9 @@ export async function PUT(req: NextRequest) {
         afterJson: { storeCode, itemCount: items.length },
       });
 
+      const { invalidateGatekeeperCache } = await import('@/lib/inventoryGatekeeper');
+      invalidateGatekeeperCache(storeCode);
+
       return NextResponse.json({
         success: true,
         message: `Đã cập nhật tồn kho thành công cho ${items.length} mặt hàng tại ${storeCode}!`,
@@ -336,6 +339,9 @@ export async function PUT(req: NextRequest) {
       afterJson: { stock_quantity: qty },
     });
 
+    const { invalidateGatekeeperCache } = await import('@/lib/inventoryGatekeeper');
+    invalidateGatekeeperCache(storeCode);
+
     return NextResponse.json({
       success: true,
       message: `Đã cập nhật số lượng tồn kho thành ${qty} chai cho cửa hàng ${storeCode}!`,
@@ -343,6 +349,6 @@ export async function PUT(req: NextRequest) {
     });
   } catch (error: any) {
     console.error('Error updating store inventory:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Đã xảy ra lỗi khi cập nhật tồn kho. Vui lòng thử lại sau.' }, { status: 500 });
   }
 }

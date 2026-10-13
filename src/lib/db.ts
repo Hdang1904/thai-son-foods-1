@@ -8,12 +8,14 @@ const isRemoteUrl = Boolean(
   !rawDbUrl.includes('localhost')
 );
 
+const poolMax = parseInt(process.env.DB_POOL_MAX || '20', 10);
+
 export const pool = new Pool(
   rawDbUrl
     ? {
         connectionString: rawDbUrl,
         ssl: isRemoteUrl ? { rejectUnauthorized: false } : undefined,
-        max: 10,
+        max: poolMax,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000,
       }
@@ -28,17 +30,21 @@ export const pool = new Pool(
           process.env.DB_HOST && !['127.0.0.1', 'localhost'].includes(process.env.DB_HOST)
             ? { rejectUnauthorized: false }
             : undefined,
-        max: 10,
+        max: poolMax,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000,
       }
     : {
         connectionString: 'postgresql://postgres:Tsf%40123@127.0.0.1:5432/WebTSF?sslmode=disable',
-        max: 10,
+        max: poolMax,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 3000,
+        connectionTimeoutMillis: 5000,
       }
 );
+
+pool.on('error', (err) => {
+  console.error('[PostgreSQL Pool Error] Unexpected error on idle client:', err);
+});
 
 export async function query(text: string, params?: any[]) {
   return pool.query(text, params);
@@ -309,6 +315,17 @@ export async function initDatabase() {
       ALTER TABLE order_items ALTER COLUMN unit TYPE VARCHAR(255);
       ALTER TABLE order_items ADD COLUMN IF NOT EXISTS bottle_multiplier INTEGER DEFAULT 1;
       ALTER TABLE order_items ADD COLUMN IF NOT EXISTS total_bottles INTEGER DEFAULT 0;
+
+      -- Performance indexes for production scale
+      CREATE INDEX IF NOT EXISTS idx_orders_order_code ON orders(order_code);
+      CREATE INDEX IF NOT EXISTS idx_orders_phone ON orders(phone);
+      CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+      CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_orders_store_code ON orders(store_code);
+      CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
+      CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+      CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id);
+      CREATE INDEX IF NOT EXISTS idx_store_inventory_lookup ON store_inventory(store_code, product_id);
     `);
 
     // Add new columns to stores if table already exists
@@ -619,6 +636,37 @@ export async function initDatabase() {
         UNIQUE(store_code, product_id, lot_code)
       );
       CREATE INDEX IF NOT EXISTS idx_inventory_lots_fefo ON inventory_lots(store_code, product_id, expiry_date ASC);
+
+      -- 10. Stores & Orders GPS Location Extensions (Phục vụ đề xuất chi nhánh & định vị chuẩn xác)
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS area_label VARCHAR(100);
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS province_code VARCHAR(20);
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS address_new TEXT;
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS address_old TEXT;
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS location_verified_by VARCHAR(50);
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS location_verified_at TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS supports_delivery BOOLEAN DEFAULT true;
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS supports_pickup BOOLEAN DEFAULT true;
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS delivery_radius_km DOUBLE PRECISION DEFAULT 10.0;
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS prep_minutes INTEGER DEFAULT 15;
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS max_active_orders INTEGER DEFAULT 25;
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS opening_hours JSONB DEFAULT '{"mon":{"open":"07:00","close":"21:30"},"tue":{"open":"07:00","close":"21:30"},"wed":{"open":"07:00","close":"21:30"},"thu":{"open":"07:00","close":"21:30"},"fri":{"open":"07:00","close":"21:30"},"sat":{"open":"07:00","close":"21:30"},"sun":{"open":"07:00","close":"21:30"}}';
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS holiday_overrides JSONB DEFAULT '{}';
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_accepting_orders BOOLEAN DEFAULT true;
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS paused_until TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS pause_reason TEXT;
+      CREATE INDEX IF NOT EXISTS idx_stores_delivery_active ON stores(is_active, is_accepting_orders, supports_delivery);
+
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS location_confirmed BOOLEAN DEFAULT false;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS location_confirmed_by VARCHAR(50);
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS address_new TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS address_old TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS recommended_store_id VARCHAR(50);
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS was_overridden BOOLEAN DEFAULT false;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS ranking_snapshot JSONB;
+      CREATE INDEX IF NOT EXISTS idx_orders_lat_lng ON orders(latitude, longitude);
+      CREATE INDEX IF NOT EXISTS idx_orders_recommended_store ON orders(recommended_store_id);
     `);
 
     console.log('Database tables verified/created successfully!');

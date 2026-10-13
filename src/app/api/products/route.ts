@@ -5,11 +5,26 @@ import { Product } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
+// Bảng chuyển ký tự có dấu -> không dấu cho hàm translate() của PostgreSQL (chữ thường)
+const VI_FROM = 'àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ';
+const VI_TO = 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd';
+
+function normalizeVi(input: string): string {
+  return (input || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .toLowerCase()
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
-    const search = searchParams.get('search');
+    const search = searchParams.get('search') || searchParams.get('q');
     const featured = searchParams.get('featured');
 
     let sql = `
@@ -43,8 +58,12 @@ export async function GET(request: Request) {
     }
 
     if (search) {
-      params.push(`%${search.trim().toLowerCase()}%`);
-      sql += ` AND (LOWER(p.name) LIKE $${params.length} OR LOWER(p.slug) LIKE $${params.length} OR LOWER(p.sku) LIKE $${params.length})`;
+      const tokens = normalizeVi(search).split(' ').filter(Boolean).slice(0, 8);
+      const haystackSql = `translate(LOWER(COALESCE(p.name,'') || ' ' || COALESCE(p.slug,'') || ' ' || COALESCE(p.sku,'')), '${VI_FROM}', '${VI_TO}')`;
+      for (const token of tokens) {
+        params.push(`%${token}%`);
+        sql += ` AND replace(${haystackSql}, '-', ' ') LIKE $${params.length}`;
+      }
     }
 
     if (featured === 'true') {
@@ -63,8 +82,11 @@ export async function GET(request: Request) {
         let filtered = defaultProducts.filter((p) => p.isActive);
         if (category) filtered = filtered.filter((p) => p.categoryId === category);
         if (search) {
-          const s = search.toLowerCase();
-          filtered = filtered.filter((p) => p.name.toLowerCase().includes(s) || p.slug.toLowerCase().includes(s));
+          const tokens = normalizeVi(search).split(' ').filter(Boolean);
+          filtered = filtered.filter((p) => {
+            const hay = normalizeVi(`${p.name} ${p.slug}`);
+            return tokens.every((t) => hay.includes(t));
+          });
         }
         return NextResponse.json({ success: true, data: filtered, fallback: true });
       }

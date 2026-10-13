@@ -12,7 +12,7 @@ export const products: Product[] = [
   // ─── HÀNG 1: 3 SẢN PHẨM (SB - SHS - SGL: Bộ ba Sữa truyền thống Mekong Xanh & Thái Sơn) ───
   {
     id: 'sua-bap-nep',
-    name: 'Sữa Bắp Nếp nguyên chất từ bắp tươi, thức uống dinh dưỡng, giải pháp bữa sáng nhanh gọn, chai 330ml, đạt chuẩn HACCP.',
+    name: 'Sữa Bắp - Giải khát nhanh và cung cấp dưỡng chất cho cơ thể nguồn protein thực vật, chất xơ - 10 chai 330ml - miễn phí giao hàng T7 mỗi tuần',
     nameEn: 'Thai Son Foods Sticky Corn Milk, Fresh Sweet Corn, Convenient Drink, 330ml, Pack of 10',
     slug: 'sua-bap-nep-thai-son',
     sku: 'SB-01',
@@ -47,7 +47,7 @@ export const products: Product[] = [
   },
   {
     id: 'sua-hat-sen-mekong',
-    name: 'Sữa Hạt Sen kết hợp hạt sen, đậu xanh và đậu trắng, thức uống dinh dưỡng thanh mát, giải pháp bữa sáng nhanh gọn, chai 330ml, đạt chuẩn HACCP.',
+    name: 'Nước giải khát dinh dưỡng - Sữa Hạt Sen - Nguyên bản - Sản phẩm dùng hàng ngày - 10chai x 330ml - Tặng kèm 1 chai - 28kcal / 100ml phù hợp mọi lứa tuổi.',
     nameEn: 'Mekong Green Lotus Seed Milk, Fresh Lotus Seeds & Mung Beans, Convenient Drink, 330ml, Pack of 10',
     slug: 'sua-hat-sen-mekong-xanh',
     sku: 'SHS-01',
@@ -82,7 +82,7 @@ export const products: Product[] = [
   },
   {
     id: 'sua-gao-lut-mekong',
-    name: 'Sữa Gạo Lứt từ gạo lứt huyết rồng, thức uống thanh đạm giàu dinh dưỡng, tiện lợi dùng hằng ngày, chai 330ml, đạt chuẩn HACCP.',
+    name: 'Sữa Gạo Lứt Huyết Rồng thích hợp cho người lớn tuổi. Hỗ trợ tốt cho tim mạch. Lốc 10 chai - 330ml. Đồ uống nhẹ lành mạnh.',
     nameEn: 'Mekong Green Brown Rice Milk, Natural Red Dragon Brown Rice, Convenient Drink, 330ml, Pack of 10',
     slug: 'sua-gao-lut-mekong-xanh',
     sku: 'SGL-01',
@@ -119,11 +119,11 @@ export const products: Product[] = [
   // ─── HÀNG 2: 2 SẢN PHẨM (SS - SL: Bộ đôi can sữa hạt Yoo Milk) ───
   {
     id: 'sua-hat-sen-lotus',
-    name: "Sữa Hạt Sen Lotus Yoo nấu từ hạt sen tươi, thức uống dinh dưỡng thơm bùi thanh mát, tiện lợi uống liền, chai 568ml, đạt chuẩn HACCP.",
+    name: 'Bình sữa Hạt Sen Yoo - từ hạt sen bổ sung thêm đậu xanh, đậu trắng tự nhiên. Vị ngọt thanh tự nhiên dễ uống. Lốc 6 bình giá 150.000. Có thể thay thế bữa ăn nhẹ nhanh và gọn.',
     nameEn: 'Lotus Yoo Lotus Seed Milk, Fresh Lotus Seeds & Mung Beans, Convenient Drink, 568ml, Pack of 6',
     slug: 'sua-hat-sen-lotus-yoo',
     sku: "SS-01",
-    volume: '330ml',
+    volume: '568ml',
     shortDescription: "Từ hạt sen nguyên chất, sánh mịn đậm vị thơm bùi, bột kem không sữa êm bụng, chai lớn 568ml siêu tiết kiệm, nạp năng lượng dịu nhẹ mỗi ngày.",
     shortDescriptionEn: 'Lotus Yoo Lotus Seed Milk - Nutritious drink from fresh lotus seeds, providing wholesome nourishment.',
     description: "Sữa Hạt Sen Lotus Yoo - Thức uống từ hạt sen tươi tự nhiên, bổ sung dưỡng chất thanh lành mỗi ngày cho cơ thể. Mang đến hương vị thanh mát, nhẹ nhàng, giàu dinh dưỡng, thích hợp cho mọi lứa tuổi.",
@@ -145,18 +145,17 @@ export const products: Product[] = [
     isActive: true,
     isVegan: true,
     variants: [
-      { id: 'ss-5chai', name: '5 chai', quantity: 5, price: 125000, unit: 'lốc', volume: '5 x 568ml' },
-      { id: 'ss-7chai', name: '7 chai', quantity: 7, price: 175000, unit: 'lốc', volume: '7 x 568ml' },
-      { id: 'ss-10chai', name: '10 chai', quantity: 10, price: 250000, unit: 'thùng', volume: '10 x 568ml' },
+      { id: 'ss-6chai', name: '6 chai', quantity: 6, price: 150000, unit: 'lốc', volume: '6 x 568ml' },
+      { id: 'ss-12chai', name: '12 chai', quantity: 12, price: 300000, unit: 'thùng', volume: '12 x 568ml' },
     ],
   },
   {
     id: 'sua-gao-lut-ohsawa',
-    name: 'Sữa Gạo Lứt Ohsawa Yoo nấu từ gạo lứt huyết rồng rang thơm, thức uống thực dưỡng thanh đạm, tiện lợi uống liền, chai 568ml, đạt chuẩn HACCP.',
+    name: 'Bình sữa Gạo Lứt Yoo 568ml - 36Kcal/100ml - Lốc 6 bình chỉ 150.000đ. Dùng mỗi ngày - ở nhà như một bữa ăn dặm nhẹ nhàng.',
     nameEn: 'Ohsawa Yoo Brown Rice Milk, Natural Red Dragon Brown Rice, Convenient Drink, 568ml, Pack of 6',
     slug: 'sua-gao-lut-ohsawa-yoo',
     sku: 'SL-01',
-    volume: '330ml',
+    volume: '568ml',
     shortDescription: 'Nấu từ gạo lứt huyết rồng nguyên cám, sánh mịn đậm vị gạo rang, chai lớn 568ml siêu tiết kiệm, ngọt thanh béo nhẹ, nạp năng lượng sạch, trữ lạnh uống liền.',
     shortDescriptionEn: 'Ohsawa Yoo Brown Rice Milk provides wholesome nutrition from whole brown rice, ideal for healthy living.',
     description: 'Sữa Gạo Lứt Ohsawa với nguồn gạo lứt bổ dưỡng, giải pháp bổ sung năng lượng và chăm sóc cơ thể. Chế biến từ gạo lứt nguyên cám, giữ trọn vẹn dinh dưỡng tự nhiên, thức uống lành mạnh cho người quan tâm đến sức khỏe.',
@@ -177,16 +176,15 @@ export const products: Product[] = [
     isActive: true,
     isVegan: true,
     variants: [
-      { id: 'sl-5chai', name: '5 chai', quantity: 5, price: 125000, unit: 'lốc', volume: '5 x 568ml' },
-      { id: 'sl-7chai', name: '7 chai', quantity: 7, price: 175000, unit: 'lốc', volume: '7 x 568ml' },
-      { id: 'sl-10chai', name: '10 chai', quantity: 10, price: 250000, unit: 'thùng', volume: '10 x 568ml' },
+      { id: 'sl-6chai', name: '6 chai', quantity: 6, price: 150000, unit: 'lốc', volume: '6 x 568ml' },
+      { id: 'sl-12chai', name: '12 chai', quantity: 12, price: 300000, unit: 'thùng', volume: '12 x 568ml' },
     ],
   },
 
   // ─── HÀNG 3: 3 SẢN PHẨM (MD - TD - LH: Bộ ba Nước giải khát thảo mộc Thái Sơn) ───
   {
     id: 'nha-dam-mu-trom',
-    name: 'Nha Đam Mủ Trôm từ nha đam, mủ trôm và lá dứa, thức uống thanh mát giải khát, tiện lợi uống liền, chai 330ml, đạt chuẩn HACCP.',
+    name: 'Nước mát thanh lọc cơ thể từ Nha Đam - Mủ Trôm - Lá Dứa. Lốc 10 chai x 330ml. Dùng cho mọi lứa tuổi. Bảo quản lạnh 2 - 5°C. Sản phẩm dùng mỗi ngày, thanh mát dễ chịu.',
     nameEn: 'Thai Son Foods Aloe Vera & Karaya Gum Drink, Pandan Infusion, Convenient Drink, 330ml, Pack of 10',
     slug: 'nha-dam-mu-trom-thai-son',
     sku: 'MD-01',
@@ -221,7 +219,7 @@ export const products: Product[] = [
   },
   {
     id: 'tao-do-hat-chia',
-    name: 'Nước Táo Đỏ Hạt Chia kết hợp táo đỏ, hạt chia và kỷ tử, thức uống thanh mát bổ dưỡng, tiện lợi dùng hằng ngày, chai 330ml, đạt chuẩn HACCP.',
+    name: 'Hàng dùng thử Táo đỏ - Hạt chia Thái Sơn. Thức uống thanh lọc và giải nhiệt. Nước lá dứa, táo đỏ, hạt chia, kỷ tử, nấm tuyết. Sản phẩm đóng chai 330ml. Lốc 10 chai. Cân bằng nội tiết.',
     nameEn: 'Thai Son Foods Red Apple & Chia Seed Drink, Red Apple & Goji Berries, Convenient Drink, 330ml, Pack of 10',
     slug: 'tao-do-hat-chia-thai-son',
     sku: 'TD-01',

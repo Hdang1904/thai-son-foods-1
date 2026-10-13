@@ -211,7 +211,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error('[Inventory Check API] Error:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Lỗi kiểm tra tồn kho' },
+      { success: false, error: 'Đã xảy ra lỗi khi kiểm tra tồn kho. Vui lòng thử lại sau.' },
       { status: 500 }
     );
   }

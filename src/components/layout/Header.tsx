@@ -29,10 +29,36 @@ import {
 import { useCartStore } from '@/store/cart';
 import { useLanguage } from '@/context/LanguageContext';
 import { useUserAuth } from '@/context/UserAuthContext';
-import { cn, formatPrice } from '@/lib/utils';
+import { cn, formatPrice, safeFetchJson } from '@/lib/utils';
 import { products } from '@/data/products';
 import BranchTopBar from '@/components/layout/BranchTopBar';
 import { MEMBERSHIP_CONFIG } from '@/config/membership';
+
+// Chuẩn hóa chuỗi tiếng Việt: bỏ dấu, đ→d, lowercase, gộp khoảng trắng
+function normalizeVi(input: string): string {
+  return (input || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'd')
+    .toLowerCase()
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Khớp khi MỌI từ khóa đều xuất hiện trong (tên, tên EN, mô tả ngắn, slug) — không phân biệt dấu
+function matchesProductQuery(
+  p: { name: string; nameEn?: string; shortDescription?: string; slug: string },
+  rawQuery: string
+): boolean {
+  const q = normalizeVi(rawQuery);
+  if (!q) return false;
+  const haystack = normalizeVi(
+    [p.name, p.nameEn || '', p.shortDescription || '', p.slug].join(' ')
+  );
+  return q.split(' ').every((token) => haystack.includes(token));
+}
 
 export default function Header() {
   const router = useRouter();
@@ -56,14 +82,16 @@ export default function Header() {
   const [liveProducts, setLiveProducts] = useState(products);
 
   useEffect(() => {
-    fetch('/api/products')
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          setLiveProducts(json.data.filter((p: any) => p.isActive !== false));
-        }
-      })
-      .catch((err) => console.error('Failed to fetch live products in Header:', err));
+    let active = true;
+    safeFetchJson<{ success: boolean; data: any[] }>('/api/products').then((json) => {
+      if (!active || !json?.success) return;
+      if (Array.isArray(json.data) && json.data.length > 0) {
+        setLiveProducts(json.data.filter((p: any) => p.isActive !== false));
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const taskbagItems = useMemo(
@@ -148,15 +176,8 @@ export default function Header() {
   // Filter products for Live Search suggestions
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
-    const q = searchQuery.toLowerCase().trim();
     return liveProducts
-      .filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          (p.nameEn && p.nameEn.toLowerCase().includes(q)) ||
-          p.shortDescription.toLowerCase().includes(q) ||
-          p.slug.toLowerCase().includes(q)
-      )
+      .filter((p) => matchesProductQuery(p, searchQuery))
       .slice(0, 4);
   }, [searchQuery, liveProducts]);
 
@@ -166,13 +187,7 @@ export default function Header() {
     setIsSearchFocused(false);
     setIsMobileSearchOpen(false);
     // Nếu có kết quả tìm kiếm khớp chính xác, vào trang chi tiết luôn
-    const q = searchQuery.trim().toLowerCase();
-    const match = liveProducts.find(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.shortDescription.toLowerCase().includes(q) ||
-        p.slug.toLowerCase().includes(q)
-    );
+    const match = liveProducts.find((p) => matchesProductQuery(p, searchQuery));
     if (match) {
       router.push(`/san-pham/${match.slug}`);
     } else {

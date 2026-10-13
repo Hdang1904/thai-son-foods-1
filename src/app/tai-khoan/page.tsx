@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { useUserAuth } from '@/context/UserAuthContext';
 import { useLanguage } from '@/context/LanguageContext';
-import { cn, formatPrice } from '@/lib/utils';
+import { cn, formatPrice, safeFetchJson } from '@/lib/utils';
 
 interface OrderItem {
   id: string;
@@ -124,10 +124,9 @@ function AccountContent() {
   useEffect(() => {
     if (user) {
       setIsLoadingOrders(true);
-      fetch('/api/user/orders')
-        .then((res) => res.json())
+      safeFetchJson<{ success: boolean; orders: OrderRecord[] }>('/api/user/orders')
         .then((data) => {
-          if (data.success && Array.isArray(data.orders)) {
+          if (data?.success && Array.isArray(data.orders)) {
             setOrders(data.orders);
           }
         })
@@ -135,10 +134,9 @@ function AccountContent() {
         .finally(() => setIsLoadingOrders(false));
 
       setIsLoadingReviews(true);
-      fetch('/api/user/reviews')
-        .then((res) => res.json())
+      safeFetchJson<{ success: boolean; reviews: any[] }>('/api/user/reviews')
         .then((data) => {
-          if (data.success && Array.isArray(data.reviews)) {
+          if (data?.success && Array.isArray(data.reviews)) {
             setUserReviews(data.reviews);
           }
         })

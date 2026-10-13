@@ -7,6 +7,7 @@ import SectionTitle from '@/components/ui/SectionTitle';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { safeFetchJson } from '@/lib/utils';
 
 import { Product } from '@/types';
 
@@ -50,14 +51,16 @@ export default function ProductSection({
       setProductList(initialProducts);
       return;
     }
-    fetch('/api/products')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.success && Array.isArray(data.data) && data.data.length > 0) {
-          setProductList(data.data);
-        }
-      })
-      .catch(() => {});
+    let active = true;
+    safeFetchJson<{ success: boolean; data: Product[] }>('/api/products').then((data) => {
+      if (!active || !data) return;
+      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+        setProductList(data.data);
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, [initialProducts]);
 
   const sliderRef = useRef<HTMLDivElement>(null);

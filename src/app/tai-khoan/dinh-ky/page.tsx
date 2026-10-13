@@ -18,7 +18,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useUserAuth } from '@/context/UserAuthContext';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, safeFetchJson, safeParseJson } from '@/lib/utils';
 import { Subscription } from '@/types/membership';
 import { MEMBERSHIP_CONFIG } from '@/config/membership';
 
@@ -61,9 +61,8 @@ export default function SubscriptionsManagementPage() {
   const fetchSubscriptions = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch('/api/subscriptions');
-      const json = await res.json();
-      if (json.success) {
+      const json = await safeFetchJson<any>('/api/subscriptions');
+      if (json?.success) {
         setSubscriptions(json.data || []);
       }
     } catch (err) {
@@ -91,12 +90,12 @@ export default function SubscriptionsManagementPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: 'Khách hàng bấm bỏ qua kỳ này' }),
       });
-      const json = await res.json();
-      if (json.success) {
+      const json = await safeParseJson<any>(res);
+      if (res.ok && json?.success) {
         setActionMessage({ type: 'success', text: json.message });
         await fetchSubscriptions();
       } else {
-        setActionMessage({ type: 'error', text: json.error || 'Lỗi bỏ qua kỳ giao.' });
+        setActionMessage({ type: 'error', text: json?.error || 'Lỗi bỏ qua kỳ giao.' });
       }
     } catch {
       setActionMessage({ type: 'error', text: 'Lỗi kết nối máy chủ.' });
@@ -117,13 +116,13 @@ export default function SubscriptionsManagementPage() {
           preferredDayOfWeek: selectedDay,
         }),
       });
-      const json = await res.json();
-      if (json.success) {
+      const json = await safeParseJson<any>(res);
+      if (res.ok && json?.success) {
         setFreqModalSub(null);
         setActionMessage({ type: 'success', text: json.message });
         await fetchSubscriptions();
       } else {
-        setActionMessage({ type: 'error', text: json.error || 'Lỗi cập nhật tần suất.' });
+        setActionMessage({ type: 'error', text: json?.error || 'Lỗi cập nhật tần suất.' });
       }
     } catch {
       setActionMessage({ type: 'error', text: 'Lỗi kết nối.' });
@@ -165,13 +164,13 @@ export default function SubscriptionsManagementPage() {
           distanceKm: 5.0,
         }),
       });
-      const json = await res.json();
-      if (json.success) {
+      const json = await safeParseJson<any>(res);
+      if (res.ok && json?.success) {
         setAddressModalSub(null);
         setActionMessage({ type: 'success', text: json.message });
         await fetchSubscriptions();
       } else {
-        setAddressError(json.error || 'Lỗi cập nhật địa chỉ giao hàng.');
+        setAddressError(json?.error || 'Lỗi cập nhật địa chỉ giao hàng.');
       }
     } catch {
       setAddressError('Lỗi kết nối máy chủ.');
@@ -189,13 +188,13 @@ export default function SubscriptionsManagementPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: cancelReason }),
       });
-      const json = await res.json();
-      if (json.success) {
+      const json = await safeParseJson<any>(res);
+      if (res.ok && json?.success) {
         setCancelModalSub(null);
         setActionMessage({ type: 'success', text: 'Đã hủy hợp đồng giao định kỳ thành công.' });
         await fetchSubscriptions();
       } else {
-        setActionMessage({ type: 'error', text: json.error || 'Lỗi hủy hợp đồng.' });
+        setActionMessage({ type: 'error', text: json?.error || 'Lỗi hủy hợp đồng.' });
       }
     } catch {
       setActionMessage({ type: 'error', text: 'Lỗi kết nối.' });

@@ -218,6 +218,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error('Error in POST /api/subscriptions:', error);
-    return NextResponse.json({ success: false, error: error.message || 'Lỗi tạo hợp đồng giao định kỳ.' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Đã xảy ra lỗi khi tạo hợp đồng giao định kỳ. Vui lòng thử lại sau.' }, { status: 500 });
   }
 }

@@ -61,6 +61,7 @@ import {
   Copy
 } from 'lucide-react';
 import { hasPermission, Role, Permission } from '@/lib/rbac';
+import { safeFetchJson } from '@/lib/utils';
 
 // ==================== INTERFACES ====================
 export interface AdminUser {
@@ -523,20 +524,20 @@ export default function AdminPage() {
     setLoading(true);
     try {
       const [statsRes, prodsRes, combosRes, catsRes, ordersRes, membersRes] = await Promise.all([
-        fetch('/api/admin/stats', { cache: 'no-store' }).then((r) => r.json()),
-        fetch('/api/admin/products', { cache: 'no-store' }).then((r) => r.json()),
-        fetch('/api/admin/combos', { cache: 'no-store' }).then((r) => r.json()),
-        fetch('/api/admin/categories', { cache: 'no-store' }).then((r) => r.json()),
-        fetch('/api/admin/orders', { cache: 'no-store' }).then((r) => r.json()),
-        fetch('/api/admin/members', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ success: false })),
+        safeFetchJson('/api/admin/stats', { cache: 'no-store' }),
+        safeFetchJson('/api/admin/products', { cache: 'no-store' }),
+        safeFetchJson('/api/admin/combos', { cache: 'no-store' }),
+        safeFetchJson('/api/admin/categories', { cache: 'no-store' }),
+        safeFetchJson('/api/admin/orders', { cache: 'no-store' }),
+        safeFetchJson('/api/admin/members', { cache: 'no-store' }),
       ]);
 
-      if (statsRes.success) setStats(statsRes);
-      if (prodsRes.success) setProducts(prodsRes.data || []);
-      if (combosRes.success) setCombos(combosRes.data || []);
-      if (catsRes.success) setCategories(catsRes.data || []);
-      if (ordersRes.success) setOrders(ordersRes.data || []);
-      if (membersRes && membersRes.success) setMembers(membersRes.members || []);
+      if (statsRes?.success) setStats(statsRes);
+      if (prodsRes?.success) setProducts(prodsRes.data || []);
+      if (combosRes?.success) setCombos(combosRes.data || []);
+      if (catsRes?.success) setCategories(catsRes.data || []);
+      if (ordersRes?.success) setOrders(ordersRes.data || []);
+      if (membersRes?.success) setMembers(membersRes.members || []);
     } catch (err: any) {
       console.error('Error fetching data:', err);
       showToast('Lỗi kết nối cơ sở dữ liệu: ' + err.message, 'error');
@@ -584,10 +585,9 @@ export default function AdminPage() {
     fetchData();
 
     // Fetch current authenticated admin user
-    fetch('/api/admin/auth/me')
-      .then((res) => res.json())
+    safeFetchJson<any>('/api/admin/auth/me')
       .then((data) => {
-        if (data.authenticated && data.user) {
+        if (data?.authenticated && data.user) {
           setCurrentUser(data.user);
           if (data.user.mustChangePassword) {
             setIsPasswordModalOpen(true);
@@ -602,10 +602,9 @@ export default function AdminPage() {
           }
 
           if (hasPermission(data.user, 'reviews.view')) {
-            fetch('/api/admin/reviews?limit=1')
-              .then((r) => r.json())
+            safeFetchJson<any>('/api/admin/reviews?limit=1')
               .then((rData) => {
-                if (rData.success && rData.counts?.pendingCount !== undefined) {
+                if (rData?.success && rData.counts?.pendingCount !== undefined) {
                   setPendingReviewsCount(rData.counts.pendingCount);
                 }
               })
@@ -1871,7 +1870,7 @@ export default function AdminPage() {
         // Làm mới tồn kho nếu đang quản lý kho
         fetchInventory(selectedStoreCode);
         // Refresh stats
-        fetch('/api/admin/stats').then((r) => r.json()).then((d) => d.success && setStats(d));
+        safeFetchJson('/api/admin/stats').then((d) => d?.success && setStats(d));
       } else {
         showToast(data.error || 'Cập nhật thất bại', 'error');
       }
@@ -1953,8 +1952,8 @@ export default function AdminPage() {
     setIsOrderDetailModalOpen(true);
     // Fetch full order details
     try {
-      const res = await fetch(`/api/admin/orders?id=${order.id}`).then((r) => r.json());
-      if (res.success && res.order) {
+      const res = await safeFetchJson<any>(`/api/admin/orders?id=${order.id}`);
+      if (res?.success && res.order) {
         setSelectedOrder(res.order);
       }
     } catch (err) {

@@ -54,6 +54,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error('Error in POST /api/membership/subscribe:', error);
-    return NextResponse.json({ success: false, error: error.message || 'Lỗi đăng ký gói hội viên.' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Đã xảy ra lỗi khi đăng ký gói hội viên. Vui lòng thử lại sau.' }, { status: 500 });
   }
 }

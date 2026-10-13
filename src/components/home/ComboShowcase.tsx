@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ShoppingBag, Check } from 'lucide-react';
 import { combos } from '@/data/combos';
-import { formatPrice, cn } from '@/lib/utils';
+import { formatPrice, cn, safeFetchJson } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { useCartStore } from '@/store/cart';
 import { useFlyToCart } from '@/context/FlyToCartContext';
@@ -31,14 +31,16 @@ export default function ComboShowcase({ combos: initialCombos }: ComboShowcasePr
       setComboList(initialCombos);
       return;
     }
-    fetch('/api/combos')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.success && Array.isArray(data.data) && data.data.length > 0) {
-          setComboList(data.data);
-        }
-      })
-      .catch(() => {});
+    let active = true;
+    safeFetchJson<{ success: boolean; data: Combo[] }>('/api/combos').then((data) => {
+      if (!active || !data) return;
+      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+        setComboList(data.data);
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, [initialCombos]);
 
   const handleAddToCart = (combo: Combo, e: React.MouseEvent) => {

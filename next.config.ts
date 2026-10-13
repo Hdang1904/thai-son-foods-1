@@ -16,6 +16,7 @@ const cspReportOnly = [
 ].join('; ');
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   // Allow internal LAN IP access without cross-origin blocking
   allowedDevOrigins: [
     '137.107.16.62:3000',

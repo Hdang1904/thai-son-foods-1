@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { safeFetchJson } from '@/lib/utils';
 
 export interface CustomerUser {
   id: string;
@@ -60,15 +61,9 @@ export function UserAuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/me', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data.user || null);
-      } else {
-        setUser(null);
-      }
-    } catch (err) {
-      console.error('Error fetching user auth session:', err);
+      const data = await safeFetchJson<{ user: CustomerUser | null }>('/api/auth/me', { cache: 'no-store' });
+      setUser(data?.user || null);
+    } catch {
       setUser(null);
     } finally {
       setIsLoading(false);

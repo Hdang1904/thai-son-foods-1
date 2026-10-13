@@ -45,9 +45,9 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
       return [...product.variants].sort((a, b) => (a.quantity || 0) - (b.quantity || 0))[0];
     }
     const isBigBottle = product.slug?.includes('yoo') || product.volume?.includes('568') || product.price === 25000;
-    const qty = isBigBottle ? 5 : 7;
+    const qty = isBigBottle ? 6 : 10;
     return {
-      id: isBigBottle ? 'default-5chai' : 'default-7chai',
+      id: isBigBottle ? 'default-6chai' : 'default-10chai',
       name: `${qty} chai`,
       quantity: qty,
       price: product.price * qty,
@@ -160,13 +160,13 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
 
             <div className="flex items-center justify-between gap-1 mt-auto pt-1.5 sm:pt-2 border-t border-gray-100">
               <div className="flex flex-col">
-                <p className="text-sm sm:text-[13px] font-bold text-green-primary flex flex-wrap items-baseline gap-x-0.5">
-                  <span>{formatPrice(defaultVariant.price)}đ</span>
+                <div className="text-sm sm:text-[13px] font-bold text-green-primary flex flex-wrap items-baseline gap-x-0.5">
+                  <span suppressHydrationWarning>{formatPrice(defaultVariant.price)}đ</span>
                   <span className="text-[10px] sm:text-[9px] font-semibold text-text-muted">
                     /{packDisplayUnit}
                   </span>
-                </p>
-                <span className="text-[10px] sm:text-[8.5px] text-text-muted font-normal">
+                </div>
+                <span className="text-[10px] sm:text-[8.5px] text-text-muted font-normal" suppressHydrationWarning>
                   ~{formatPrice(product.price)}đ/{language === 'en' ? 'bottle' : 'chai'}
                 </span>
               </div>
@@ -249,13 +249,13 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
 
             <div className="flex items-center justify-between gap-1 sm:gap-2 mt-auto pt-1.5 sm:pt-2 md:pt-3 border-t border-gray-100">
               <div className="flex flex-col">
-                <p className="text-sm sm:text-base md:text-lg font-bold text-green-primary flex flex-wrap items-baseline gap-x-1">
-                  <span>{formatPrice(defaultVariant.price)}đ</span>
+                <div className="text-sm sm:text-base md:text-lg font-bold text-green-primary flex flex-wrap items-baseline gap-x-1">
+                  <span suppressHydrationWarning>{formatPrice(defaultVariant.price)}đ</span>
                   <span className="text-[10px] sm:text-xs md:text-sm font-semibold text-text-muted">
                     /{packDisplayUnit}
                   </span>
-                </p>
-                <span className="text-[10px] sm:text-xs text-text-muted font-normal">
+                </div>
+                <span className="text-[10px] sm:text-xs text-text-muted font-normal" suppressHydrationWarning>
                   ~{formatPrice(product.price)}đ/{language === 'en' ? 'bottle' : 'chai'}
                 </span>
               </div>
@@ -337,13 +337,13 @@ export default function ProductCard({ product, layout = 'vertical', isHomepage =
 
           <div className="flex items-center justify-between gap-1 sm:gap-2 mt-auto pt-1.5 sm:pt-2 md:pt-3 border-t border-gray-100">
             <div className="flex flex-col">
-              <p className="text-sm sm:text-base md:text-lg font-bold text-green-primary flex flex-wrap items-baseline gap-x-1">
-                <span>{formatPrice(defaultVariant.price)}đ</span>
+              <div className="text-sm sm:text-base md:text-lg font-bold text-green-primary flex flex-wrap items-baseline gap-x-1">
+                <span suppressHydrationWarning>{formatPrice(defaultVariant.price)}đ</span>
                 <span className="text-[10px] sm:text-xs md:text-sm font-semibold text-text-muted">
                   /{packDisplayUnit}
                 </span>
-              </p>
-              <span className="text-[10px] sm:text-xs text-text-muted font-normal">
+              </div>
+              <span className="text-[10px] sm:text-xs text-text-muted font-normal" suppressHydrationWarning>
                 ~{formatPrice(product.price)}đ/{language === 'en' ? 'bottle' : 'chai'}
               </span>
             </div>

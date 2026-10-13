@@ -20,7 +20,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useUserAuth } from '@/context/UserAuthContext';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, safeFetchJson, safeParseJson } from '@/lib/utils';
 import { MEMBERSHIP_CONFIG } from '@/config/membership';
 
 export default function MemberPage() {
@@ -52,9 +52,8 @@ export default function MemberPage() {
   const fetchStatus = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch('/api/membership/my-status');
-      const json = await res.json();
-      if (json.success) {
+      const json = await safeFetchJson<any>('/api/membership/my-status');
+      if (json?.success) {
         setMembershipData(json.data);
       }
     } catch (err) {
@@ -83,12 +82,12 @@ export default function MemberPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tierCode, isTrial }),
       });
-      const json = await res.json();
-      if (json.success) {
+      const json = await safeParseJson<any>(res);
+      if (res.ok && json?.success) {
         setActionMessage({ type: 'success', text: json.message });
         await fetchStatus();
       } else {
-        setActionMessage({ type: 'error', text: json.error || 'Đăng ký thất bại' });
+        setActionMessage({ type: 'error', text: json?.error || 'Đăng ký thất bại' });
       }
     } catch {
       setActionMessage({ type: 'error', text: 'Lỗi kết nối máy chủ.' });
@@ -105,13 +104,13 @@ export default function MemberPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ months: pauseMonths }),
       });
-      const json = await res.json();
-      if (json.success) {
+      const json = await safeParseJson<any>(res);
+      if (res.ok && json?.success) {
         setIsPauseModalOpen(false);
         setActionMessage({ type: 'success', text: json.message });
         await fetchStatus();
       } else {
-        setActionMessage({ type: 'error', text: json.error || 'Lỗi tạm dừng gói' });
+        setActionMessage({ type: 'error', text: json?.error || 'Lỗi tạm dừng gói' });
       }
     } catch {
       setActionMessage({ type: 'error', text: 'Lỗi kết nối.' });
@@ -128,14 +127,14 @@ export default function MemberPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: cancelReason }),
       });
-      const json = await res.json();
-      if (json.success) {
+      const json = await safeParseJson<any>(res);
+      if (res.ok && json?.success) {
         setIsCancelModalOpen(false);
         setCancelStep(1);
         setActionMessage({ type: 'success', text: json.message });
         await fetchStatus();
       } else {
-        setActionMessage({ type: 'error', text: json.error || 'Lỗi hủy gói' });
+        setActionMessage({ type: 'error', text: json?.error || 'Lỗi hủy gói' });
       }
     } catch {
       setActionMessage({ type: 'error', text: 'Lỗi kết nối.' });

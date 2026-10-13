@@ -6,10 +6,28 @@ import { verifyOtp } from '@/lib/partner/otp';
 import { generatePartnerCode } from '@/lib/partner/referral';
 import { writeAuditLog } from '@/lib/audit';
 
+import { checkRequestRateLimit } from '@/lib/rateLimit';
+
 export const dynamic = 'force-dynamic';
+
+function stripHtml(input: string): string {
+  return input.replace(/<[^>]*>?/gm, '').trim();
+}
 
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const rateLimit = checkRequestRateLimit(`partner_reg:${ip}`, 5, 3600 * 1000);
+    if (rateLimit.isBlocked) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Bạn đã thực hiện quá nhiều lượt đăng ký. Vui lòng thử lại sau ${Math.ceil(rateLimit.resetInSeconds / 60)} phút.`,
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { fullName, phone, email, password, otpCode } = body;
 
@@ -21,8 +39,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Vui lòng nhập số điện thoại' }, { status: 400 });
     }
 
-    const cleanPhone = phone.replace(/[\s\-\.]/g, '');
-    const cleanEmail = (email || '').trim().toLowerCase() || `${cleanPhone}@partner.thaisonfoods.vn`;
+    const cleanFullName = stripHtml(fullName).slice(0, 100);
+    const cleanPhone = phone.replace(/[\s\-\.]/g, '').slice(0, 20);
+    const cleanEmail = stripHtml((email || '').trim().toLowerCase()).slice(0, 100) || `${cleanPhone}@partner.thaisonfoods.vn`;
 
     // 1. Xác minh mã OTP
     const otpCheck = verifyOtp(cleanPhone, otpCode || '');
@@ -100,7 +119,7 @@ export async function POST(request: Request) {
         await client.query(
           `INSERT INTO users (id, email, password_hash, full_name, phone)
            VALUES ($1, $2, $3, $4, $5);`,
-          [userId, cleanEmail, pwdHash, fullName.trim(), cleanPhone]
+          [userId, cleanEmail, pwdHash, cleanFullName, cleanPhone]
         );
       }
 
@@ -197,6 +216,6 @@ export async function POST(request: Request) {
     }
   } catch (error: any) {
     console.error('Error registering partner:', error);
-    return NextResponse.json({ success: false, error: error.message || 'Lỗi khi đăng ký đối tác' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Đã xảy ra lỗi khi đăng ký đối tác. Vui lòng thử lại sau.' }, { status: 500 });
   }
 }

@@ -26,7 +26,18 @@ export async function GET(req: NextRequest) {
         s.latitude,
         s.longitude,
         s.region,
-        s.status
+        s.status,
+        s.area_label,
+        s.province_code,
+        s.address_new,
+        s.address_old,
+        s.supports_delivery,
+        s.supports_pickup,
+        s.delivery_radius_km,
+        s.prep_minutes,
+        s.is_accepting_orders,
+        s.opening_hours,
+        s.holiday_overrides
       FROM stores s
       WHERE s.is_active = true
     `;
@@ -95,6 +106,17 @@ export async function GET(req: NextRequest) {
         longitude: row.longitude ? Number(row.longitude) : null,
         region: row.region || null,
         status: row.status ?? 1,
+        areaLabel: row.area_label || null,
+        provinceCode: row.province_code || null,
+        addressNew: row.address_new || row.address,
+        addressOld: row.address_old || row.address,
+        supportsDelivery: row.supports_delivery ?? true,
+        supportsPickup: row.supports_pickup ?? true,
+        deliveryRadiusKm: row.delivery_radius_km ? Number(row.delivery_radius_km) : 10.0,
+        prepMinutes: row.prep_minutes ? Number(row.prep_minutes) : 15,
+        isAcceptingOrders: row.is_accepting_orders ?? true,
+        openingHours: row.opening_hours || null,
+        holidayOverrides: row.holiday_overrides || null,
         // Trạng thái kho và số lượng bán được hợp nhất
         stockStatus,
         sellableQuantity,
@@ -113,7 +135,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Error fetching stores:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Lỗi khi tải danh sách cửa hàng' },
+      { success: false, error: 'Đã xảy ra lỗi khi tải danh sách cửa hàng. Vui lòng thử lại sau.' },
       { status: 500 }
     );
   }

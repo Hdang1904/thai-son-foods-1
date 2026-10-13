@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, initDatabase } from '@/lib/db';
 import { verifyPassword, signUserToken, USER_COOKIE_NAME, TOKEN_EXPIRY_DAYS } from '@/lib/auth';
+import { checkRateLimit, recordFailedLogin, resetLoginRateLimit } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,31 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || undefined;
+
+    // 0. Rate Limiting chống Brute-force (5 lần sai / 15 phút)
+    const emailKey = `user:${cleanEmail}`;
+    const ipKey = ip ? `userip:${ip}` : null;
+
+    const emailLimit = checkRateLimit(emailKey);
+    const ipLimit = ipKey ? checkRateLimit(ipKey) : { isBlocked: false, remainingSeconds: 0 };
+
+    if (emailLimit.isBlocked || ipLimit.isBlocked) {
+      const waitSeconds = Math.max(emailLimit.remainingSeconds, ipLimit.remainingSeconds);
+      const waitMinutes = Math.ceil(waitSeconds / 60);
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Đăng nhập sai quá nhiều lần. Vui lòng thử lại sau ${waitMinutes} phút.`,
+          code: 'RATE_LIMITED',
+          retryAfter: waitSeconds,
+        },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(waitSeconds) },
+        }
+      );
+    }
 
     // 1. Find user by email
     const res = await query(
@@ -36,6 +62,8 @@ export async function POST(req: NextRequest) {
     );
 
     if (res.rows.length === 0) {
+      recordFailedLogin(emailKey);
+      if (ipKey) recordFailedLogin(ipKey);
       return NextResponse.json(
         { success: false, error: 'Email hoặc mật khẩu không chính xác' },
         { status: 401 }
@@ -47,11 +75,17 @@ export async function POST(req: NextRequest) {
     // 2. Verify password
     const isPasswordValid = await verifyPassword(password, user.password_hash);
     if (!isPasswordValid) {
+      recordFailedLogin(emailKey);
+      if (ipKey) recordFailedLogin(ipKey);
       return NextResponse.json(
         { success: false, error: 'Email hoặc mật khẩu không chính xác' },
         { status: 401 }
       );
     }
+
+    // Đăng nhập thành công -> Reset bộ đếm rate limit
+    resetLoginRateLimit(emailKey);
+    if (ipKey) resetLoginRateLimit(ipKey);
 
     // 3. Sign JWT
     const payload = {
@@ -94,7 +128,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Error logging in customer:', error);
     return NextResponse.json(
-      { success: false, error: 'Lỗi đăng nhập: ' + (error.message || 'Lỗi hệ thống') },
+      { success: false, error: 'Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.' },
       { status: 500 }
     );
   }
