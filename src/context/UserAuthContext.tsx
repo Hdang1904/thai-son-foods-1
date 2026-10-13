@@ -14,6 +14,8 @@ export interface CustomerUser {
   ward?: string;
   avatarUrl?: string | null;
   provider?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   createdAt?: string;
 }
 

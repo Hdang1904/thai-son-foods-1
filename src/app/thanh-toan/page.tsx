@@ -26,6 +26,8 @@ import {
   Truck,
   ShoppingBag,
   ChevronRight,
+  Maximize2,
+  CheckCircle2,
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useUserAuth } from '@/context/UserAuthContext';
@@ -45,6 +47,187 @@ import LocationConfirmMapModal from '@/components/checkout/LocationConfirmMapMod
 import StoreRecommendationSheet from '@/components/checkout/StoreRecommendationSheet';
 import type { StoreRecommendationItem } from '@/lib/storeRecommender';
 
+interface DeliveryMiniMapProps {
+  coords: { lat: number; lng: number } | null;
+  isConfirmed: boolean;
+  addressText?: string;
+  onOpenModal: () => void;
+}
+
+function DeliveryMiniMap({
+  coords,
+  isConfirmed,
+  addressText,
+  onOpenModal,
+}: DeliveryMiniMapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted || typeof window === 'undefined' || !containerRef.current) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    async function setupMiniMap() {
+      const L = (await import('leaflet')).default;
+      if (isCancelled || !containerRef.current) return;
+
+      const targetLat = coords?.lat || 10.7769;
+      const targetLng = coords?.lng || 106.7009;
+      const targetZoom = coords ? 16 : 13;
+
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.setView([targetLat, targetLng], targetZoom, { animate: true });
+        return;
+      }
+
+      const map = L.map(containerRef.current, {
+        center: [targetLat, targetLng],
+        zoom: targetZoom,
+        zoomControl: false,
+        dragging: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        touchZoom: false,
+        attributionControl: false,
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+      }).addTo(map);
+
+      mapInstanceRef.current = map;
+
+      setTimeout(() => {
+        if (!isCancelled && mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      }, 250);
+    }
+
+    setupMiniMap();
+
+    return () => {
+      isCancelled = true;
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [mounted, coords]);
+
+  if (!mounted) {
+    return (
+      <div className="w-full h-[175px] bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center animate-pulse">
+        <span className="text-xs text-slate-400">Đang tải bản đồ...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full rounded-2xl border border-gray-200 overflow-hidden shadow-2xs bg-white isolate z-0">
+      <div
+        ref={containerRef}
+        onClick={onOpenModal}
+        className="w-full h-[175px] cursor-pointer transition-opacity hover:opacity-95"
+      />
+      <div
+        onClick={onOpenModal}
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full pointer-events-none z-10 flex flex-col items-center"
+      >
+        <div className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-800 text-white shadow-md mb-0.5 whitespace-nowrap">
+          {coords ? (isConfirmed ? '✓ Vị trí giao hàng' : 'Tọa độ ước tính') : 'Chạm để ghim vị trí'}
+        </div>
+        <svg width="32" height="38" viewBox="0 0 24 30" fill="none" className="drop-shadow-md">
+          <path
+            d="M12 0C5.373 0 0 5.373 0 12c0 9 12 18 12 18s12-9 12-18c0-6.627-5.373-12-12-12z"
+            fill={coords ? (isConfirmed ? '#047857' : '#f59e0b') : '#047857'}
+          />
+          <circle cx="12" cy="11" r="5" fill="#ffffff" />
+          <circle cx="12" cy="11" r="2.5" fill={coords ? (isConfirmed ? '#047857' : '#f59e0b') : '#047857'} />
+        </svg>
+        <div className="w-3 h-1 bg-black/30 rounded-full blur-[1px]" />
+      </div>
+
+      <div className="absolute top-2.5 left-2.5 right-2.5 z-20 flex items-center justify-between gap-2 pointer-events-none">
+        <div
+          className={cn(
+            'px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1.5 shadow-sm backdrop-blur-md',
+            coords
+              ? isConfirmed
+                ? 'bg-emerald-600/95 text-white'
+                : 'bg-amber-500/95 text-white'
+              : 'bg-emerald-800/90 text-white'
+          )}
+        >
+          {coords ? (
+            isConfirmed ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>✓ Đã xác nhận ghim</span>
+              </>
+            ) : (
+              <>
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>Tọa độ ước tính — Chạm để chỉnh ghim</span>
+              </>
+            )
+          ) : (
+            <>
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Bản đồ trực quan — Chạm để chấm ghim</span>
+            </>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onOpenModal}
+          className="pointer-events-auto px-2.5 py-1 rounded-xl bg-white/95 hover:bg-white text-gray-800 hover:text-emerald-800 text-[11px] font-bold shadow-md flex items-center gap-1 transition-all cursor-pointer backdrop-blur-md"
+          title="Mở toàn màn hình để điều chỉnh ghim"
+        >
+          <Maximize2 className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Phóng to &amp; Sửa ghim</span>
+        </button>
+      </div>
+
+      <div className="px-3.5 py-2 bg-slate-50 border-t border-gray-100 flex items-center justify-between gap-2 text-xs">
+        <div className="min-w-0 flex items-center gap-2">
+          <span className="text-[11px] text-gray-500 font-medium">GPS:</span>
+          {coords ? (
+            <span className="font-mono text-[11px] font-bold text-emerald-800 truncate">
+              {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
+            </span>
+          ) : (
+            <span className="text-[11px] text-gray-600 truncate">
+              TP. Hồ Chí Minh • Chạm bản đồ để chấm ghim
+            </span>
+          )}
+          {coords && addressText && (
+            <span className="text-gray-400 hidden md:inline truncate text-[11px]">
+              • {addressText}
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onOpenModal}
+          className="shrink-0 text-[11px] font-bold text-emerald-800 hover:text-emerald-900 underline cursor-pointer"
+        >
+          {coords ? (isConfirmed ? 'Điều chỉnh lại' : 'Chấm ghim ngay') : 'Chấm ghim trên bản đồ'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const MIN_ORDER_THRESHOLD = 120000;
 
 export default function CheckoutPage() {
@@ -52,6 +235,7 @@ export default function CheckoutPage() {
   const { user, openAuthModal } = useUserAuth();
   const [isMounted, setIsMounted] = useState(false);
   const [referralCode, setReferralCode] = useState('');
+  const [saveDefaultAddress, setSaveDefaultAddress] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -253,6 +437,8 @@ export default function CheckoutPage() {
       async (pos) => {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setCustomerCoords(coords);
+        setLocationConfirmed(false);
+        setLocationConfirmedBy('DEVICE_GPS');
 
         try {
           // Phân giải địa chỉ chuẩn từ tọa độ GPS thực tế
@@ -511,6 +697,8 @@ export default function CheckoutPage() {
       // 1. Áp dụng ngay tọa độ GPS chính xác từ gợi ý (không để bước sau làm lệch tọa độ thực)
       if (suggestion.lat && suggestion.lng) {
         setCustomerCoords({ lat: suggestion.lat, lng: suggestion.lng });
+        setLocationConfirmed(false);
+        setLocationConfirmedBy('AUTOCOMPLETE_SUGGESTION');
       }
 
       // 2. Tự động điền đầy đủ và chọn ngay Tỉnh/Thành, Quận/Huyện, Phường/Xã cho người dùng (loại bỏ hoàn toàn Khu phố)
@@ -632,6 +820,11 @@ export default function CheckoutPage() {
         ward: prev.ward || user.ward || '',
         note: prev.note || '',
       }));
+      if (user.latitude && user.longitude && !customerCoords) {
+        setCustomerCoords({ lat: Number(user.latitude), lng: Number(user.longitude) });
+        setLocationConfirmed(true);
+        setLocationConfirmedBy('USER_SAVED_PROFILE');
+      }
     }
   }, [user]);
 
@@ -795,6 +988,7 @@ export default function CheckoutPage() {
           longitude: customerCoords?.lng || null,
           locationConfirmed,
           locationConfirmedBy,
+          saveDefaultAddress,
           addressNew: geoResolvedDesc || (form.address ? `${form.address}, ${form.ward}, ${form.district}, ${form.province}` : null),
           recommendedStoreId: recommendData?.recommended?.code || null,
           wasOverridden,
@@ -1345,7 +1539,13 @@ export default function CheckoutPage() {
               </div>
 
               {/* Address */}
-              <div className="sm:col-span-2 relative" ref={suggestionsRef}>
+              <div
+                className={cn(
+                  'sm:col-span-2 relative',
+                  showSuggestions && suggestions.length > 0 ? 'z-50' : 'z-10'
+                )}
+                ref={suggestionsRef}
+              >
                 <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
                   <label htmlFor="address" className="block text-sm font-medium text-text-dark">
                     {language === 'en' ? 'House number & street name' : 'Số nhà, tên đường'}{' '}
@@ -1424,7 +1624,7 @@ export default function CheckoutPage() {
 
                 {/* Dropdown Gợi ý từ Google Maps / OpenStreetMap / Tuyến đường GPS */}
                 {showSuggestions && suggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl shadow-xl border border-emerald-100 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="absolute left-0 right-0 top-full mt-1.5 z-[1050] bg-white rounded-2xl shadow-2xl border border-emerald-100 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
                     <div className="px-3.5 py-2 bg-emerald-50/80 flex items-center justify-between text-[11px] font-semibold text-emerald-950 border-b border-emerald-100">
                       <span className="flex items-center gap-1.5">
                         <MapPin className="w-3.5 h-3.5 text-emerald-600" />
@@ -1511,6 +1711,43 @@ export default function CheckoutPage() {
                       </p>
                     </div>
                   </div>
+                )}
+              </div>
+
+              {/* MINI-MAP XÁC NHẬN TỌA ĐỘ VỊ TRÍ GIAO HÀNG TẬN CỬA */}
+              <div className="sm:col-span-2 relative z-0 isolate">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-medium text-text-dark">
+                    {language === 'en' ? 'Delivery Location Map' : 'Bản đồ vị trí giao hàng'}
+                  </label>
+                  {customerCoords && (
+                    <span className="text-[11px] font-mono text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                      GPS: {customerCoords.lat.toFixed(5)}, {customerCoords.lng.toFixed(5)}
+                    </span>
+                  )}
+                </div>
+                <DeliveryMiniMap
+                  coords={customerCoords}
+                  isConfirmed={locationConfirmed}
+                  addressText={form.address ? `${form.address}, ${form.ward || ''}` : undefined}
+                  onOpenModal={() => setIsMapModalOpen(true)}
+                />
+
+                {/* Tùy chọn lưu làm địa chỉ mặc định cho tài khoản đã đăng nhập */}
+                {user && (
+                  <label className="mt-2.5 flex items-center gap-2 cursor-pointer text-xs text-gray-700 select-none">
+                    <input
+                      type="checkbox"
+                      checked={saveDefaultAddress}
+                      onChange={(e) => setSaveDefaultAddress(e.target.checked)}
+                      className="w-4 h-4 rounded text-emerald-700 focus:ring-emerald-600 border-gray-300 cursor-pointer"
+                    />
+                    <span>
+                      {language === 'en'
+                        ? 'Save this address and GPS location as my default account address'
+                        : 'Lưu địa chỉ và tọa độ GPS này làm địa chỉ mặc định cho tài khoản'}
+                    </span>
+                  </label>
                 )}
               </div>
 
@@ -1736,6 +1973,22 @@ export default function CheckoutPage() {
                   )}
                 </div>
               </div>
+
+              {/* Cảnh báo nếu nằm ngoài bán kính phục vụ chuẩn của chi nhánh */}
+              {fulfillmentMode === 'delivery' &&
+                currentStoreDistanceKm !== null &&
+                selectedStore &&
+                currentStoreDistanceKm > (selectedStore.delivery_radius_km ? Number(selectedStore.delivery_radius_km) : 10) && (
+                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in duration-200">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Địa chỉ nhận hàng nằm ngoài bán kính giao nhanh tiêu chuẩn:</p>
+                      <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                        Khoảng cách ước tính ~{currentStoreDistanceKm.toFixed(1)} km vượt quá bán kính phục vụ chuẩn ({selectedStore.delivery_radius_km || 10} km) của {selectedStore.name}. Quý khách vẫn có thể hoàn tất đặt đơn; nhân viên sẽ liên hệ để xác nhận thời gian &amp; cước vận chuyển phù hợp nhất.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
               {/* Cảnh báo thiếu hàng cho chi nhánh đang chọn */}
               {!isStockAvailable && selectedStore && (

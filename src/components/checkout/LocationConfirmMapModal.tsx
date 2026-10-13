@@ -70,15 +70,6 @@ export default function LocationConfirmMapModal({
     async function initMap() {
       const L = (await import('leaflet')).default;
 
-      // Import Leaflet CSS nếu chưa có
-      if (!document.getElementById('leaflet-css')) {
-        const link = document.createElement('link');
-        link.id = 'leaflet-css';
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
-      }
-
       if (!mapContainerRef.current) return;
 
       const startLat = initialCoords?.lat || 10.7769;
@@ -100,9 +91,9 @@ export default function LocationConfirmMapModal({
       // Thêm nút zoom ở góc dưới phải
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      // Lớp tile bản đồ đường phố mặc định
+      // Lớp tile bản đồ đường phố mặc định (OpenStreetMap Standard)
       const streetTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
         maxZoom: 19,
       });
 
@@ -135,16 +126,34 @@ export default function LocationConfirmMapModal({
         const c = map.getCenter();
         setCenterCoords({ lat: c.lat, lng: c.lng });
 
-        // Reverse geocode khi dừng kéo 500ms
+        // Reverse geocode khi dừng kéo
         setIsReverseGeocoding(true);
         try {
           const rev = await safeFetchJson<any>(`/api/geo/reverse?lat=${c.lat}&lng=${c.lng}`);
           if (rev?.success) {
-            setResolvedAddress(rev.formattedAddress || '');
-            if (rev.components) setAddressComponents(rev.components);
+            // Giữ lại số nhà/hẻm khách đã nhập trước đó nếu reverse geocode chỉ trả về tên đường chung chung
+            let finalStreet = rev.components?.street || '';
+            const houseMatch = (initialAddress || '').match(/^([0-9]+[A-Za-z0-9\/\-\.]*)/);
+            if (houseMatch && houseMatch[1] && finalStreet && !finalStreet.startsWith(houseMatch[1])) {
+              finalStreet = `${houseMatch[1]} ${finalStreet}`;
+            }
+
+            const updatedComponents = {
+              ...rev.components,
+              street: finalStreet || rev.components?.street,
+            };
+            setAddressComponents(updatedComponents);
+
+            if (rev.formattedAddress) {
+              let displayAddr = rev.formattedAddress;
+              if (houseMatch && houseMatch[1] && !displayAddr.startsWith(houseMatch[1])) {
+                displayAddr = `${houseMatch[1]} ${displayAddr}`;
+              }
+              setResolvedAddress(displayAddr);
+            }
           }
         } catch {
-          // ignore
+          // Khi reverse geocoding lỗi, vẫn giữ nguyên tọa độ ghim và địa chỉ thủ công của khách
         } finally {
           setIsReverseGeocoding(false);
         }
@@ -162,7 +171,7 @@ export default function LocationConfirmMapModal({
         mapInstanceRef.current = null;
       }
     };
-  }, [isOpen, initialCoords]);
+  }, [isOpen, initialCoords, initialAddress]);
 
   // Chuyển đổi lớp bản đồ Đường phố vs Vệ tinh
   const toggleSatellite = useCallback(async () => {
@@ -174,11 +183,11 @@ export default function LocationConfirmMapModal({
     }
 
     if (!isSatellite) {
-      // Bật lớp vệ tinh Esri World Imagery
+      // Bật lớp vệ tinh Esri World Imagery với attribution chuẩn
       const satLayer = L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
-          attribution: '&copy; Esri World Imagery',
+          attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
           maxZoom: 19,
         }
       );
@@ -186,9 +195,9 @@ export default function LocationConfirmMapModal({
       tileLayerRef.current = satLayer;
       setIsSatellite(true);
     } else {
-      // Về lớp đường phố OpenStreetMap
+      // Về lớp đường phố OpenStreetMap Standard
       const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
         maxZoom: 19,
       });
       streetLayer.addTo(mapInstanceRef.current);
@@ -229,7 +238,7 @@ export default function LocationConfirmMapModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full h-full sm:h-[90vh] sm:max-w-3xl bg-white sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="p-4 bg-white border-b border-gray-100 flex items-center justify-between z-10">

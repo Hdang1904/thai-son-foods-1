@@ -14,7 +14,7 @@ export async function GET() {
     }
 
     const res = await query(
-      `SELECT id, email, full_name, phone, address, province, district, ward, avatar_url, provider, created_at
+      `SELECT id, email, full_name, phone, address, province, district, ward, avatar_url, provider, latitude, longitude, created_at
        FROM users
        WHERE id = $1
        LIMIT 1;`,
@@ -36,6 +36,8 @@ export async function GET() {
         province: row.province || '',
         district: row.district || '',
         ward: row.ward || '',
+        latitude: row.latitude ? Number(row.latitude) : null,
+        longitude: row.longitude ? Number(row.longitude) : null,
         avatarUrl: row.avatar_url || null,
         provider: row.provider || 'local',
         createdAt: row.created_at,
@@ -60,7 +62,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { fullName, phone, address, province, district, ward } = body;
+    const { fullName, phone, address, province, district, ward, latitude, longitude } = body;
 
     if (!fullName || typeof fullName !== 'string' || !fullName.trim()) {
       return NextResponse.json(
@@ -69,20 +71,42 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    await query(
-      `UPDATE users
-       SET full_name = $1, phone = $2, address = $3, province = $4, district = $5, ward = $6, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $7;`,
-      [
-        fullName.trim(),
-        phone ? phone.toString().trim() : null,
-        address ? address.toString().trim() : null,
-        province ? province.toString().trim() : null,
-        district ? district.toString().trim() : null,
-        ward ? ward.toString().trim() : null,
-        session.id,
-      ]
-    );
+    const latVal = typeof latitude === 'number' && Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 ? latitude : null;
+    const lngVal = typeof longitude === 'number' && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180 ? longitude : null;
+
+    if (latVal !== null && lngVal !== null) {
+      await query(
+        `UPDATE users
+         SET full_name = $1, phone = $2, address = $3, province = $4, district = $5, ward = $6, latitude = $7, longitude = $8, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $9;`,
+        [
+          fullName.trim(),
+          phone ? phone.toString().trim() : null,
+          address ? address.toString().trim() : null,
+          province ? province.toString().trim() : null,
+          district ? district.toString().trim() : null,
+          ward ? ward.toString().trim() : null,
+          latVal,
+          lngVal,
+          session.id,
+        ]
+      );
+    } else {
+      await query(
+        `UPDATE users
+         SET full_name = $1, phone = $2, address = $3, province = $4, district = $5, ward = $6, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $7;`,
+        [
+          fullName.trim(),
+          phone ? phone.toString().trim() : null,
+          address ? address.toString().trim() : null,
+          province ? province.toString().trim() : null,
+          district ? district.toString().trim() : null,
+          ward ? ward.toString().trim() : null,
+          session.id,
+        ]
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -96,6 +120,8 @@ export async function PUT(req: NextRequest) {
         province: province ? province.toString().trim() : '',
         district: district ? district.toString().trim() : '',
         ward: ward ? ward.toString().trim() : '',
+        latitude: latVal,
+        longitude: lngVal,
       },
     });
   } catch (error: any) {

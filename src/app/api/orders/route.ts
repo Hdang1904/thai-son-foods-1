@@ -52,10 +52,36 @@ export async function POST(request: Request) {
     const note = rawNote ? stripHtml(rawNote.toString()).slice(0, 500) : null;
     const storeCode = body.storeCode || body.store_code || customerObj.storeCode || customerObj.store_code || null;
     const storeAddress = body.storeAddress || body.store_address || customerObj.storeAddress || customerObj.store_address || null;
-    const rawLat = typeof body.latitude === 'number' ? body.latitude : (typeof body.lat === 'number' ? body.lat : null);
-    const rawLng = typeof body.longitude === 'number' ? body.longitude : (typeof body.lng === 'number' ? body.lng : null);
-    const locationConfirmed = Boolean(body.locationConfirmed ?? body.location_confirmed);
-    const locationConfirmedBy = (body.locationConfirmedBy || body.location_confirmed_by || (locationConfirmed ? 'USER_MAP_PIN' : (rawLat ? 'USER_GEOCODE' : null)))?.toString().slice(0, 50) || null;
+    // Backend kiểm tra tọa độ hữu hạn: latitude [-90, 90], longitude [-180, 180], cả hai phải hợp lệ đồng thời
+    const rawLatInput = typeof body.latitude === 'number' ? body.latitude : (typeof body.lat === 'number' ? body.lat : null);
+    const rawLngInput = typeof body.longitude === 'number' ? body.longitude : (typeof body.lng === 'number' ? body.lng : null);
+
+    let rawLat: number | null = null;
+    let rawLng: number | null = null;
+
+    if (
+      typeof rawLatInput === 'number' &&
+      typeof rawLngInput === 'number' &&
+      Number.isFinite(rawLatInput) &&
+      Number.isFinite(rawLngInput) &&
+      rawLatInput >= -90 &&
+      rawLatInput <= 90 &&
+      rawLngInput >= -180 &&
+      rawLngInput <= 180
+    ) {
+      rawLat = rawLatInput;
+      rawLng = rawLngInput;
+    }
+
+    const clientConfirmed = Boolean(body.locationConfirmed ?? body.location_confirmed);
+    const clientConfirmedBy = (body.locationConfirmedBy || body.location_confirmed_by)?.toString().slice(0, 50) || null;
+
+    // Chỉ coi là xác nhận ghim nếu tọa độ hợp lệ VÀ khách hàng xác nhận thực tế qua modal ghim bản đồ
+    const locationConfirmed = Boolean(rawLat !== null && rawLng !== null && clientConfirmed && clientConfirmedBy === 'USER_MAP_PIN');
+    const locationConfirmedBy = rawLat !== null && rawLng !== null
+      ? (locationConfirmed ? 'USER_MAP_PIN' : (clientConfirmedBy || 'USER_GEOCODE'))
+      : null;
+    const saveDefaultAddress = Boolean(body.saveDefaultAddress);
     const addressNew = body.addressNew || body.address_new || null;
     const addressOld = body.addressOld || body.address_old || null;
     const recommendedStoreId = (body.recommendedStoreId || body.recommended_store_id || null)?.toString().slice(0, 50) || null;
@@ -618,6 +644,19 @@ export async function POST(request: Request) {
                   `Hoa hồng dự kiến cho đơn hàng ${orderCode}`,
                 ]
               );
+            }
+          }
+
+          if (saveDefaultAddress && userId && rawLat !== null && rawLng !== null) {
+            try {
+              await client.query(
+                `UPDATE users
+                 SET address = $1, province = $2, district = $3, ward = $4, latitude = $5, longitude = $6, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $7;`,
+                [address, province, district, ward, rawLat, rawLng, userId]
+              );
+            } catch (uErr) {
+              console.error('[Orders] User default address update error:', uErr);
             }
           }
 

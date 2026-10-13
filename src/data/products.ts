@@ -44,6 +44,14 @@ export const products: Product[] = [
       { id: 'sb-12chai', name: '12 chai', quantity: 12, price: 216000, unit: 'thùng', volume: '12 x 330ml' },
       { id: 'sb-15chai', name: '15 chai', quantity: 15, price: 270000, unit: 'thùng', volume: '15 x 330ml' },
     ],
+    featureBanners: {
+      banner1: '/images/banners/banner-feature-bap-01.jpg',
+      banner2: '/images/banners/banner-feature-bap-02.jpg',
+      alt1: 'Thành phần từ bắp tươi - Uống một bữa ăn ngon lành - Sản phẩm thuần chay thành phần từ thiên nhiên',
+      alt2: 'Đặc tính sản phẩm Sữa Bắp Nếp Thái Sơn - Nguyên liệu tươi, Đóng chai tiện lợi, Vị ngọt tự nhiên, Bảo quản lạnh',
+      title: 'Trải Nghiệm Trọn Vẹn Tinh Túy Bắp Nếp Tươi',
+      subtitle: 'Thức uống thuần chay dinh dưỡng, vị ngon thanh mát từ thiên nhiên dành riêng cho bạn.',
+    },
   },
   {
     id: 'sua-hat-sen-mekong',
@@ -79,6 +87,14 @@ export const products: Product[] = [
       { id: 'shs-12chai', name: '12 chai', quantity: 12, price: 216000, unit: 'thùng', volume: '12 x 330ml' },
       { id: 'shs-15chai', name: '15 chai', quantity: 15, price: 270000, unit: 'thùng', volume: '15 x 330ml' },
     ],
+    featureBanners: {
+      banner1: '/images/banners/banner-feature-shs-01.jpg',
+      banner2: '/images/banners/banner-feature-shs-02.jpg',
+      alt1: 'Thành phần từ Hạt Sen thiên nhiên - Uống một bữa ăn ngon lành - Sản phẩm thuần chay thành phần từ thiên nhiên',
+      alt2: 'Đặc tính sản phẩm Sữa Hạt Sen Mekong Xanh - Nguyên liệu tươi, Đóng chai tiện lợi, Vị ngọt tự nhiên, Bảo quản lạnh',
+      title: 'Trải Nghiệm Trọn Vẹn Tinh Túy Sữa Hạt Sen Tươi',
+      subtitle: 'Thức uống thuần chay dinh dưỡng, hương vị bùi ngậy thanh mát từ hạt sen Đồng Tháp tuyển chọn.',
+    },
   },
   {
     id: 'sua-gao-lut-mekong',
@@ -114,6 +130,14 @@ export const products: Product[] = [
       { id: 'sgl-12chai', name: '12 chai', quantity: 12, price: 216000, unit: 'thùng', volume: '12 x 330ml' },
       { id: 'sgl-15chai', name: '15 chai', quantity: 15, price: 270000, unit: 'thùng', volume: '15 x 330ml' },
     ],
+    featureBanners: {
+      banner1: '/images/banners/banner-feature-sgl-01.jpg',
+      banner2: '/images/banners/banner-feature-sgl-02.jpg',
+      alt1: 'Thành phần từ Gạo Lứt Huyết Rồng - Uống một bữa ăn ngon lành - Sản phẩm thuần chay thành phần từ thiên nhiên',
+      alt2: 'Đặc tính sản phẩm Sữa Gạo Lứt Mekong Xanh - Nguyên liệu tươi, Đóng chai tiện lợi, Vị ngọt tự nhiên, Bảo quản lạnh',
+      title: 'Trải Nghiệm Trọn Vẹn Tinh Túy Sữa Gạo Lứt Huyết Rồng',
+      subtitle: 'Dồi dào dưỡng chất từ gạo lứt nguyên cám, bổ sung năng lượng lành mạnh mỗi ngày.',
+    },
   },
 
   // ─── HÀNG 2: 2 SẢN PHẨM (SS - SL: Bộ đôi can sữa hạt Yoo Milk) ───
@@ -216,6 +240,14 @@ export const products: Product[] = [
       { id: 'md-12chai', name: '12 chai', quantity: 12, price: 216000, unit: 'thùng', volume: '12 x 330ml' },
       { id: 'md-15chai', name: '15 chai', quantity: 15, price: 270000, unit: 'thùng', volume: '15 x 330ml' },
     ],
+    featureBanners: {
+      banner1: '/images/banners/banner-feature-nd-01.jpg',
+      banner2: '/images/banners/banner-feature-nd-02.jpg',
+      alt1: 'Thành phần từ Nha Đam tươi - Uống một bữa ăn ngon lành - Sản phẩm thuần chay thành phần từ thiên nhiên',
+      alt2: 'Đặc tính sản phẩm Nha Đam Mủ Trôm Thái Sơn - Nguyên liệu tươi, Đóng chai tiện lợi, Vị ngọt tự nhiên, Bảo quản lạnh',
+      title: 'Trải Nghiệm Trọn Vẹn Tinh Túy Nha Đam Mủ Trôm',
+      subtitle: 'Nha đam tươi giòn sật kết hợp mủ trôm và lá dứa thanh mát, giải nhiệt và thanh lọc cơ thể.',
+    },
   },
   {
     id: 'tao-do-hat-chia',
@@ -251,6 +283,14 @@ export const products: Product[] = [
       { id: 'td-12chai', name: '12 chai', quantity: 12, price: 216000, unit: 'thùng', volume: '12 x 330ml' },
       { id: 'td-15chai', name: '15 chai', quantity: 15, price: 270000, unit: 'thùng', volume: '15 x 330ml' },
     ],
+    featureBanners: {
+      banner1: '/images/banners/banner-feature-td-01.jpg',
+      banner2: '/images/banners/banner-feature-td-02.jpg',
+      alt1: 'Thành phần từ Táo Đỏ thiên nhiên & Hạt Chia hảo hạng - Uống một bữa ăn ngon lành - Sản phẩm thuần chay thành phần từ thiên nhiên',
+      alt2: 'Đặc tính sản phẩm Táo Đỏ Hạt Chia Thái Sơn - Nguyên liệu tươi, Đóng chai tiện lợi, Vị ngọt tự nhiên, Bảo quản lạnh',
+      title: 'Trải Nghiệm Trọn Vẹn Tinh Túy Táo Đỏ Hạt Chia',
+      subtitle: 'Thức uống thanh lọc và giải nhiệt, giàu chất xơ từ hạt chia hảo hạng và táo đỏ tự nhiên.',
+    },
   },
   {
     id: 'sam-la-han-hoa-cuc',
@@ -284,6 +324,14 @@ export const products: Product[] = [
       { id: 'lh-12chai', name: '12 chai', quantity: 12, price: 216000, unit: 'thùng', volume: '12 x 330ml' },
       { id: 'lh-15chai', name: '15 chai', quantity: 15, price: 270000, unit: 'thùng', volume: '15 x 330ml' },
     ],
+    featureBanners: {
+      banner1: '/images/banners/banner-feature-lh-01.jpg',
+      banner2: '/images/banners/banner-feature-lh-02.jpg',
+      alt1: 'Thành phần từ La Hán Quả & Hoa Cúc thiên nhiên - Uống một bữa ăn ngon lành - Sản phẩm thuần chay thành phần từ thiên nhiên',
+      alt2: 'Đặc tính sản phẩm Sâm La Hán Hoa Cúc Thái Sơn - Nguyên liệu tươi, Đóng chai tiện lợi, Vị ngọt tự nhiên, Bảo quản lạnh',
+      title: 'Trải Nghiệm Trọn Vẹn Tinh Túy Sâm La Hán Hoa Cúc',
+      subtitle: 'Thức uống thanh mát giải nhiệt, ngọt lành từ la hán quả và hoa cúc thảo mộc tự nhiên.',
+    },
   },
 
   // ─── HÀNG 4: 2 SẢN PHẨM (TSA - MAC: Bộ đôi Trà Sữa Ciao) ───

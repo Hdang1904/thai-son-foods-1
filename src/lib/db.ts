@@ -200,12 +200,14 @@ export async function initDatabase() {
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_id VARCHAR(50);
     `);
 
-    // Ensure users table supports OAuth provider info and active status
+    // Ensure users table supports OAuth provider info, active status, and GPS coordinates
     await client.query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS provider VARCHAR(50) DEFAULT 'local';
       ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_id VARCHAR(100);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
     `);
 
     // Ensure products table has stock_quantity

@@ -212,6 +212,11 @@ interface Order {
   return_reason?: string | null;
   return_disposition?: string | null;
   return_at?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  location_confirmed?: boolean | null;
+  location_confirmed_by?: string | null;
+  address_new?: string | null;
   created_at: string;
 }
 
@@ -7144,6 +7149,77 @@ export default function AdminPage() {
                         .filter((p) => p && p.trim() && p !== 'Đặt hàng nhanh' && p !== 'Chưa cập nhật')
                         .join(', ') || selectedOrder.address}
                     </span>
+                  </div>
+
+                  {/* Tọa độ GPS & Liên kết mở bản đồ giao hàng an toàn */}
+                  <div className="sm:col-span-2 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
+                    {(() => {
+                      const hasValidCoords =
+                        typeof selectedOrder.latitude === 'number' &&
+                        typeof selectedOrder.longitude === 'number' &&
+                        Number.isFinite(selectedOrder.latitude) &&
+                        Number.isFinite(selectedOrder.longitude) &&
+                        selectedOrder.latitude >= -90 &&
+                        selectedOrder.latitude <= 90 &&
+                        selectedOrder.longitude >= -180 &&
+                        selectedOrder.longitude <= 180;
+
+                      if (hasValidCoords) {
+                        const lat = selectedOrder.latitude!;
+                        const lng = selectedOrder.longitude!;
+                        const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                          `${lat},${lng}`
+                        )}`;
+                        const osmUrl = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(
+                          lat
+                        )}&mlon=${encodeURIComponent(lng)}#map=17/${encodeURIComponent(lat)}/${encodeURIComponent(lng)}`;
+
+                        return (
+                          <>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-slate-400">Vị trí giao hàng:</span>
+                              <span className="font-mono text-emerald-400 font-bold">
+                                {lat.toFixed(5)}, {lng.toFixed(5)}
+                              </span>
+                              {selectedOrder.location_confirmed ? (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                  ✓ Đã xác nhận ghim trên bản đồ
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                  📍 Tọa độ ước tính / gợi ý
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={googleMapsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 font-semibold text-[11px] border border-emerald-500/30 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <span>Mở Google Maps</span>
+                              </a>
+                              <a
+                                href={osmUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-[11px] border border-slate-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <span>OpenStreetMap</span>
+                              </a>
+                            </div>
+                          </>
+                        );
+                      }
+
+                      return (
+                        <div className="flex items-center gap-2 text-slate-400">
+                          <span className="w-2 h-2 rounded-full bg-slate-600 inline-block" />
+                          <span>Chưa có tọa độ GPS (Giao theo địa chỉ chữ viết)</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                   {selectedOrder.note && (
                     <div className="sm:col-span-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300">

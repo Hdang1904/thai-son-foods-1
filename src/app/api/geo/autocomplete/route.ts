@@ -185,159 +185,90 @@ export async function GET(req: NextRequest) {
     }
 
     // ──────────────────────────────────────────────────────────
-    // 3. OpenStreetMap Nominatim Engine
-    //    Bóc tách chuẩn đơn vị hành chính 2026, khôi phục Quận tự động
+    // 3. Photon Geocoder (Nguồn tìm kiếm trực tuyến dự phòng)
+    //    Được gọi khi dữ liệu nội bộ chưa đủ 8 kết quả, có timeout 2.5s & error boundary
+    //    TUYỆT ĐỐI KHÔNG dùng Nominatim công cộng cho autocomplete
     // ──────────────────────────────────────────────────────────
-    try {
-      const cityName = (provinceParam || 'TP. Hồ Chí Minh')
-        .replace(/^TP\.\s*/i, '')
-        .replace(/^Thành phố\s*/i, '')
-        .replace(/^Tỉnh\s*/i, '')
-        .trim();
+    const disablePhoton = process.env.DISABLE_PHOTON_GEOCODER === 'true';
+    if (!disablePhoton && aggregated.length < 8) {
+      try {
+        const cityName = (provinceParam || 'TP. Hồ Chí Minh')
+          .replace(/^TP\.\s*/i, '')
+          .replace(/^Thành phố\s*/i, '')
+          .replace(/^Tỉnh\s*/i, '')
+          .trim();
 
-      // 3.1. Structured search theo tên đường
-      const structParams = new URLSearchParams({
-        street: effectiveStreetQuery,
-        format: 'json',
-        countrycodes: 'vn',
-        addressdetails: '1',
-        limit: '8',
-        'accept-language': 'vi',
-      });
-      if (cityName) structParams.set('city', cityName);
+        const photonQuery = [effectiveStreetQuery, districtParam, cityName].filter(Boolean).join(', ');
 
-      const structUrl = `https://nominatim.openstreetmap.org/search?${structParams.toString()}`;
-      const sRes = await fetch(structUrl, {
-        headers: {
-          'User-Agent': 'ThaiSonFoodsWeb/1.0 (contact@thaisonfoods.vn)',
-          'Accept-Language': 'vi,en;q=0.9',
-        },
-        signal: AbortSignal.timeout(3000),
-      });
-
-      if (sRes.ok) {
-        const sData = await sRes.json();
-        if (Array.isArray(sData)) {
-          for (const item of sData) {
-            const addr = item.address || {};
-            const road = addr.road || addr.pedestrian || addr.name || effectiveStreetQuery;
-            const itemHouseNum = addr.house_number || houseNumber || '';
-
-            // Bóc tách cấp Phường (chỉ nhận Phường/Xã/Thị trấn, LOẠI BỎ Khu phố/Tổ)
-            let rawWard = '';
-            if (addr.suburb && /^(phường|xã|thị trấn)\s+/i.test(addr.suburb)) {
-              rawWard = addr.suburb;
-            } else if (addr.quarter && /^(phường|xã|thị trấn)\s+/i.test(addr.quarter)) {
-              rawWard = addr.quarter;
-            } else if (addr.suburb && !isKhuPho(addr.suburb)) {
-              rawWard = addr.suburb;
-            } else {
-              const candidate = addr.village || wardParam || '';
-              rawWard = isKhuPho(candidate) ? (wardParam || '') : candidate;
-            }
-            if (isKhuPho(rawWard)) rawWard = '';
-
-            const rawDist = addr.city_district || addr.county || districtParam || '';
-            const rawProv = addr.city || addr.state || provinceParam || 'TP. Hồ Chí Minh';
-
-            // Suy ngược Quận từ Phường nếu rawDist bị thiếu trong OSM
-            const matched = matchStandardAdministrative(rawProv, rawDist, rawWard, effectiveStreetQuery);
-
-            const finalProv = matched.province || normalizeProvinceName(rawProv);
-            const finalDist = matched.district || (rawDist ? rawDist : undefined);
-            const finalWard = matched.ward && !isKhuPho(matched.ward) ? removeKhuPho(matched.ward) : undefined;
-
-            let mainText = removeKhuPho(road || item.name || input);
-            if (itemHouseNum && !new RegExp(`^${itemHouseNum}\\b`, 'i').test(mainText)) {
-              mainText = `${itemHouseNum} ${mainText}`;
-            }
-
-            // Xây dựng secondary text chuẩn: Phường, Quận, Tỉnh/TP (loại bỏ hoàn toàn khu phố)
-            const secondaryParts = [finalWard, finalDist, finalProv].map(removeKhuPho).filter(Boolean);
-            const secondaryText = secondaryParts.join(', ');
-            const desc = `${mainText}, ${secondaryText}`;
-
-            addSuggestion({
-              place_id: `nom_${item.place_id}`,
-              description: desc,
-              main_text: mainText,
-              secondary_text: secondaryText,
-              source: 'nominatim',
-              lat: parseFloat(item.lat),
-              lng: parseFloat(item.lon),
-              ward: finalWard,
-              district: finalDist,
-              province: finalProv,
-            });
+        // Vị trí bias: lấy tọa độ quận/tỉnh nếu có, mặc định TP.HCM (10.7769, 106.7009)
+        let biasLat = 10.7769;
+        let biasLng = 106.7009;
+        if (provinceParam || districtParam) {
+          const coords = findPreciseCoordinates(provinceParam, districtParam, wardParam);
+          if (coords) {
+            biasLat = coords.lat;
+            biasLng = coords.lng;
           }
         }
-      }
 
-      // 3.2. Photon Geocoder bổ sung ngõ hẻm và công trình chi tiết
-      if (aggregated.length < 10) {
-        try {
-          const photonQuery = [effectiveStreetQuery, districtParam, cityName].filter(Boolean).join(', ');
-          const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(
-            photonQuery
-          )}&lat=10.82&lon=106.68&limit=6`;
+        const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(
+          photonQuery
+        )}&lat=${biasLat}&lon=${biasLng}&limit=8`;
 
-          const pRes = await fetch(photonUrl, {
-            headers: {
-              'User-Agent': 'ThaiSonFoodsWeb/1.0 (contact@thaisonfoods.vn)',
-              'Accept-Language': 'vi',
-            },
-            signal: AbortSignal.timeout(2500),
-          });
+        const pRes = await fetch(photonUrl, {
+          headers: {
+            'User-Agent': 'ThaiSonFoodsWeb/1.0 (contact@thaisonfoods.vn)',
+            'Accept-Language': 'vi',
+          },
+          signal: AbortSignal.timeout(2500),
+        });
 
-          if (pRes.ok) {
-            const pData = await pRes.json();
-            if (pData?.features && Array.isArray(pData.features)) {
-              for (const feat of pData.features) {
-                const prop = feat.properties || {};
-                const coords = feat.geometry?.coordinates; // [lon, lat]
-                if (!coords || coords.length < 2) continue;
+        if (pRes.ok) {
+          const pData = await pRes.json();
+          if (pData?.features && Array.isArray(pData.features)) {
+            for (const feat of pData.features) {
+              const prop = feat.properties || {};
+              const coords = feat.geometry?.coordinates; // [lon, lat]
+              if (!coords || coords.length < 2) continue;
 
-                const road = prop.name || prop.street || effectiveStreetQuery;
-                const pHouse = prop.housenumber || houseNumber || '';
-                const pWardRaw = prop.district || prop.locality || wardParam || '';
-                const pDistRaw = districtParam || '';
-                const pProvRaw = prop.city || prop.state || provinceParam || 'TP. Hồ Chí Minh';
+              const road = prop.name || prop.street || effectiveStreetQuery;
+              const pHouse = prop.housenumber || houseNumber || '';
+              const pWardRaw = prop.district || prop.locality || wardParam || '';
+              const pDistRaw = districtParam || '';
+              const pProvRaw = prop.city || prop.state || provinceParam || 'TP. Hồ Chí Minh';
 
-                const matched = matchStandardAdministrative(pProvRaw, pDistRaw, pWardRaw, effectiveStreetQuery);
+              const matched = matchStandardAdministrative(pProvRaw, pDistRaw, pWardRaw, effectiveStreetQuery);
 
-                const finalProv = matched.province || normalizeProvinceName(pProvRaw);
-                const finalDist = matched.district || (pDistRaw ? pDistRaw : undefined);
-                const finalWard = matched.ward || (pWardRaw ? pWardRaw : undefined);
+              const finalProv = matched.province || normalizeProvinceName(pProvRaw);
+              const finalDist = matched.district || (pDistRaw ? pDistRaw : undefined);
+              const finalWard = matched.ward ? removeKhuPho(matched.ward) : undefined;
 
-                let mainText = road;
-                if (pHouse && !new RegExp(`^${pHouse}\\b`, 'i').test(mainText)) {
-                  mainText = `${pHouse} ${mainText}`;
-                }
-                const secondaryParts = [finalWard, finalDist, finalProv].map(removeKhuPho).filter(Boolean);
-                const secondaryText = secondaryParts.join(', ');
-                const desc = `${mainText}, ${secondaryText}`;
-
-                addSuggestion({
-                  place_id: `pho_${prop.osm_id || Math.random()}`,
-                  description: desc,
-                  main_text: mainText,
-                  secondary_text: secondaryText,
-                  source: 'nominatim',
-                  lat: coords[1],
-                  lng: coords[0],
-                  ward: finalWard,
-                  district: finalDist,
-                  province: finalProv,
-                });
+              let mainText = removeKhuPho(road);
+              if (pHouse && !new RegExp(`^${pHouse}\\b`, 'i').test(mainText)) {
+                mainText = `${pHouse} ${mainText}`;
               }
+              const secondaryParts = [finalWard, finalDist, finalProv].map(removeKhuPho).filter(Boolean);
+              const secondaryText = secondaryParts.join(', ');
+              const desc = `${mainText}, ${secondaryText}`;
+
+              addSuggestion({
+                place_id: `pho_${prop.osm_id || Math.random()}`,
+                description: desc,
+                main_text: mainText,
+                secondary_text: secondaryText,
+                source: 'photon',
+                lat: coords[1],
+                lng: coords[0],
+                ward: finalWard,
+                district: finalDist,
+                province: finalProv,
+              });
             }
           }
-        } catch (e) {
-          // ignore photon error
         }
+      } catch (e) {
+        // Photon timeout or network error is handled gracefully without breaking autocomplete
       }
-    } catch (e) {
-      console.warn('[Geo Autocomplete] OSM warning:', e);
     }
 
     // ──────────────────────────────────────────────────────────

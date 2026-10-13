@@ -27,6 +27,16 @@ export interface Product {
   volume?: string;
   imageFit?: 'cover' | 'contain';
   variants?: ProductVariant[];
+  featureBanners?: ProductFeatureBanner;
+}
+
+export interface ProductFeatureBanner {
+  banner1: string;
+  banner2: string;
+  alt1?: string;
+  alt2?: string;
+  title?: string;
+  subtitle?: string;
 }
 
 export interface ProductImage {

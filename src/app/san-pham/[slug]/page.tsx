@@ -299,6 +299,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
         {/* ── 3. VISUAL A+ CONTENT: 2 BANNER XẾP CHỒNG (Thứ tự 3) ── */}
         <ProductFeatureShowcase
+          product={product}
           productName={product.name}
           productThumbnail={product.thumbnail}
         />

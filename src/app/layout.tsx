@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Fira_Sans, Roboto, Playfair_Display } from 'next/font/google';
 import './globals.css';
+import 'leaflet/dist/leaflet.css';
 import LogoPreloader from '@/components/layout/LogoPreloader';
 import AppLayout from '@/components/layout/AppLayout';
 
