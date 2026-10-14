@@ -4,6 +4,9 @@ import React, { Suspense } from 'react';
 import { usePathname } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import HeaderAmazon from '@/components/layout/HeaderAmazon';
+import FooterAmazon from '@/components/layout/FooterAmazon';
+import { HOMEPAGE_CONFIG } from '@/config/homepage';
 import ReferralTracker from '@/components/common/ReferralTracker';
 import { FlyToCartProvider } from '@/context/FlyToCartContext';
 import { LanguageProvider } from '@/context/LanguageContext';
@@ -22,6 +25,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
     return <>{children}</>;
   }
 
+  // Header/Footer biến thể Amazon CHỈ dùng cho trang chủ mới; mọi trang khác giữ Header/Footer gốc
+  const useAmazonChrome = pathname === '/' && HOMEPAGE_CONFIG.USE_AMAZON_HOMEPAGE;
+
   return (
     <LanguageProvider>
       <UserAuthProvider>
@@ -30,9 +36,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
             <ReferralTracker />
           </Suspense>
           <div className="min-h-screen flex flex-col">
-            <Header />
+            {useAmazonChrome ? <HeaderAmazon /> : <Header />}
             <main className="min-h-screen flex-1">{children}</main>
-            <Footer />
+            {useAmazonChrome ? <FooterAmazon /> : <Footer />}
             <AuthModal />
             <BranchSelectorModal />
           </div>

@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "scripts/**",
+    // Bản sao lưu giao diện (không biên dịch, chỉ để khôi phục)
+    "_backup/**",
   ]),
   {
     rules: {
