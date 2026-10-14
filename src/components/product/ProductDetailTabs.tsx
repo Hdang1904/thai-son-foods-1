@@ -14,7 +14,7 @@ interface ProductDetailTabsProps {
   categoryName?: string;
 }
 
-type TabKey = 'description' | 'ingredients' | 'usage' | 'nutrition' | 'specs';
+type TabKey = 'description' | 'ingredients' | 'usage' | 'nutrition' | 'specs' | 'packaging';
 
 /**
  * Thông tin chi tiết sản phẩm, tổ chức thống nhất bằng tab (cuộn ngang trên mobile).
@@ -39,7 +39,8 @@ export default function ProductDetailTabs({ product, categoryName }: ProductDeta
     { key: 'ingredients', label: isEn ? 'Ingredients' : 'Thành phần' },
     { key: 'usage', label: isEn ? 'Usage & storage' : 'Sử dụng & bảo quản' },
     { key: 'nutrition', label: isEn ? 'Nutrition' : 'Dinh dưỡng' },
-    { key: 'specs', label: isEn ? 'Specifications' : 'Thông tin bổ sung' },
+    { key: 'specs', label: isEn ? 'Product details' : 'Thông tin chi tiết' },
+    { key: 'packaging', label: isEn ? 'Packaging & dimensions' : 'Quy cách & Kích thước' },
   ];
 
   const specs: { label: string; value: string }[] = [
@@ -48,18 +49,12 @@ export default function ProductDetailTabs({ product, categoryName }: ProductDeta
     { label: isEn ? 'Origin' : 'Xuất xứ', value: content.origin || DEFAULT_PRODUCT_DETAIL.origin },
     ...(categoryName ? [{ label: isEn ? 'Category' : 'Danh mục', value: categoryName }] : []),
     { label: isEn ? 'SKU' : 'Mã sản phẩm', value: product.sku },
-    ...(getBottleVolume(product, variants[0])
-      ? [{ label: isEn ? 'Volume per bottle' : 'Dung tích mỗi chai', value: getBottleVolume(product, variants[0]) }]
-      : []),
-    ...(variants.length > 0
-      ? [{
-          label: isEn ? 'Pack sizes' : 'Quy cách đóng gói',
-          value: variants.map((v) => `${getVariantLabel(v, language)} (${formatPrice(v.price)}đ · ${formatPrice(getUnitPrice(v))}đ/chai)`).join('; '),
-        }]
-      : []),
-    { label: isEn ? 'Packaging' : 'Bao bì', value: content.packagingMaterial || DEFAULT_PRODUCT_DETAIL.packagingMaterial },
     { label: isEn ? 'Certification' : 'Chứng nhận', value: content.certification || DEFAULT_PRODUCT_DETAIL.certification },
+    { label: isEn ? 'Expiry date' : 'Hạn sử dụng', value: expiry },
+    { label: isEn ? 'Usage instructions' : 'Hướng dẫn sử dụng', value: usage },
+    { label: isEn ? 'Storage instructions' : 'Hướng dẫn bảo quản', value: storage },
   ];
+  const bottleVolume = getBottleVolume(product, variants[0]);
 
   const pendingNote = (
     <p className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
@@ -162,6 +157,50 @@ export default function ProductDetailTabs({ product, categoryName }: ProductDeta
                   </div>
                 ) : (
                   pendingNote
+                )}
+              </div>
+            )}
+
+            {active === 'packaging' && (
+              <div className="max-w-3xl space-y-4">
+                <ul className="space-y-1.5 text-sm">
+                  {bottleVolume && (
+                    <li>
+                      • {isEn ? 'Standard bottle volume: ' : 'Dung tích đóng chai tiêu chuẩn: '}
+                      <strong>{bottleVolume}</strong>
+                    </li>
+                  )}
+                  <li>
+                    • {isEn ? 'Packaging material: ' : 'Chất liệu bao bì: '}
+                    <strong>{content.packagingMaterial || DEFAULT_PRODUCT_DETAIL.packagingMaterial}</strong>
+                  </li>
+                </ul>
+                {variants.length > 0 && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[420px] text-sm border border-gray-200">
+                      <caption className="text-left text-sm font-semibold text-[#0F1111] pb-2">
+                        {isEn ? 'Price list by pack size' : 'Bảng giá theo quy cách'}
+                      </caption>
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th scope="col" className="text-left font-semibold text-gray-700 px-3 py-2">{isEn ? 'Pack' : 'Quy cách'}</th>
+                          <th scope="col" className="text-left font-semibold text-gray-700 px-3 py-2">{isEn ? 'Contents' : 'Quy đổi'}</th>
+                          <th scope="col" className="text-right font-semibold text-gray-700 px-3 py-2">{isEn ? 'Price' : 'Giá'}</th>
+                          <th scope="col" className="text-right font-semibold text-gray-700 px-3 py-2">{isEn ? 'Per bottle' : 'Đơn giá/chai'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {variants.map((v) => (
+                          <tr key={v.id} className="border-t border-gray-100">
+                            <td className="px-3 py-2">{getVariantLabel(v, language)}</td>
+                            <td className="px-3 py-2 text-gray-600">{v.volume || `${v.quantity} chai`}</td>
+                            <td className="px-3 py-2 text-right font-semibold">{formatPrice(v.price)}đ</td>
+                            <td className="px-3 py-2 text-right text-gray-600">{formatPrice(getUnitPrice(v))}đ</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             )}

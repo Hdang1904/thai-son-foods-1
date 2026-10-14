@@ -9,18 +9,21 @@ import { Product } from '@/types';
 interface ProductSponsoredBannerProps {
   product?: Product;
   className?: string;
+  /** Ẩn số liệu chưa xác thực (sao/lượt đánh giá mẫu, prime, -15%, giá gốc ước tính). Mặc định giữ hành vi cũ. */
+  hideUnverifiedStats?: boolean;
 }
 
 export default function ProductSponsoredBanner({
   product,
   className = '',
+  hideUnverifiedStats = false,
 }: ProductSponsoredBannerProps) {
   // Lấy giá lốc hoặc mặc định tương ứng với sản phẩm
   const defaultPackVariant = product?.variants?.find((v) => v.quantity === 7) || product?.variants?.[0];
   const price = defaultPackVariant ? defaultPackVariant.price : (product?.price ? product.price * 7 : 126000);
   const originalPrice = product?.originalPrice 
     ? (defaultPackVariant ? Math.round(product.originalPrice * (defaultPackVariant.quantity || 7)) : Math.round(product.originalPrice * 7))
-    : Math.round(price * 1.35);
+    : hideUnverifiedStats ? 0 : Math.round(price * 1.35);
 
   const displayTitle = product?.name
     ? `${product.name.replace(/,.*$/, '')} (Lốc 7 chai 330ml)`
@@ -111,6 +114,7 @@ export default function ProductSponsoredBanner({
             </div>
 
             {/* Hàng Đánh Giá Sao Chuẩn Amazon */}
+            {!hideUnverifiedStats && (
             <div className="flex items-center gap-1 text-xs mb-1 flex-wrap">
               <span className="font-bold text-gray-900 text-xs">4.8</span>
               <div className="flex items-center text-[#FFA41C]">
@@ -122,6 +126,7 @@ export default function ProductSponsoredBanner({
                 (409)
               </span>
             </div>
+            )}
 
             {/* Hàng Giá & Huy hiệu Prime */}
             <div className="flex items-baseline gap-2 flex-wrap mb-1">
@@ -134,13 +139,16 @@ export default function ProductSponsoredBanner({
                 </span>
               )}
               {/* Huy hiệu Prime chuẩn Amazon */}
+              {!hideUnverifiedStats && (
               <span className="inline-flex items-center text-[#007185] font-black text-xs italic tracking-tighter ml-auto">
                 <span className="text-[#007185] mr-0.5 font-bold not-italic">✓</span>
                 <span className="text-[#007185] font-black not-italic text-[12px] font-sans">prime</span>
               </span>
+              )}
             </div>
 
             {/* Huy hiệu Tiết kiệm 15% khi Đăng ký định kỳ (Chuẩn Ahorra 5% con Planea y ahorra) */}
+            {!hideUnverifiedStats && (
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="bg-[#CC0C39] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-xs tracking-tight uppercase">
                 Tiết kiệm 15%
@@ -149,6 +157,7 @@ export default function ProductSponsoredBanner({
                 khi Đăng ký định kỳ
               </span>
             </div>
+            )}
           </Link>
         </div>
       </div>

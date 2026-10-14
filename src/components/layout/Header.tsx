@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import {
   Search,
   User,
@@ -25,7 +25,10 @@ import {
   LogOut,
   Crown,
   RefreshCw,
+  MapPin,
 } from 'lucide-react';
+import { useBranchStore } from '@/store/branch';
+import { PRODUCT_DETAIL_CONFIG } from '@/config/product-detail';
 import { useCartStore } from '@/store/cart';
 import { useLanguage } from '@/context/LanguageContext';
 import { useUserAuth } from '@/context/UserAuthContext';
@@ -62,6 +65,16 @@ function matchesProductQuery(
 
 export default function Header() {
   const router = useRouter();
+  const pathname = usePathname();
+  const { selectedBranch, openBranchModal } = useBranchStore();
+
+  // Ô "Giao đến" kiểu Amazon chỉ dành cho giao diện chi tiết sản phẩm mới (cờ hoặc ?giao-dien=moi)
+  const [showDeliverTo, setShowDeliverTo] = useState(false);
+  useEffect(() => {
+    const isPdp = Boolean(pathname?.startsWith('/san-pham/'));
+    const preview = new URLSearchParams(window.location.search).get('giao-dien') === 'moi';
+    setShowDeliverTo(isPdp && (PRODUCT_DETAIL_CONFIG.ENABLE_NEW_LAYOUT || preview));
+  }, [pathname]);
   const { language, setLanguage, toggleLanguage, t } = useLanguage();
   const { user, openAuthModal, logout } = useUserAuth();
   const [isMounted, setIsMounted] = useState(false);
@@ -244,11 +257,30 @@ export default function Header() {
                   src="/images/logo-vien-trang.png"
                   alt="Thái Sơn Foods - Món ngon quê Việt"
                   fill
+                  sizes="230px"
                   className="object-contain object-left"
                   priority
                 />
               </div>
             </Link>
+
+            {/* 1b. "Giao đến" cạnh logo — CHỈ hiện ở trang chi tiết sản phẩm khi bật giao diện mới */}
+            {showDeliverTo && (
+              <button
+                type="button"
+                onClick={openBranchModal}
+                className="hidden lg:flex items-end gap-1 shrink-0 max-w-[180px] px-2 py-1.5 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200 text-left cursor-pointer"
+                aria-label="Chọn chi nhánh giao hàng"
+              >
+                <MapPin className="w-4 h-4 text-green-primary shrink-0 mb-0.5" aria-hidden />
+                <span className="min-w-0 leading-tight">
+                  <span className="block text-[11px] text-gray-500">Giao từ chi nhánh</span>
+                  <span className="block text-[13px] font-semibold text-gray-900 truncate">
+                    {selectedBranch?.name || 'Chọn chi nhánh'}
+                  </span>
+                </span>
+              </button>
+            )}
 
             {/* 2. Thanh Search đẹp mắt ở giữa (Thay thế vùng ô đỏ trước đây) */}
             <div

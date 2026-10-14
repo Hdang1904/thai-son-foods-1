@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation';
 import { Star, Leaf, ChevronRight } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useBranchStore } from '@/store/branch';
-import { DEFAULT_PRODUCT_DETAIL, getProductDetailContent } from '@/data/product-detail-content';
+import { DEFAULT_PRODUCT_DETAIL, getProductDetailContent, STORE_SALES_INFO } from '@/data/product-detail-content';
 import {
   sortVariants,
   getVariantLabel,
@@ -21,10 +21,14 @@ import {
   getVariantOriginalPrice,
   getShortProductName,
   isSameProduct,
+  getProductImage,
 } from '@/lib/product-detail';
 import PackSizeSelector from '@/components/product/PackSizeSelector';
 import ProductBuyBox from '@/components/product/ProductBuyBox';
 import MobileBuyBar from '@/components/product/MobileBuyBar';
+import ProductSponsoredMiniCard from '@/components/product/ProductSponsoredMiniCard';
+import ProductSidebarSponsoredCard from '@/components/product/ProductSidebarSponsoredCard';
+import { MonthlySalesPlaceholder, CouponPlaceholder } from '@/components/product/ProductPlaceholderBlocks';
 
 const VEGAN_PRODUCT_IDS = new Set([
   'sua-bap-nep',
@@ -50,6 +54,8 @@ interface ProductMainSectionProps {
   gallery?: ReactNode;
   /** Sản phẩm cùng danh mục để chọn hương vị khác */
   siblingProducts?: Product[];
+  /** Hiển thị các khối mẫu (PLACEHOLDER) của bố cục Amazon chưa có nghiệp vụ thật */
+  showPlaceholders?: boolean;
 }
 
 /**
@@ -58,7 +64,12 @@ interface ProductMainSectionProps {
  *  - Tablet (md–lg): Gallery (sticky) | Thông tin + Buy Box + Đặc điểm
  *  - Mobile: Ảnh → Tên & đánh giá → Giá & quy cách → Giao hàng & mua → Đặc điểm (+ thanh mua cố định)
  */
-export default function ProductMainSection({ product, gallery, siblingProducts = [] }: ProductMainSectionProps) {
+export default function ProductMainSection({
+  product,
+  gallery,
+  siblingProducts = [],
+  showPlaceholders = true,
+}: ProductMainSectionProps) {
   const isVegan = Boolean(product.isVegan || VEGAN_PRODUCT_IDS.has(product.id) || VEGAN_PRODUCT_IDS.has(product.slug));
   const { language } = useLanguage();
   const isEn = language === 'en';
@@ -290,11 +301,18 @@ export default function ProductMainSection({ product, gallery, siblingProducts =
   }, [isOutOfStock]);
   // Ẩn thanh khi chạm Footer để không che thông tin liên hệ cuối trang
   useEffect(() => {
-    const footer = document.querySelector('footer');
-    if (!footer || typeof IntersectionObserver === 'undefined') return;
-    const io = new IntersectionObserver(([entry]) => setFooterInView(entry.isIntersecting), { threshold: 0 });
-    io.observe(footer);
-    return () => io.disconnect();
+    // Tra cứu footer mỗi lần cuộn (footer thuộc layout chung, có thể render sau component này)
+    const check = () => {
+      const footer = document.querySelector('footer');
+      setFooterInView(Boolean(footer && footer.getBoundingClientRect().top < window.innerHeight));
+    };
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check);
+    return () => {
+      window.removeEventListener('scroll', check);
+      window.removeEventListener('resize', check);
+    };
   }, []);
 
   const scrollToReviews = (e: React.MouseEvent) => {
@@ -302,6 +320,17 @@ export default function ProductMainSection({ product, gallery, siblingProducts =
     const el = document.getElementById('danh-gia') || document.getElementById('danh-gia-khach-hang');
     el?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  const overviewRows: { label: string; value: string }[] = [
+    { label: isEn ? 'Brand' : 'Thương hiệu', value: STORE_SALES_INFO.seller },
+    { label: isEn ? 'Flavor' : 'Hương vị', value: getShortProductName(product, language) },
+    ...(bottleVolume ? [{ label: isEn ? 'Bottle volume' : 'Dung tích chai', value: bottleVolume }] : []),
+    ...(currentVariant
+      ? [{ label: isEn ? 'Selected pack' : 'Quy cách đang chọn', value: getVariantLabel(currentVariant, language) }]
+      : []),
+    ...(isVegan ? [{ label: isEn ? 'Diet' : 'Chế độ ăn', value: isEn ? 'Vegan' : 'Thuần chay' }] : []),
+    { label: isEn ? 'Origin' : 'Xuất xứ', value: detailContent.origin || DEFAULT_PRODUCT_DETAIL.origin },
+  ];
 
   const packLabel = currentVariant
     ? `${getVariantLabel(currentVariant, language)}${bottleVolume ? ` × ${bottleVolume}` : ''}`
@@ -312,7 +341,11 @@ export default function ProductMainSection({ product, gallery, siblingProducts =
       <div className="grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-2 md:grid-rows-[auto_auto_1fr] xl:grid-cols-[minmax(0,5fr)_minmax(0,4fr)_minmax(0,3fr)] xl:grid-rows-[auto_1fr] xl:gap-x-8">
         {/* ── VÙNG 1: GALLERY ── */}
         <div className="min-w-0 md:col-start-1 md:row-start-1 md:row-span-3 xl:row-span-2 md:sticky md:top-[168px] md:self-start">
-          {gallery}
+          <div key="gallery">{gallery}</div>
+          {/* Thẻ sản phẩm được tài trợ dưới thư viện ảnh (khối có sẵn của TSF) */}
+          <div className="hidden md:block mt-4">
+            <ProductSponsoredMiniCard currentProductId={product.id} hideUnverifiedStats />
+          </div>
         </div>
 
         {/* ── VÙNG 2: THÔNG TIN MUA HÀNG CHÍNH ── */}
@@ -321,7 +354,7 @@ export default function ProductMainSection({ product, gallery, siblingProducts =
             href="/#ve-chung-toi"
             className="inline-block text-[13px] text-[#007185] hover:text-[#C7511F] hover:underline"
           >
-            {isEn ? 'Brand: Thái Sơn Foods' : 'Thương hiệu: Thái Sơn Foods'}
+            {isEn ? 'Visit the Thái Sơn Foods store' : 'Ghé thăm cửa hàng Thái Sơn Foods'}
           </Link>
 
           <h1 className="text-xl sm:text-2xl xl:text-[24px] font-medium text-[#0F1111] leading-snug break-words">
@@ -361,6 +394,8 @@ export default function ProductMainSection({ product, gallery, siblingProducts =
             )}
             <span className="text-xs text-gray-500 font-mono">SKU: {product.sku}</span>
           </div>
+
+          {showPlaceholders && <MonthlySalesPlaceholder />}
 
           {/* Nhãn thuộc tính có trong dữ liệu */}
           {(isVegan || product.isBestSeller || product.isNew) && (
@@ -404,6 +439,8 @@ export default function ProductMainSection({ product, gallery, siblingProducts =
             </p>
           </div>
 
+          {showPlaceholders && <CouponPlaceholder />}
+
           <PackSizeSelector
             product={product}
             variants={sortedVariants}
@@ -435,7 +472,7 @@ export default function ProductMainSection({ product, gallery, siblingProducts =
                       )}
                     >
                       <span className="relative block w-full aspect-[4/3] rounded overflow-hidden bg-white">
-                        <Image src={p.thumbnail} alt="" fill sizes="76px" className="object-contain" />
+                        <Image src={getProductImage(p)} alt="" fill sizes="76px" className="object-contain" />
                       </span>
                       <span className="block text-[10.5px] leading-tight text-[#0F1111] mt-1 line-clamp-2 min-h-[2.4em]">
                         {getShortProductName(p, language)}
@@ -446,10 +483,24 @@ export default function ProductMainSection({ product, gallery, siblingProducts =
               </div>
             </div>
           )}
+
+          {/* Bảng tóm tắt thuộc tính chính (dữ liệu thật) */}
+          <table className="w-full text-[13px]">
+            <tbody>
+              {overviewRows.map((row) => (
+                <tr key={row.label}>
+                  <th scope="row" className="w-[42%] py-1 pr-3 text-left font-semibold text-[#0F1111] align-top">
+                    {row.label}
+                  </th>
+                  <td className="py-1 text-[#0F1111]">{row.value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
         {/* ── VÙNG 3: BUY BOX ── */}
-        <div className="min-w-0 md:col-start-2 md:row-start-2 xl:col-start-3 xl:row-start-1 xl:row-span-2 xl:sticky xl:top-[168px] xl:self-start">
+        <div className="min-w-0 md:col-start-2 md:row-start-2 xl:col-start-3 xl:row-start-1 xl:row-span-2 xl:self-start">
           <ProductBuyBox
             ref={actionsRef}
             variant={currentVariant}
@@ -478,14 +529,19 @@ export default function ProductMainSection({ product, gallery, siblingProducts =
             expiryText={detailContent.expiry || DEFAULT_PRODUCT_DETAIL.expiry}
             certification={detailContent.certification || DEFAULT_PRODUCT_DETAIL.certification}
             language={language}
+            showPlaceholders={showPlaceholders}
           />
+          {/* Khối hội viên + gợi ý được tài trợ (khối có sẵn của TSF) dưới Buy Box */}
+          <div className="hidden xl:block mt-4">
+            <ProductSidebarSponsoredCard currentProductId={product.id} hideUnverifiedStats />
+          </div>
         </div>
 
         {/* ── VÙNG 4: ĐẶC ĐIỂM NỔI BẬT ── */}
         <div className="min-w-0 md:col-start-2 md:row-start-3 xl:col-start-2 xl:row-start-2 self-start">
           <div className="border-t border-gray-200 pt-4">
             <h2 className="text-base font-bold text-[#0F1111] mb-2">
-              {isEn ? 'About this item' : 'Về sản phẩm này'}
+              {isEn ? 'Key highlights' : 'Đặc điểm nổi bật'}
             </h2>
             <ul className="list-disc pl-5 space-y-1.5 text-sm text-[#0F1111] leading-relaxed marker:text-gray-400">
               {highlights.map((item) => (
@@ -505,6 +561,14 @@ export default function ProductMainSection({ product, gallery, siblingProducts =
               {isEn ? 'See full product information' : 'Xem thông tin chi tiết sản phẩm'}
               <ChevronRight className="w-3.5 h-3.5" aria-hidden />
             </a>
+          </div>
+
+          {/* Màn hình nhỏ hơn xl: các khối được tài trợ chuyển xuống dưới phần đặc điểm */}
+          <div className="xl:hidden mt-6 space-y-4">
+            <div className="md:hidden">
+              <ProductSponsoredMiniCard currentProductId={product.id} hideUnverifiedStats />
+            </div>
+            <ProductSidebarSponsoredCard currentProductId={product.id} hideUnverifiedStats />
           </div>
         </div>
       </div>

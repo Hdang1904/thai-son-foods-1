@@ -14,12 +14,15 @@ interface ProductDescriptionProps {
   productName?: string;
   description?: string;
   className?: string;
+  /** Ẩn bảng dinh dưỡng ước tính chung khi sản phẩm đã có số liệu thật từ nhãn. Mặc định giữ hành vi cũ. */
+  hideEstimatedNutrition?: boolean;
 }
 
 export default function ProductDescription({
   productName = 'Sữa Hạt Sen Lotus Yoo',
   description,
   className = '',
+  hideEstimatedNutrition = false,
 }: ProductDescriptionProps) {
   return (
     <section className={`bg-white py-12 md:py-16 border-t border-gray-200 ${className}`}>
@@ -97,7 +100,7 @@ export default function ProductDescription({
         {/* 3. KHỐI NỘI DUNG NARRATIVE & BẢNG DINH DƯỠNG (GRID 2 CỘT) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start text-left">
           {/* Cột trái (Narrative - 7 cột) */}
-          <div className="lg:col-span-7 space-y-4">
+          <div className={hideEstimatedNutrition ? 'lg:col-span-12 space-y-4' : 'lg:col-span-7 space-y-4'}>
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                 <HeartPulse className="w-4.5 h-4.5 text-emerald-700" />
@@ -129,6 +132,7 @@ export default function ProductDescription({
           </div>
 
           {/* Cột phải (Bảng Dinh dưỡng - 5 cột) */}
+          {!hideEstimatedNutrition && (
           <div className="lg:col-span-5">
             <div className="bg-[#FAFAFA] border border-gray-200 rounded-2xl p-5 shadow-xs">
               <div className="flex items-center justify-between pb-3 border-b border-gray-200">
@@ -168,6 +172,7 @@ export default function ProductDescription({
               </p>
             </div>
           </div>
+          )}
         </div>
       </div>
     </section>

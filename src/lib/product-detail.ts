@@ -68,6 +68,13 @@ export function getSimilarProducts(product: Product, allProducts: Product[], lim
   return [...sameCategory, ...rest].slice(0, limit);
 }
 
+/** Ảnh đại diện có dự phòng (logo TSF) khi sản phẩm chưa có ảnh */
+export const MISSING_PRODUCT_IMAGE = '/images/logo-clean-1000.png';
+export function getProductImage(product: Pick<Product, 'thumbnail'>): string {
+  const url = (product.thumbnail || '').trim();
+  return url || MISSING_PRODUCT_IMAGE;
+}
+
 export function isSameProduct(a: Pick<Product, 'id' | 'slug'>, b: Pick<Product, 'id' | 'slug'>): boolean {
   return a.id === b.id || a.slug === b.slug;
 }

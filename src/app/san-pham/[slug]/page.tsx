@@ -23,13 +23,18 @@ import ProductBundleSuggestions from '@/components/product/ProductBundleSuggesti
 import ProductDetailTabs from '@/components/product/ProductDetailTabs';
 import ProductCarousel from '@/components/product/ProductCarousel';
 import RecentlyViewedProducts from '@/components/product/RecentlyViewedProducts';
+import ProductCompareTable from '@/components/product/ProductCompareTable';
+import { ProductQAPlaceholder, ReviewImagesPlaceholder, PlaceholderBadge } from '@/components/product/ProductPlaceholderBlocks';
 import { getSiblingProducts, getSimilarProducts } from '@/lib/product-detail';
+import { getProductDetailContent } from '@/data/product-detail-content';
+import { CUSTOMERS_ALSO_VIEWED_IDS } from '@/data/product-detail-placeholders';
 import { getProductReviewSummary, getProductReviews } from '@/lib/reviews/repository';
 
 export const dynamic = 'force-dynamic';
 
 interface ProductPageProps {
   params: Promise<{ slug: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export async function generateStaticParams() {
@@ -161,8 +166,11 @@ export async function generateMetadata({
   };
 }
 
-export default async function ProductPage({ params }: ProductPageProps) {
+export default async function ProductPage({ params, searchParams }: ProductPageProps) {
   const { slug } = await params;
+  // Bật giao diện mới bằng cờ cấu hình, hoặc xem trước bằng ?giao-dien=moi (không ảnh hưởng khách đang xem bản cũ)
+  const pageQuery = (await searchParams) || {};
+  const useNewLayout = PRODUCT_DETAIL_CONFIG.ENABLE_NEW_LAYOUT || pageQuery['giao-dien'] === 'moi';
   const product = await getLiveProduct(slug);
 
   if (!product || product.isActive === false) {
@@ -187,6 +195,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // Giao diện mới: sản phẩm cùng danh mục (chọn hương vị) và sản phẩm tương tự (carousel gợi ý)
   const siblingProducts = getSiblingProducts(product, products);
   const similarProducts = getSimilarProducts(product, products, 12);
+  // PLACEHOLDER: "Khách hàng cũng xem" — danh sách mẫu từ fixture, chờ dữ liệu hành vi thật
+  const alsoViewedProducts = CUSTOMERS_ALSO_VIEWED_IDS
+    .map((id) => products.find((p) => p.id === id && p.isActive))
+    .filter((p): p is Product => Boolean(p) && p!.id !== product.id);
 
   const reviewSummary = await getProductReviewSummary(product.slug || product.id);
   let latestReviews: any[] = [];
@@ -249,7 +261,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      {PRODUCT_DETAIL_CONFIG.ENABLE_NEW_LAYOUT ? (
+      {useNewLayout ? (
       /* ═══ GIAO DIỆN MỚI (bố cục Amazon) — bật bằng PRODUCT_DETAIL_CONFIG.ENABLE_NEW_LAYOUT ═══ */
       <div className="w-full">
         {/* Breadcrumb theo danh mục thực tế */}
@@ -277,13 +289,18 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <ProductBundleSuggestions currentProduct={product} />
         </div>
 
-        {/* ── SẢN PHẨM TƯƠNG TỰ ── */}
+        {/* ── CÁC SẢN PHẨM BẠN CÓ THỂ THÍCH (sản phẩm liên quan) ── */}
         <div className="border-t border-gray-200 bg-white">
           <ProductCarousel
-            title="Sản phẩm tương tự"
+            title="Các sản phẩm bạn có thể thích"
             subtitle={category ? `Cùng danh mục ${category.name} và các dòng thức uống khác của Thái Sơn Foods` : undefined}
             products={similarProducts}
           />
+        </div>
+
+        {/* ── SO SÁNH VỚI SẢN PHẨM TƯƠNG TỰ (dữ liệu thật) ── */}
+        <div className="border-t border-gray-200 bg-white">
+          <ProductCompareTable current={product} others={similarProducts.slice(0, 3)} />
         </div>
 
         {/* ── COMBO ── */}
@@ -293,7 +310,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </div>
         </div>
 
-        {/* ── THÔNG TIN CHI TIẾT SẢN PHẨM (TAB) ── */}
+        {/* ── THÔNG TIN SẢN PHẨM (TAB) ── */}
         <div className="border-t border-gray-200 bg-white scroll-mt-[168px]" id="thong-tin-san-pham">
           <ProductDetailTabs product={product} categoryName={category?.name} />
         </div>
@@ -305,9 +322,38 @@ export default async function ProductPage({ params }: ProductPageProps) {
           productThumbnail={product.thumbnail}
         />
 
-        {/* ĐÁNH GIÁ TỪ KHÁCH HÀNG */}
+        {/* ── BANNER SHOWCASE THƯƠNG HIỆU ── */}
+        <div className="border-t border-gray-200 bg-white">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <ProductSponsoredBanner product={product} hideUnverifiedStats />
+          </div>
+        </div>
+
+        {/* ── MÔ TẢ & CÂU CHUYỆN CHẤT LƯỢNG ── */}
+        <ProductDescription
+          productName={product.name}
+          description={product.description || product.shortDescription}
+          hideEstimatedNutrition={Boolean(getProductDetailContent(product).nutrition)}
+        />
+
+        {/* ── HỎI & ĐÁP (PLACEHOLDER) ── */}
+        <div className="border-t border-gray-200 bg-white">
+          <ProductQAPlaceholder />
+        </div>
+
+        {/* ĐÁNH GIÁ TỪ KHÁCH HÀNG (ảnh khách hàng = placeholder; đánh giá = dữ liệu thật) */}
         <div className="border-t border-gray-200 bg-white" id="danh-gia-khach-hang">
+          <ReviewImagesPlaceholder />
           <ProductReviewsSection productId={product.slug || product.id} productName={product.name} />
+        </div>
+
+        {/* ── KHÁCH HÀNG CŨNG XEM (PLACEHOLDER) ── */}
+        <div className="border-t border-gray-200 bg-white">
+          <ProductCarousel
+            title="Khách hàng đã xem sản phẩm này cũng xem"
+            products={alsoViewedProducts}
+            action={<PlaceholderBadge />}
+          />
         </div>
 
         {/* ── SẢN PHẨM ĐÃ XEM GẦN ĐÂY (lưu cục bộ trên trình duyệt) ── */}

@@ -6,5 +6,5 @@
 export const PRODUCT_DETAIL_CONFIG = {
   // Giao diện chi tiết sản phẩm mới theo bố cục Amazon (Gallery | Thông tin | Buy Box).
   // false = hiển thị giao diện cũ (đang dùng). Đổi thành true để bật giao diện mới.
-  ENABLE_NEW_LAYOUT: false,
+  ENABLE_NEW_LAYOUT: true,
 } as const;

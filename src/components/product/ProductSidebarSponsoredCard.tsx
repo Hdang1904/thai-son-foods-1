@@ -10,6 +10,8 @@ import { Product } from '@/types';
 interface ProductSidebarSponsoredCardProps {
   currentProductId?: string;
   className?: string;
+  /** Ẩn số liệu chưa xác thực (sao/lượt đánh giá mẫu, prime, -15%, giá gốc ước tính). Mặc định giữ hành vi cũ. */
+  hideUnverifiedStats?: boolean;
 }
 
 /**
@@ -33,6 +35,7 @@ function getCleanProductName(product: Product): string {
 export default function ProductSidebarSponsoredCard({
   currentProductId,
   className = '',
+  hideUnverifiedStats = false,
 }: ProductSidebarSponsoredCardProps) {
   // Chọn sản phẩm Best Seller hoặc Đang Sale khác với sản phẩm hiện tại
   const candidateProducts = products.filter((p) => p.id !== currentProductId && p.isActive);
@@ -52,7 +55,7 @@ export default function ProductSidebarSponsoredCard({
   const price = defaultPackVariant ? defaultPackVariant.price : recommendedProduct.price * 7;
   const originalPrice = recommendedProduct.originalPrice
     ? (defaultPackVariant ? Math.round(recommendedProduct.originalPrice * (defaultPackVariant.quantity || 7)) : Math.round(recommendedProduct.originalPrice * 7))
-    : Math.round(price * 1.35);
+    : hideUnverifiedStats ? 0 : Math.round(price * 1.35);
 
   const cleanName = getCleanProductName(recommendedProduct);
   const packUnit = defaultPackVariant ? `Lốc ${defaultPackVariant.name} 330ml` : 'Lốc 7 chai 330ml';
@@ -142,6 +145,7 @@ export default function ProductSidebarSponsoredCard({
               </h4>
 
               {/* Hàng Đánh Giá Sao Chuẩn Amazon */}
+              {!hideUnverifiedStats && (
               <div className="flex items-center gap-1 text-xs mt-1.5 flex-wrap">
                 <span className="font-bold text-gray-900 text-xs">4.8</span>
                 <div className="flex items-center text-[#FFA41C]">
@@ -153,6 +157,7 @@ export default function ProductSidebarSponsoredCard({
                   548
                 </span>
               </div>
+              )}
 
               {/* Hàng Giá & Huy hiệu Prime */}
               <div className="flex items-baseline gap-2 flex-wrap mt-1.5">
@@ -165,13 +170,16 @@ export default function ProductSidebarSponsoredCard({
                   </span>
                 )}
                 {/* Huy hiệu Prime chuẩn Amazon */}
+                {!hideUnverifiedStats && (
                 <span className="inline-flex items-center text-[#007185] font-black text-xs italic tracking-tighter ml-auto">
                   <span className="text-[#007185] mr-0.5 font-bold not-italic">✓</span>
                   <span className="text-[#007185] font-black not-italic text-[11px] font-sans">prime</span>
                 </span>
+                )}
               </div>
 
               {/* Huy hiệu Ưu đãi / Subscribe & Save chuẩn Ahorra con Planea y ahorra */}
+              {!hideUnverifiedStats && (
               <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                 <span className="bg-[#CC0C39] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-xs tracking-tight uppercase">
                   Tiết kiệm 15%
@@ -180,6 +188,7 @@ export default function ProductSidebarSponsoredCard({
                   khi Đăng ký định kỳ
                 </span>
               </div>
+              )}
             </div>
           </Link>
         </div>

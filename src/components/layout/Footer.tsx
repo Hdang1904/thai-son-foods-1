@@ -45,6 +45,7 @@ export default function Footer() {
                   src="/images/logo-vien-trang.png"
                   alt="Thái Sơn Foods - Món ngon quê Việt"
                   fill
+                  sizes="160px"
                   className="object-contain"
                 />
               </div>

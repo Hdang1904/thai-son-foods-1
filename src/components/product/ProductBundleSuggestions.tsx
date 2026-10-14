@@ -9,7 +9,7 @@ import { products } from '@/data/products';
 import { cn, formatPrice } from '@/lib/utils';
 import { useCartStore } from '@/store/cart';
 import { useLanguage } from '@/context/LanguageContext';
-import { getShortProductName, getSimilarProducts, getVariantLabel, sortVariants } from '@/lib/product-detail';
+import { getShortProductName, getSimilarProducts, getVariantLabel, sortVariants, getProductImage } from '@/lib/product-detail';
 
 interface ProductBundleSuggestionsProps {
   currentProduct: Product;
@@ -120,7 +120,7 @@ export default function ProductBundleSuggestions({
                     className="relative w-24 sm:w-full aspect-[4/3] shrink-0 rounded-lg border border-gray-200 bg-white overflow-hidden"
                   >
                     <Image
-                      src={item.product.thumbnail || '/images/products/1200x900-sb1.jpg'}
+                      src={getProductImage(item.product)}
                       alt={name}
                       fill
                       sizes="(max-width: 640px) 96px, 170px"

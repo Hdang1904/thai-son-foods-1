@@ -87,6 +87,7 @@ export default function LogoPreloader() {
                     src="/images/logo-outline.png"
                     alt="Thái Sơn Foods outline"
                     fill
+                    sizes="320px"
                     className="object-contain"
                     priority
                   />
@@ -121,6 +122,7 @@ export default function LogoPreloader() {
                   src="/images/logo-clean-1000.png"
                   alt="Thái Sơn Foods - Món ngon quê Việt"
                   fill
+                  sizes="320px"
                   className="object-contain drop-shadow-sm"
                   priority
                 />

@@ -7,6 +7,12 @@ import { cn, formatPrice } from '@/lib/utils';
 import { calculateShippingFee, INVENTORY_CONFIG } from '@/config/inventory';
 import { getUnitPrice, getVariantLabel } from '@/lib/product-detail';
 import QuantitySelector from '@/components/product/QuantitySelector';
+import { STORE_SALES_INFO } from '@/data/product-detail-content';
+import {
+  DeliveryAddressPlaceholder,
+  ReturnPolicyPlaceholder,
+  WishlistPlaceholderButton,
+} from '@/components/product/ProductPlaceholderBlocks';
 
 export interface BuyBoxStock {
   isOutOfStock: boolean;
@@ -37,6 +43,8 @@ interface ProductBuyBoxProps {
   expiryText?: string;
   certification?: string;
   language?: string;
+  /** Hiển thị các khối mẫu theo bố cục Amazon (địa chỉ giao, đổi trả, yêu thích) */
+  showPlaceholders?: boolean;
 }
 
 /**
@@ -62,6 +70,7 @@ const ProductBuyBox = forwardRef<HTMLDivElement, ProductBuyBoxProps>(function Pr
     expiryText,
     certification,
     language = 'vi',
+    showPlaceholders = true,
   },
   actionsRef
 ) {
@@ -95,6 +104,7 @@ const ProductBuyBox = forwardRef<HTMLDivElement, ProductBuyBoxProps>(function Pr
 
       {/* Giao hàng */}
       <div className="space-y-2 text-[13px] text-[#0F1111] border-t border-gray-100 pt-3">
+        {showPlaceholders && <DeliveryAddressPlaceholder />}
         <div className="flex items-start gap-2">
           <Truck className="w-4 h-4 text-green-primary shrink-0 mt-0.5" aria-hidden />
           <div className="leading-snug">
@@ -119,21 +129,6 @@ const ProductBuyBox = forwardRef<HTMLDivElement, ProductBuyBoxProps>(function Pr
             </span>
           </div>
         </div>
-
-        <div className="flex items-start gap-2">
-          <MapPin className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" aria-hidden />
-          <div className="leading-snug min-w-0">
-            <span className="text-gray-600">{isEn ? 'Ships from: ' : 'Giao từ: '}</span>
-            <strong className="font-semibold">{branchName || (isEn ? 'No branch selected' : 'Chưa chọn chi nhánh')}</strong>{' '}
-            <button
-              type="button"
-              onClick={onChangeBranch}
-              className="text-[#007185] hover:text-[#C7511F] hover:underline font-medium cursor-pointer"
-            >
-              {isEn ? 'Change' : 'Đổi'}
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Tồn kho */}
@@ -141,6 +136,11 @@ const ProductBuyBox = forwardRef<HTMLDivElement, ProductBuyBoxProps>(function Pr
         {stock.isOutOfStock ? (
           <div className="space-y-1">
             <p className="text-red-600">{isEn ? 'Out of stock at this branch' : 'Tạm hết hàng tại chi nhánh này'}</p>
+            <p className="text-xs font-normal text-gray-600">
+              {isEn
+                ? 'We are working to restock soon. Farther branches may have higher delivery fees.'
+                : 'Chúng tôi đang nỗ lực để sớm có hàng trở lại. Bạn có thể tham khảo các kho xa hơn nhưng có thể tốn chi phí giao hàng cao hơn.'}
+            </p>
             {stock.alternativeStoreName && (
               <p className="text-xs font-normal text-gray-600">
                 {isEn ? 'Available at: ' : 'Còn hàng tại: '}
@@ -234,6 +234,26 @@ const ProductBuyBox = forwardRef<HTMLDivElement, ProductBuyBoxProps>(function Pr
         </div>
       )}
 
+      {/* Giao từ / Bán bởi / Thanh toán */}
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs border-t border-gray-100 pt-3">
+        <dt className="text-gray-500">{isEn ? 'Ships from' : 'Giao từ'}</dt>
+        <dd className="min-w-0 text-[#0F1111]">
+          <span className="font-medium">{branchName || (isEn ? 'No branch selected' : 'Chưa chọn chi nhánh')}</span>{' '}
+          <button
+            type="button"
+            onClick={onChangeBranch}
+            className="text-[#007185] hover:text-[#C7511F] hover:underline font-medium cursor-pointer inline-flex items-center gap-0.5"
+          >
+            <MapPin className="w-3 h-3" aria-hidden />
+            {isEn ? 'Change' : 'Đổi'}
+          </button>
+        </dd>
+        <dt className="text-gray-500">{isEn ? 'Sold by' : 'Bán bởi'}</dt>
+        <dd className="text-[#0F1111] font-medium">{STORE_SALES_INFO.seller}</dd>
+        <dt className="text-gray-500">{isEn ? 'Payment' : 'Thanh toán'}</dt>
+        <dd className="text-[#0F1111]">{isEn ? STORE_SALES_INFO.paymentEn : STORE_SALES_INFO.paymentVi}</dd>
+      </dl>
+
       {/* Cam kết / bảo quản — chỉ thông tin đã có trong dữ liệu sản phẩm */}
       <ul className="border-t border-gray-100 pt-3 space-y-2 text-xs text-gray-700">
         {certification && (
@@ -254,7 +274,18 @@ const ProductBuyBox = forwardRef<HTMLDivElement, ProductBuyBoxProps>(function Pr
             <span>{expiryText}</span>
           </li>
         )}
+        {showPlaceholders && (
+          <li>
+            <ReturnPolicyPlaceholder />
+          </li>
+        )}
       </ul>
+
+      {showPlaceholders && (
+        <div className="border-t border-gray-100 pt-3">
+          <WishlistPlaceholderButton />
+        </div>
+      )}
     </div>
   );
 });

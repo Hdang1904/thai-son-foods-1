@@ -162,6 +162,7 @@ export default function AuthModal() {
               src="/images/logo-vien-trang.png"
               alt="Thái Sơn Foods"
               fill
+              sizes="144px"
               className="object-contain"
             />
           </div>

@@ -80,6 +80,16 @@ export const DEFAULT_PRODUCT_DETAIL: Required<
   packagingMaterial: 'Chai nhựa nguyên sinh an toàn thực phẩm, có thể tái chế',
 };
 
+/**
+ * Thông tin người bán hiển thị trong Buy Box.
+ * Phương thức thanh toán lấy theo trang /thanh-toan hiện tại (paymentMethod = 'cod').
+ */
+export const STORE_SALES_INFO = {
+  seller: 'Thái Sơn Foods',
+  paymentVi: 'Tiền mặt khi nhận hàng (COD)',
+  paymentEn: 'Cash on Delivery (COD)',
+};
+
 const PRODUCT_DETAIL_CONTENT: Record<string, ProductDetailContent> = {
   'sua-bap-nep': {
     shortName: 'Sữa Bắp Nếp Thái Sơn',

@@ -10,6 +10,8 @@ import { Product } from '@/types';
 interface ProductSponsoredMiniCardProps {
   currentProductId?: string;
   className?: string;
+  /** Ẩn số liệu chưa xác thực (sao/lượt đánh giá mẫu, prime). Mặc định giữ hành vi cũ. */
+  hideUnverifiedStats?: boolean;
 }
 
 function getProductSubtitle(product: Product): string {
@@ -39,6 +41,7 @@ function getProductSubtitle(product: Product): string {
 export default function ProductSponsoredMiniCard({
   currentProductId,
   className = '',
+  hideUnverifiedStats = false,
 }: ProductSponsoredMiniCardProps) {
   // Chọn sản phẩm gợi ý khác với sản phẩm hiện tại
   const candidates = products.filter(
@@ -100,6 +103,8 @@ export default function ProductSponsoredMiniCard({
 
           {/* Đánh giá sao, số lượng review & Giá tiền */}
           <div className="flex items-center gap-1.5 text-xs mt-1.5 flex-wrap">
+            {!hideUnverifiedStats && (
+              <>
             <div className="flex items-center text-[#FFA41C]">
               {[...Array(5)].map((_, i) => (
                 <Star
@@ -112,6 +117,8 @@ export default function ProductSponsoredMiniCard({
               77
             </span>
             <span className="text-gray-300 text-xs">|</span>
+              </>
+            )}
             <span className="text-xs sm:text-[13px] font-bold text-gray-900">
               {price.toLocaleString('vi-VN')}₫
             </span>
@@ -119,12 +126,14 @@ export default function ProductSponsoredMiniCard({
               ({unitPrice.toLocaleString('vi-VN')} đ/chai)
             </span>
             {/* Huy hiệu Prime chuẩn Amazon */}
+            {!hideUnverifiedStats && (
             <span className="inline-flex items-center text-[#007185] font-black text-xs italic tracking-tighter ml-auto sm:ml-1">
               <span className="text-[#007185] mr-0.5 font-bold not-italic">✓</span>
               <span className="text-[#007185] font-black not-italic text-[11px] font-sans">
                 prime
               </span>
             </span>
+            )}
           </div>
 
           {/* Hàng điều hướng: Shop now > bên trái & Được tài trợ bên phải */}
