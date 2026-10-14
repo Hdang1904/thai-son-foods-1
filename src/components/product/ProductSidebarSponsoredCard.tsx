@@ -60,102 +60,135 @@ export default function ProductSidebarSponsoredCard({
   const thumbnail = recommendedProduct.thumbnail || '/images/products/1200x900-sb1.jpg';
 
   return (
-    <div className={`w-full ${className}`}>
-      {/* ── Box quảng cáo gợi ý chuẩn Amazon Sponsored Product Card ── */}
+    <div className={`w-full space-y-3 sm:space-y-3.5 ${className}`}>
+      {/* ── Box Prime Hội Viên (Ảnh 1): Hiển thị ở trên mục gợi ý sản phẩm tài trợ ("trên mục này") ── */}
       <div className="relative bg-white rounded-lg border border-gray-200/90 p-3.5 sm:p-4 shadow-[0_1px_4px_rgba(0,0,0,0.03)] hover:shadow-[0_3px_12px_rgba(0,0,0,0.07)] transition-all duration-300">
-        <Link href={productLink} className="block group">
-          {/* HÀNG TRÊN: Logo thương hiệu bên trái + Mini banner/ảnh sản phẩm bên phải */}
-          <div className="flex items-center justify-between gap-3 pb-3 border-b border-gray-100">
-            {/* Logo Thương Hiệu */}
-            <div className="relative w-24 h-9 sm:w-28 sm:h-10 shrink-0">
-              <Image
-                src="/images/logo-clean-1000.png"
-                alt="Thái Sơn Foods"
-                fill
-                sizes="120px"
-                className="object-contain object-left group-hover:scale-105 transition-transform duration-300"
-              />
-            </div>
-
-            {/* Mini Product / Lifestyle Banner bên phải: tỉ lệ 4:3 khớp ảnh chuẩn 1200x900 */}
-            <div className="relative w-24 sm:w-28 aspect-[4/3] rounded-md overflow-hidden bg-white border border-gray-100 shrink-0">
-              <Image
-                src={thumbnail}
-                alt={cleanName}
-                fill
-                sizes="120px"
-                className="object-contain p-0.5 group-hover:scale-105 transition-transform duration-300"
-              />
-            </div>
-          </div>
-
-          {/* PHẦN GIỮA: Thông tin sản phẩm chính thức & Thông tin đánh giá */}
-          <div className="pt-2">
-            {/* Tag định danh Bán chạy nhất */}
-            <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold px-1.5 py-0.5 rounded tracking-tight uppercase">
-                Bán chạy nhất
-              </span>
-              <span className="text-[11px] text-gray-500 font-medium">
-                100% Tự nhiên
-              </span>
-            </div>
-
-            {/* Tên sản phẩm chuẩn xác, gọn gàng */}
-            <h4
-              className="text-xs sm:text-[13px] font-bold text-gray-900 group-hover:text-[#1B5E3B] transition-colors leading-snug line-clamp-2"
-              title={`${cleanName} (${packUnit})`}
-            >
-              {cleanName} ({packUnit})
-            </h4>
-
-            {/* Hàng Đánh Giá Sao Chuẩn Amazon */}
-            <div className="flex items-center gap-1 text-xs mt-1.5 flex-wrap">
-              <span className="font-bold text-gray-900 text-xs">4.8</span>
-              <div className="flex items-center text-[#FFA41C]">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-3 h-3 fill-[#FFA41C] stroke-[#FFA41C]" />
-                ))}
-              </div>
-              <span className="text-[11px] text-[#007185] font-medium ml-0.5">
-                548
-              </span>
-            </div>
-
-            {/* Hàng Giá & Huy hiệu Prime */}
-            <div className="flex items-baseline gap-2 flex-wrap mt-1.5">
-              <span className="text-sm sm:text-base font-bold text-gray-900 leading-none">
-                {price.toLocaleString('vi-VN')}₫
-              </span>
-              {originalPrice > price && (
-                <span className="text-xs text-gray-400 line-through">
-                  {originalPrice.toLocaleString('vi-VN')}₫
-                </span>
-              )}
-              {/* Huy hiệu Prime chuẩn Amazon */}
-              <span className="inline-flex items-center text-[#007185] font-black text-xs italic tracking-tighter ml-auto">
-                <span className="text-[#007185] mr-0.5 font-bold not-italic">✓</span>
-                <span className="text-[#007185] font-black not-italic text-[11px] font-sans">prime</span>
-              </span>
-            </div>
-
-            {/* Huy hiệu Ưu đãi / Subscribe & Save chuẩn Ahorra con Planea y ahorra */}
-            <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-              <span className="bg-[#CC0C39] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-xs tracking-tight uppercase">
-                Tiết kiệm 15%
-              </span>
-              <span className="text-[11px] text-gray-700 font-medium">
-                khi Đăng ký định kỳ
-              </span>
-            </div>
+        {/* Logo Thương Hiệu Thái Sơn (thay thế cho logo Prime) */}
+        <Link href="/member" className="inline-block group mb-2.5">
+          <div className="relative w-28 h-8 sm:w-32 sm:h-9">
+            <Image
+              src="/images/logo-clean-1000.png"
+              alt="Thái Sơn Foods"
+              fill
+              sizes="130px"
+              className="object-contain object-left group-hover:scale-105 transition-transform duration-300"
+            />
           </div>
         </Link>
+
+        {/* Nội dung giới thiệu dịch vụ hội viên */}
+        <p className="text-xs sm:text-[13px] text-gray-900 leading-relaxed font-normal">
+          Tận hưởng dịch vụ giao hàng nhanh chóng, miễn phí, ưu đãi độc quyền và các đặc quyền dinh dưỡng dành riêng cho hội viên.
+        </p>
+
+        {/* Liên kết hành động dẫn sang trang Member Prime */}
+        <div className="mt-3">
+          <Link
+            href="/member"
+            className="text-xs sm:text-[13px] text-[#007185] hover:text-[#C7511F] hover:underline font-medium inline-block transition-colors"
+          >
+            Tham gia
+          </Link>
+        </div>
       </div>
 
-      {/* Dòng ghi chú Patrocinado / Được tài trợ góc dưới bên phải */}
-      <div className="flex items-center justify-end gap-1 mt-1 pr-1 text-[11px] text-gray-400 select-none">
-        <span>Được tài trợ</span>
-        <Info className="w-3 h-3 text-gray-400" />
+      {/* ── Box quảng cáo gợi ý chuẩn Amazon Sponsored Product Card ── */}
+      <div>
+        <div className="relative bg-white rounded-lg border border-gray-200/90 p-3.5 sm:p-4 shadow-[0_1px_4px_rgba(0,0,0,0.03)] hover:shadow-[0_3px_12px_rgba(0,0,0,0.07)] transition-all duration-300">
+          <Link href={productLink} className="block group">
+            {/* HÀNG TRÊN: Logo thương hiệu bên trái + Mini banner/ảnh sản phẩm bên phải */}
+            <div className="flex items-center justify-between gap-3 pb-3 border-b border-gray-100">
+              {/* Logo Thương Hiệu */}
+              <div className="relative w-24 h-9 sm:w-28 sm:h-10 shrink-0">
+                <Image
+                  src="/images/logo-clean-1000.png"
+                  alt="Thái Sơn Foods"
+                  fill
+                  sizes="120px"
+                  className="object-contain object-left group-hover:scale-105 transition-transform duration-300"
+                />
+              </div>
+
+              {/* Mini Product / Lifestyle Banner bên phải: tỉ lệ 4:3 khớp ảnh chuẩn 1200x900 */}
+              <div className="relative w-24 sm:w-28 aspect-[4/3] rounded-md overflow-hidden bg-white border border-gray-100 shrink-0">
+                <Image
+                  src={thumbnail}
+                  alt={cleanName}
+                  fill
+                  sizes="120px"
+                  className="object-contain p-0.5 group-hover:scale-105 transition-transform duration-300"
+                />
+              </div>
+            </div>
+
+            {/* PHẦN GIỮA: Thông tin sản phẩm chính thức & Thông tin đánh giá */}
+            <div className="pt-2">
+              {/* Tag định danh Bán chạy nhất */}
+              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold px-1.5 py-0.5 rounded tracking-tight uppercase">
+                  Bán chạy nhất
+                </span>
+                <span className="text-[11px] text-gray-500 font-medium">
+                  100% Tự nhiên
+                </span>
+              </div>
+
+              {/* Tên sản phẩm chuẩn xác, gọn gàng */}
+              <h4
+                className="text-xs sm:text-[13px] font-bold text-gray-900 group-hover:text-[#1B5E3B] transition-colors leading-snug line-clamp-2"
+                title={`${cleanName} (${packUnit})`}
+              >
+                {cleanName} ({packUnit})
+              </h4>
+
+              {/* Hàng Đánh Giá Sao Chuẩn Amazon */}
+              <div className="flex items-center gap-1 text-xs mt-1.5 flex-wrap">
+                <span className="font-bold text-gray-900 text-xs">4.8</span>
+                <div className="flex items-center text-[#FFA41C]">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-3 h-3 fill-[#FFA41C] stroke-[#FFA41C]" />
+                  ))}
+                </div>
+                <span className="text-[11px] text-[#007185] font-medium ml-0.5">
+                  548
+                </span>
+              </div>
+
+              {/* Hàng Giá & Huy hiệu Prime */}
+              <div className="flex items-baseline gap-2 flex-wrap mt-1.5">
+                <span className="text-sm sm:text-base font-bold text-gray-900 leading-none">
+                  {price.toLocaleString('vi-VN')}₫
+                </span>
+                {originalPrice > price && (
+                  <span className="text-xs text-gray-400 line-through">
+                    {originalPrice.toLocaleString('vi-VN')}₫
+                  </span>
+                )}
+                {/* Huy hiệu Prime chuẩn Amazon */}
+                <span className="inline-flex items-center text-[#007185] font-black text-xs italic tracking-tighter ml-auto">
+                  <span className="text-[#007185] mr-0.5 font-bold not-italic">✓</span>
+                  <span className="text-[#007185] font-black not-italic text-[11px] font-sans">prime</span>
+                </span>
+              </div>
+
+              {/* Huy hiệu Ưu đãi / Subscribe & Save chuẩn Ahorra con Planea y ahorra */}
+              <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                <span className="bg-[#CC0C39] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-xs tracking-tight uppercase">
+                  Tiết kiệm 15%
+                </span>
+                <span className="text-[11px] text-gray-700 font-medium">
+                  khi Đăng ký định kỳ
+                </span>
+              </div>
+            </div>
+          </Link>
+        </div>
+
+        {/* Dòng ghi chú Patrocinado / Được tài trợ góc dưới bên phải */}
+        <div className="flex items-center justify-end gap-1 mt-1 pr-1 text-[11px] text-gray-400 select-none">
+          <span>Được tài trợ</span>
+          <Info className="w-3 h-3 text-gray-400" />
+        </div>
       </div>
     </div>
   );

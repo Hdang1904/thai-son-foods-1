@@ -15,6 +15,8 @@ interface ProductGalleryProps {
   imageFit?: 'cover' | 'contain';
   currentProductId?: string;
   categoryProducts?: Product[];
+  /** Giao diện chi tiết mới: hiện đủ thumbnail (mặc định giữ hành vi cũ: tối đa 4) */
+  showAllThumbnails?: boolean;
 }
 
 export default function ProductGallery({
@@ -23,6 +25,7 @@ export default function ProductGallery({
   imageFit,
   currentProductId,
   categoryProducts,
+  showAllThumbnails = false,
 }: ProductGalleryProps) {
   const { language } = useLanguage();
   const [activeIndex, setActiveIndex] = useState(0);
@@ -195,7 +198,7 @@ export default function ProductGallery({
         {/* Thumbnails bên trái: Cột dọc 4 ảnh tỉ lệ 4:3 khớp chuẩn ảnh 1200x900, bo góc rounded-lg */}
         {displayImages.length > 1 && (
           <div className="hidden sm:flex flex-col gap-2 w-16 shrink-0 py-0.5">
-            {displayImages.slice(0, 4).map((image, index) => (
+            {(showAllThumbnails ? displayImages : displayImages.slice(0, 4)).map((image, index) => (
               <button
                 key={image.id || index}
                 onClick={() => setActiveIndex(index)}
@@ -321,7 +324,7 @@ export default function ProductGallery({
           {/* Mobile Thumbnails Row — only visible on small screens */}
           {displayImages.length > 1 && (
             <div className="sm:hidden w-full flex items-center gap-2 overflow-x-auto py-2.5 px-0.5">
-              {displayImages.slice(0, 4).map((image, index) => (
+              {(showAllThumbnails ? displayImages : displayImages.slice(0, 4)).map((image, index) => (
                 <button
                   key={image.id || index}
                   onClick={() => setActiveIndex(index)}

@@ -1,6 +1,4 @@
 import { Metadata } from 'next';
-import Image from 'next/image';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { products, getProductBySlug, categories, getProductsByCategory } from '@/data/products';
 import { query } from '@/lib/db';
@@ -13,11 +11,20 @@ import ProductCombosSidebar from '@/components/product/ProductCombosSidebar';
 import ProductSection from '@/components/home/ProductSection';
 import SubscribeSaveSection from '@/components/home/SubscribeSaveSection';
 import { MEMBERSHIP_CONFIG } from '@/config/membership';
+import { PRODUCT_DETAIL_CONFIG } from '@/config/product-detail';
 import ProductReviewsSection from '@/components/product/ProductReviewsSection';
 import ProductSponsoredBanner from '@/components/product/ProductSponsoredBanner';
 import ProductSidebarSponsoredCard from '@/components/product/ProductSidebarSponsoredCard';
+import FrequentlyBoughtTogether from '@/components/product/FrequentlyBoughtTogether';
+import ProductSponsoredMiniCard from '@/components/product/ProductSponsoredMiniCard';
+// Giao diện mới (bật bằng PRODUCT_DETAIL_CONFIG.ENABLE_NEW_LAYOUT)
+import ProductMainSection, { AmazonProductBreadcrumb } from '@/components/product/ProductMainSection';
+import ProductBundleSuggestions from '@/components/product/ProductBundleSuggestions';
+import ProductDetailTabs from '@/components/product/ProductDetailTabs';
+import ProductCarousel from '@/components/product/ProductCarousel';
+import RecentlyViewedProducts from '@/components/product/RecentlyViewedProducts';
+import { getSiblingProducts, getSimilarProducts } from '@/lib/product-detail';
 import { getProductReviewSummary, getProductReviews } from '@/lib/reviews/repository';
-import { ChevronRight } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -177,6 +184,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
     categoryProducts = products.filter((p) => p.isActive).slice(0, 5);
   }
 
+  // Giao diện mới: sản phẩm cùng danh mục (chọn hương vị) và sản phẩm tương tự (carousel gợi ý)
+  const siblingProducts = getSiblingProducts(product, products);
+  const similarProducts = getSimilarProducts(product, products, 12);
+
   const reviewSummary = await getProductReviewSummary(product.slug || product.id);
   let latestReviews: any[] = [];
   if (reviewSummary.totalReviews > 0) {
@@ -238,7 +249,82 @@ export default async function ProductPage({ params }: ProductPageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      {/* Main Content Area */}
+      {PRODUCT_DETAIL_CONFIG.ENABLE_NEW_LAYOUT ? (
+      /* ═══ GIAO DIỆN MỚI (bố cục Amazon) — bật bằng PRODUCT_DETAIL_CONFIG.ENABLE_NEW_LAYOUT ═══ */
+      <div className="w-full">
+        {/* Breadcrumb theo danh mục thực tế */}
+        <AmazonProductBreadcrumb product={product} category={category} />
+
+        {/* ── KHU VỰC SẢN PHẨM CHÍNH: Gallery | Thông tin | Buy Box ── */}
+        <div className="max-w-[1456px] mx-auto px-4 sm:px-6 pt-3 pb-8 lg:pb-10">
+          <ProductMainSection
+            product={product}
+            siblingProducts={siblingProducts}
+            gallery={
+              <ProductGallery
+                images={product.images}
+                productName={product.name}
+                imageFit={product.imageFit}
+                currentProductId={product.id}
+                showAllThumbnails
+              />
+            }
+          />
+        </div>
+
+        {/* ── GỢI Ý MUA KÈM ── */}
+        <div className="border-t border-gray-200 bg-white">
+          <ProductBundleSuggestions currentProduct={product} />
+        </div>
+
+        {/* ── SẢN PHẨM TƯƠNG TỰ ── */}
+        <div className="border-t border-gray-200 bg-white">
+          <ProductCarousel
+            title="Sản phẩm tương tự"
+            subtitle={category ? `Cùng danh mục ${category.name} và các dòng thức uống khác của Thái Sơn Foods` : undefined}
+            products={similarProducts}
+          />
+        </div>
+
+        {/* ── COMBO ── */}
+        <div className="border-t border-gray-200 bg-white">
+          <div className="section-container max-sm:px-2.5 py-8 sm:py-10 max-w-7xl mx-auto px-4 sm:px-6">
+            <ProductCombosSidebar layout="horizontal" title="Các combo nổi bật đáng cân nhắc" />
+          </div>
+        </div>
+
+        {/* ── THÔNG TIN CHI TIẾT SẢN PHẨM (TAB) ── */}
+        <div className="border-t border-gray-200 bg-white scroll-mt-[168px]" id="thong-tin-san-pham">
+          <ProductDetailTabs product={product} categoryName={category?.name} />
+        </div>
+
+        {/* ── NỘI DUNG THƯƠNG HIỆU (A+): 2 BANNER ĐẶC TÍNH SẢN PHẨM ── */}
+        <ProductFeatureShowcase
+          product={product}
+          productName={product.name}
+          productThumbnail={product.thumbnail}
+        />
+
+        {/* ĐÁNH GIÁ TỪ KHÁCH HÀNG */}
+        <div className="border-t border-gray-200 bg-white" id="danh-gia-khach-hang">
+          <ProductReviewsSection productId={product.slug || product.id} productName={product.name} />
+        </div>
+
+        {/* ── SẢN PHẨM ĐÃ XEM GẦN ĐÂY (lưu cục bộ trên trình duyệt) ── */}
+        <RecentlyViewedProducts currentSlug={product.slug} />
+
+        {/* 1 DÒNG 8 SẢN PHẨM / 8 COMBO GIAO ĐỊNH KỲ (SUBSCRIBE & SAVE) — Tạm tắt khi chưa chốt với doanh nghiệp */}
+        {MEMBERSHIP_CONFIG.ENABLE_SUBSCRIBE_SAVE && (
+          <div className="border-t border-gray-200 bg-white">
+            <SubscribeSaveSection
+              title="Đăng Ký Giao Định Kỳ — 8 Sản Phẩm & Combo Tiết Kiệm 15%"
+              subtitle="Tự động nhận nước uống tươi ngon mỗi tuần tận nhà. Miễn phí vận chuyển 100%, linh hoạt đổi vị và tạm dừng bất kỳ lúc nào."
+            />
+          </div>
+        )}
+      </div>
+      ) : (
+      /* ═══ GIAO DIỆN CŨ (đang hiển thị mặc định) ═══ */
       <div className="w-full">
         {/* Top Bar / Breadcrumb */}
         <ProductBreadcrumb product={product} category={category} />
@@ -246,20 +332,31 @@ export default async function ProductPage({ params }: ProductPageProps) {
         {/* Main Product Content Area (3-Column Layout: Gallery Left + Buy Box Center + Sponsored Ad Right) */}
         <div className="max-w-[1456px] mx-auto px-4 sm:px-6 py-6 lg:py-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-            {/* Cột trái (Gallery): lg:col-span-5 w-full lg:sticky lg:top-[168px] */}
-            <div className="lg:col-span-5 w-full lg:sticky lg:top-[168px]">
-              <ProductGallery
-                images={product.images}
-                productName={product.name}
-                imageFit={product.imageFit}
-                currentProductId={product.id}
-                categoryProducts={categoryProducts}
-              />
-            </div>
+            {/* Khối Trái + Giữa: Gallery + Thông tin sản phẩm + Thường được mua cùng nhau */}
+            <div className="lg:col-span-9 space-y-6 lg:space-y-8">
+              <div className="grid grid-cols-1 lg:grid-cols-9 gap-6 lg:gap-8 items-start">
+                {/* Cột trái (Gallery): lg:col-span-5 w-full lg:sticky lg:top-[168px] space-y-4 */}
+                <div className="lg:col-span-5 w-full lg:sticky lg:top-[168px] space-y-4">
+                  <ProductGallery
+                    images={product.images}
+                    productName={product.name}
+                    imageFit={product.imageFit}
+                    currentProductId={product.id}
+                    categoryProducts={categoryProducts}
+                  />
 
-            {/* Cột giữa (Buy Box & Info): lg:col-span-4 xl:col-span-4 space-y-4 */}
-            <div className="lg:col-span-4 xl:col-span-4 space-y-4">
-              <ProductInfo product={product} />
+                  {/* ── Banner Được tài trợ (Chuẩn Amazon hiển thị dưới chân Gallery) ── */}
+                  <ProductSponsoredMiniCard currentProductId={product.id} />
+                </div>
+
+                {/* Cột giữa (Buy Box & Info): lg:col-span-4 xl:col-span-4 space-y-4 */}
+                <div className="lg:col-span-4 xl:col-span-4 space-y-4">
+                  <ProductInfo product={product} />
+                </div>
+              </div>
+
+              {/* ── Khối Các sản phẩm khách hàng đã mua cùng nhau (Frequently Bought Together chuẩn Amazon) ── */}
+              <FrequentlyBoughtTogether currentProduct={product} />
             </div>
 
             {/* Cột phải (Góc bên phải chỗ khoanh đỏ - Sponsored Best Seller / Đang Sale): lg:col-span-3 xl:col-span-3 */}
@@ -326,6 +423,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
