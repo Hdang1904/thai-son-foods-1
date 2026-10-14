@@ -9,7 +9,7 @@
 
 // true = trang chủ mới theo bố cục Amazon (HomePage + HeaderAmazon + FooterAmazon)
 // false = trang chủ cũ (HomePageLegacy + Header + Footer gốc)
-const DEFAULT_USE_AMAZON_HOMEPAGE = false;
+const DEFAULT_USE_AMAZON_HOMEPAGE = true;
 
 function readFlag(value: string | undefined, fallback: boolean): boolean {
   if (value === 'true' || value === '1') return true;

@@ -42,7 +42,14 @@ git checkout tags/backup/homepage-pre-amazon -- src/app/page.tsx src/components/
 git commit -m "revert: khôi phục trang chủ cũ từ tag backup/homepage-pre-amazon"
 ```
 
-Các file mới thêm (`HomePage.tsx`, `HeaderAmazon.tsx`, `FooterAmazon.tsx`, `src/components/home/amazon/*`, `src/data/homepage-placeholders.ts`, `src/config/homepage.ts`, `HomePageLegacy.tsx`) sẽ không còn được dùng tới. Có thể để nguyên hoặc xóa.
+Các file mới thêm sẽ không còn được dùng tới. Có thể để nguyên hoặc xóa:
+
+- `src/config/homepage.ts`
+- `src/data/homepage-placeholders.ts`
+- `src/components/home/HomePage.tsx`, `HomePageLegacy.tsx`
+- `src/components/home/AmazonHeroCarousel.tsx`, `AmazonCategoryCards.tsx`, `AmazonProductRow.tsx`, `AmazonDealsRow.tsx`, `AmazonRecentlyViewed.tsx`
+- `src/components/layout/HeaderAmazon.tsx`, `FooterAmazon.tsx`
+- `tests/home_missing_data_render_test.tsx`
 
 Bỏ hẳn nhánh redesign:
 
