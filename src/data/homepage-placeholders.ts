@@ -14,19 +14,13 @@ import { Banner } from '@/types';
 // PLACEHOLDER: chờ triển khai — slide hero bổ sung khi bảng `banners` (placement = 'hero') có ít hơn
 // HERO_MIN_SLIDES banner đang bật. Ảnh là ảnh thương hiệu TSF có sẵn trong /public, không chứa giá/khuyến mãi.
 // Triển khai thật: admin thêm banner hero tại /admin → khối này tự ngừng dùng.
-export const HERO_MIN_SLIDES = 3;
+export const HERO_MIN_SLIDES = 2;
 export const HERO_PLACEHOLDER_SLIDES: Banner[] = [
   {
     id: 'placeholder-hero-bottles',
     image: '/images/banners/banner-1920x850-chu-a.jpg',
     alt: 'Thái Sơn Foods - Uống một bữa ăn ngon lành',
     link: '/#san-pham',
-  },
-  {
-    id: 'placeholder-hero-store',
-    image: '/images/banners/banner-tsf-01.jpg',
-    alt: 'Thái Sơn Foods - Quầy sản phẩm tại cửa hàng',
-    link: '/#kho-si',
   },
 ];
 
