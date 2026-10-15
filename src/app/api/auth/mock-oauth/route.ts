@@ -221,7 +221,12 @@ export async function POST(req: NextRequest) {
 
   try {
     await initDatabase();
-    const formData = await req.formData();
+    let formData: FormData;
+    try {
+      formData = await req.formData();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Dữ liệu gửi lên phải là biểu mẫu (form).' }, { status: 400 });
+    }
     const provider = formData.get('provider')?.toString() || 'google';
     const email = (formData.get('email')?.toString() || 'demo@user.com').toLowerCase().trim();
     const fullName = formData.get('fullName')?.toString() || (provider === 'google' ? 'Google User' : 'Facebook User');
