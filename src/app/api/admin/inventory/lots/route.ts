@@ -187,7 +187,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Đã nhập lô hàng ${result.lotCode} thành công!`,
+      message: `Đã nhập lô hàng ${cleanLotCode} thành công!`,
       lot: result,
     });
   } catch (error: any) {
