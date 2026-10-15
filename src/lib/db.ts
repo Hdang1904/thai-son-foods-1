@@ -50,7 +50,7 @@ export async function query(text: string, params?: any[]) {
   return pool.query(text, params);
 }
 
-export async function initDatabase() {
+async function runInitDatabase() {
   const client = await pool.connect();
   try {
     // Create categories table
@@ -675,4 +675,20 @@ export async function initDatabase() {
   } finally {
     client.release();
   }
+}
+
+/**
+ * Khởi tạo / nâng cấp lược đồ CSDL — CHỈ CHẠY MỘT LẦN mỗi tiến trình (các lần gọi sau dùng lại kết quả).
+ * Trước đây hàm này chạy toàn bộ lệnh DDL (CREATE/ALTER TABLE...) ở MỖI request: nhiều request đồng thời giành
+ * khóa lược đồ gây "deadlock detected" (HTTP 500 khi đặt hàng) và làm chậm mọi API. Nếu lần chạy lỗi thì cho phép thử lại.
+ */
+let initDatabasePromise: Promise<void> | null = null;
+export function initDatabase(): Promise<void> {
+  if (!initDatabasePromise) {
+    initDatabasePromise = runInitDatabase().catch((err) => {
+      initDatabasePromise = null;
+      throw err;
+    });
+  }
+  return initDatabasePromise;
 }

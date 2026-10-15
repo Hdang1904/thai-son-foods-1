@@ -23,7 +23,8 @@ async function createToken(payload) {
 }
 
 async function apiRequest(endpoint, method = 'GET', token = null, body = null) {
-  const headers = {};
+  // Middleware CSRF yêu cầu Origin khớp với máy chủ cho mọi yêu cầu ghi (POST/PUT/PATCH/DELETE)
+  const headers = { Origin: BASE_URL };
   if (token) {
     headers['Cookie'] = `${ADMIN_COOKIE_NAME}=${token}`;
   }
@@ -66,14 +67,14 @@ async function runTests() {
     }
 
     // 1.2 Store Staff A (NH)
-    let staffNH = (await client.query("SELECT * FROM admin_users WHERE role = 'STORE_STAFF' AND store_code = 'NH' AND is_active = true LIMIT 1;")).rows[0];
+    let staffNH = (await client.query("SELECT * FROM admin_users WHERE role = 'STORE_STAFF' AND store_code = 'NH' AND is_active = true AND must_change_password = false LIMIT 1;")).rows[0];
     if (!staffNH) {
-      staffNH = (await client.query("SELECT * FROM admin_users WHERE role = 'STORE_STAFF' AND is_active = true LIMIT 1;")).rows[0];
+      staffNH = (await client.query("SELECT * FROM admin_users WHERE role = 'STORE_STAFF' AND is_active = true AND must_change_password = false LIMIT 1;")).rows[0];
     }
     const storeCodeA = staffNH.store_code || 'NH';
 
     // 1.3 Store Staff B (Different Store)
-    let staffOther = (await client.query("SELECT * FROM admin_users WHERE role = 'STORE_STAFF' AND store_code != $1 AND is_active = true LIMIT 1;", [storeCodeA])).rows[0];
+    let staffOther = (await client.query("SELECT * FROM admin_users WHERE role = 'STORE_STAFF' AND store_code != $1 AND is_active = true AND must_change_password = false LIMIT 1;", [storeCodeA])).rows[0];
     const storeCodeB = staffOther?.store_code || 'LHP';
 
     // 1.4 Marketing User (create or update a temporary one)

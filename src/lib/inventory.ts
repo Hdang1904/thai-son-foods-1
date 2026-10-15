@@ -1498,12 +1498,24 @@ export async function cleanupExpiredReservations(externalClient?: PoolClient): P
   cancelledOrdersCount: number;
 }> {
   const runWithClient = async (client: PoolClient) => {
+    // Lấy khóa tư vấn theo chi nhánh (cùng khóa với giao dịch đặt hàng /api/orders) TRƯỚC khi khóa các dòng:
+    // tránh deadlock vì đặt hàng khóa tồn kho trước còn dọn dẹp khóa giữ chỗ trước (thứ tự ngược nhau)
+    const storesWithExpired = await client.query(`
+      SELECT DISTINCT store_code FROM stock_reservations
+      WHERE status = 'active' AND expires_at < CURRENT_TIMESTAMP
+      ORDER BY store_code ASC;
+    `);
+    for (const row of storesWithExpired.rows) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1));', ['tsf-order-store-' + row.store_code]);
+    }
+
     // 1. Tìm các reservation đang active mà đã quá hạn (khóa FOR UPDATE trực tiếp trên từng dòng)
     const expiredRes = await client.query(`
       SELECT id, order_id, store_code, product_id, quantity
       FROM stock_reservations
       WHERE status = 'active'
         AND expires_at < CURRENT_TIMESTAMP
+      ORDER BY store_code ASC, product_id ASC, id ASC
       FOR UPDATE;
     `);
 

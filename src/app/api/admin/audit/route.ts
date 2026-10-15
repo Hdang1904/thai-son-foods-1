@@ -5,6 +5,11 @@ import { hasPermission } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 
+/** Escape ký tự đại diện của LIKE để "%" hay "_" trong ô tìm kiếm không khớp tất cả */
+function escapeLike(input: string): string {
+  return input.replace(/[\\%_]/g, (m) => `\\${m}`);
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getAdminSession();
@@ -21,8 +26,9 @@ export async function GET(req: NextRequest) {
     const storeCode = searchParams.get('storeCode');
     const username = searchParams.get('username');
     const search = searchParams.get('search');
-    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    // parseInt('abc') = NaN → dùng || để rơi về mặc định thay vì làm hỏng truy vấn
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '', 10) || 50));
+    const page = Math.max(1, parseInt(searchParams.get('page') || '', 10) || 1);
     const offset = (page - 1) * limit;
 
     let sql = `
@@ -50,17 +56,17 @@ export async function GET(req: NextRequest) {
     }
 
     if (username) {
-      params.push(`%${username.trim().toLowerCase()}%`);
-      sql += ` AND LOWER(admin_username) LIKE $${params.length}`;
+      params.push(`%${escapeLike(username.trim().toLowerCase())}%`);
+      sql += ` AND LOWER(admin_username) LIKE $${params.length} ESCAPE '\\'`;
     }
 
     if (search) {
-      params.push(`%${search.trim().toLowerCase()}%`);
+      params.push(`%${escapeLike(search.trim().toLowerCase())}%`);
       sql += ` AND (
-        LOWER(admin_username) LIKE $${params.length} 
-        OR LOWER(action) LIKE $${params.length} 
-        OR LOWER(COALESCE(entity_id, '')) LIKE $${params.length}
-        OR LOWER(COALESCE(store_code, '')) LIKE $${params.length}
+        LOWER(admin_username) LIKE $${params.length} ESCAPE '\\'
+        OR LOWER(action) LIKE $${params.length} ESCAPE '\\'
+        OR LOWER(COALESCE(entity_id, '')) LIKE $${params.length} ESCAPE '\\'
+        OR LOWER(COALESCE(store_code, '')) LIKE $${params.length} ESCAPE '\\'
       )`;
     }
 

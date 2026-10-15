@@ -148,6 +148,14 @@ try {
   r = await A('DELETE', `/api/admin/products?id=${usedProdId}`);
   ok('Sản phẩm: đang nằm trong combo → 409, KHÔNG bị xóa', r.status === 409 && r.json?.code === 'PRODUCT_IN_USE' && (await db.query(`SELECT 1 FROM products WHERE id=$1`, [usedProdId])).rowCount === 1);
   await db.query(`DELETE FROM combos WHERE id='combo_test_guard'`);
+  // Combo tham chiếu sản phẩm bằng SLUG (không phải mã bảng) — giống combo cũ lưu mã danh mục tĩnh: vẫn phải chặn xóa.
+  // (Dùng sản phẩm thử + slug thử để không bao giờ động tới sản phẩm thật.)
+  const usedSlug = (await db.query(`SELECT slug FROM products WHERE id=$1`, [usedProdId])).rows[0].slug;
+  await db.query(`INSERT INTO combos (id, slug, name, original_price, sale_price, total_items, discount, image) VALUES ('combo_test_guard2','test-guard2','TEST Combo Guard 2',20000,20000,1,0,'/images/combos/combo-1.jpg')`);
+  await db.query(`INSERT INTO combo_items (id, combo_id, product_id, quantity, unit) VALUES ('combo_test_guard2_i1','combo_test_guard2',$1,1,'chai')`, [usedSlug]);
+  r = await A('DELETE', `/api/admin/products?id=${usedProdId}`);
+  ok('Sản phẩm: combo tham chiếu bằng slug/mã quy đổi vẫn chặn xóa → 409', r.status === 409 && r.json?.code === 'PRODUCT_IN_USE' && (await db.query(`SELECT 1 FROM products WHERE id=$1`, [usedProdId])).rowCount === 1);
+  await db.query(`DELETE FROM combos WHERE id='combo_test_guard2'`);
   // Sản phẩm có đơn chưa hoàn tất → chặn xóa
   await mkOrder('TEST_PO_ORD', { status: 'PENDING' });
   await db.query(`INSERT INTO order_items (id, order_id, product_id, canonical_product_id, name, price, quantity) VALUES ('TEST_PO_ORD_i1','TEST_PO_ORD',$1,$1,'TEST item',12000,1)`, [usedProdId]);
@@ -245,6 +253,34 @@ try {
   ok('Xóa thành viên không tồn tại → 404', r.status === 404);
   r = await A('DELETE', `/api/admin/members?id=${memId}`);
   ok('Xóa thành viên → 200', r.status === 200);
+
+  // ───── 9b. Thống kê, báo cáo, nhật ký ─────
+  r = await A('GET', '/api/admin/audit?limit=abc&page=xyz');
+  ok('Nhật ký: limit/page không phải số → dùng mặc định (200, không lỗi 500)', r.status === 200 && r.json?.pagination?.limit === 50 && r.json?.pagination?.page === 1, `status=${r.status}`);
+  r = await A('GET', '/api/admin/audit?search=%25&limit=5');
+  const allLogs = (await A('GET', '/api/admin/audit?limit=1')).json?.pagination?.total;
+  ok('Nhật ký: tìm "%" không khớp tất cả', r.status === 200 && r.json.pagination.total < allLogs, `${r.json?.pagination?.total} < ${allLogs}`);
+  r = await A('GET', '/api/admin/reports/profit?startDate=khong-phai-ngay');
+  ok('Báo cáo lợi nhuận: ngày sai định dạng → 400 (không lỗi 500)', r.status === 400);
+  r = await A('GET', '/api/admin/reports/profit?status=HACKED');
+  ok('Báo cáo lợi nhuận: trạng thái lạ → 400', r.status === 400);
+  r = await A('GET', '/api/admin/reports/profit?groupBy=month');
+  const sm = r.json?.summary || {};
+  const rowsOk = (r.json?.breakdown || []).every((row) => {
+    const costed = Number(row.revenue) - Number(row.revenue_without_cost || 0);
+    const expected = costed > 0 ? Math.round((Number(row.profit) / costed) * 1000) / 10 : 0;
+    return row.margin === expected;
+  });
+  ok('Báo cáo lợi nhuận: biên lợi nhuận từng dòng tính trên doanh thu CÓ giá vốn', r.status === 200 && (r.json?.breakdown || []).length > 0 && rowsOk);
+  const costedRev = Number(sm.totalRevenue) - Number(sm.revenueWithoutCost);
+  ok('Báo cáo lợi nhuận: giá vốn 0đ (chưa nhập) không bị tính là lãi 100%', Number(sm.grossProfit) === costedRev - Number(sm.totalCost) && (Number(sm.itemsWithCost) > 0 ? true : Number(sm.grossProfit) === 0), `profit=${sm.grossProfit} costedRevenue=${costedRev} cost=${sm.totalCost}`);
+  const stfStats = await S('GET', '/api/admin/stats');
+  ok('Thống kê: nhân viên chi nhánh không thấy tổng số khách hàng toàn công ty', stfStats.status === 200 && Object.keys(stfStats.json?.members || {}).length === 0, JSON.stringify(stfStats.json?.members));
+  const supStats = await A('GET', '/api/admin/stats');
+  ok('Thống kê: super admin vẫn thấy số khách hàng', supStats.status === 200 && Number(supStats.json?.members?.total_members) >= 0 && 'total_members' in (supStats.json?.members || {}));
+  const top = supStats.json?.topProducts || [];
+  const topCheck = (await db.query(`SELECT p.id, COALESCE(SUM(oi.quantity),0)::int AS sold FROM products p JOIN order_items oi ON COALESCE(oi.canonical_product_id, oi.product_id) = p.id JOIN orders o ON o.id = oi.order_id AND o.status = 'COMPLETED' GROUP BY p.id ORDER BY sold DESC, MAX(p.price) DESC LIMIT 1`)).rows[0];
+  ok('Thống kê: "Sản phẩm bán chạy" tính cả đơn dùng mã quy đổi (khớp truy vấn đối chiếu)', top.length > 0 && top[0].id === topCheck?.id, `${top[0]?.id} vs ${topCheck?.id}`);
 
   // ───── 10. Chi trả hoa hồng & đối tác ─────
   await db.query(`INSERT INTO users (id, email, password_hash, full_name) VALUES ('test_tmp_pu','test_tmp_pu@test.vn','x','Partner Test')`);

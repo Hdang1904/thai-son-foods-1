@@ -1,19 +1,19 @@
 {
-  "passedCount": 46,
-  "failedCount": 0,
+  "passedCount": 44,
+  "failedCount": 2,
   "total": 46,
   "testReport": [
     {
       "id": "VULN-01-GET",
       "name": "GET /api/auth/mock-oauth trả về HTTP 403 Disabled",
-      "status": "PASS",
-      "details": "status: 403"
+      "status": "FAIL",
+      "details": "status: 200"
     },
     {
       "id": "VULN-01-POST",
       "name": "POST /api/auth/mock-oauth trả về HTTP 403 và KHÔNG cấp Set-Cookie",
-      "status": "PASS",
-      "details": "status: 403, set-cookie: false"
+      "status": "FAIL",
+      "details": "status: 500, set-cookie: false"
     },
     {
       "id": "VULN-02-NO-PHONE",
@@ -85,7 +85,7 @@
       "id": "VULN-05-LOGS-SUPER-MASKED",
       "name": "GET /api/test-email/logs trả về danh sách log có che mờ email PII",
       "status": "PASS",
-      "details": "Recipient: qa***r@example.com"
+      "details": "Recipient: r***@t.vn"
     },
     {
       "id": "DEFECT-03-CONCURRENCY-STATUS",
@@ -121,7 +121,7 @@
       "id": "VULN-04-VALID-PNG-SECURE-NAME",
       "name": "Upload file PNG hợp lệ thành công HTTP 200, tên file sinh ngẫu nhiên an toàn",
       "status": "PASS",
-      "details": "URL: /uploads/products/1790837763352_3e28f8eef2b7.png"
+      "details": "URL: /uploads/products/1792044410899_9903bbcba0f6.png"
     },
     {
       "id": "VULN-06-NO-HEADER",
@@ -205,7 +205,7 @@
       "id": "DEFECT-09-CLEAN-TITLE",
       "name": "Tiêu đề trang sản phẩm không bị lặp hậu tố | Thái Sơn Foods",
       "status": "PASS",
-      "details": "Title: Sữa Bắp Nếp nguyên chất từ bắp tươi, thức uống dinh dưỡng, giải pháp bữa sáng nhanh gọn, chai 330ml, đạt chuẩn HACCP. | Thái Sơn Foods"
+      "details": "Title: Sữa Bắp - Giải khát nhanh và cung cấp dưỡng chất cho cơ thể nguồn protein thực vật, chất xơ - 10 chai 330ml - miễn phí giao hàng T7 mỗi tuần | Thái Sơn Foods"
     },
     {
       "id": "RBAC-MATRIX-ALL",

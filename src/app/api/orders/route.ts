@@ -478,6 +478,9 @@ export async function POST(request: Request) {
 
         try {
           await client.query('BEGIN;');
+          // Tuần tự hóa các đơn cùng chi nhánh: nhiều đơn đặt đồng thời trước đây gây "deadlock detected" (HTTP 500).
+          // Khóa tư vấn mức transaction, tự nhả khi COMMIT/ROLLBACK; giao dịch ngắn nên không ảnh hưởng đáng kể thông lượng.
+          await client.query('SELECT pg_advisory_xact_lock(hashtext($1));', ['tsf-order-store-' + targetStoreCode]);
 
           await client.query(
             `INSERT INTO orders (
@@ -745,8 +748,16 @@ export async function POST(request: Request) {
       client.release();
     }
   } catch (error: any) {
+    // Trước đây lỗi ở đây bị nuốt im lặng (không log) nên không chẩn đoán được lỗi 500 khi đặt hàng
+    console.error('Unhandled error in POST /api/orders:', error);
     return NextResponse.json(
-      { success: false, error: 'Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.' },
+      {
+        success: false,
+        error: 'Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.',
+        ...(process.env.NODE_ENV !== 'production'
+          ? { debug: [String(error?.message || error), error?.detail, error?.where, String(error?.stack || '').split(String.fromCharCode(10)).slice(1, 6).join(' | ')].filter(Boolean).join(' // ').slice(0, 1500) }
+          : {}),
+      },
       { status: 500 }
     );
   }

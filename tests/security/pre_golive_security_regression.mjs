@@ -13,6 +13,20 @@ import path from 'node:path';
 
 const DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:Tsf%40123@127.0.0.1:5432/WebTSF_staging?sslmode=disable';
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000';
+
+// Middleware CSRF yêu cầu Origin cho mọi yêu cầu ghi: gửi Origin mặc định
+// (các ca kiểm thử CSRF tự đặt Origin riêng sẽ ghi đè giá trị này)
+const __baseFetch = globalThis.fetch;
+// Đặt headers['X-Test-No-Origin'] để cố ý KHÔNG gửi Origin (ca kiểm thử CSRF thiếu Origin)
+globalThis.fetch = (url, opts = {}) => {
+  const headers = { ...(opts.headers || {}) };
+  if (headers['X-Test-No-Origin']) {
+    delete headers['X-Test-No-Origin'];
+    return __baseFetch(url, { ...opts, headers });
+  }
+  return __baseFetch(url, { ...opts, headers: { Origin: BASE_URL, ...headers } });
+};
+
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'tsf_super_secret_jwt_key_2026_thai_son_foods'
 );
@@ -372,7 +386,7 @@ async function runRegressionSuite() {
     console.log('\n--- 3.2 DEFECT-08: CSRF Origin/Referer Protection ---');
     const csrfNoOrigin = await fetch(`${BASE_URL}/api/admin/users`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Test-No-Origin': '1' },
       body: JSON.stringify({ username: 'qa_csrf_victim' }),
     });
     recordTest('DEFECT-08-NO-ORIGIN-DENY', 'POST /api/admin/users thiếu cả Origin và Referer bị chặn HTTP 403', csrfNoOrigin.status === 403, `status: ${csrfNoOrigin.status}`);

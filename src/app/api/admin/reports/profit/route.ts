@@ -2,8 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getAdminSession } from '@/lib/auth';
 import { hasPermission } from '@/lib/rbac';
+import { isOrderStatus } from '@/lib/order-status';
 
 export const dynamic = 'force-dynamic';
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Biên lợi nhuận chỉ tính trên phần doanh thu CÓ giá vốn (cùng cách tính với tổng quan) — dòng thiếu giá vốn không bị kéo lệch */
+function marginOnCosted(r: { revenue: unknown; profit: unknown; revenue_without_cost?: unknown }): number {
+  const costedRevenue = Number(r.revenue) - Number(r.revenue_without_cost || 0);
+  return costedRevenue > 0 ? Math.round((Number(r.profit) / costedRevenue) * 1000) / 10 : 0;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -24,6 +33,17 @@ export async function GET(req: NextRequest) {
     // Điều kiện lọc chung cho orders: mặc định chỉ tính các đơn hàng đã hoàn tất (COMPLETED), loại bỏ hoàn toàn đơn hủy
     const statusParam = searchParams.get('status');
     const statusFilter = statusParam ? statusParam.toUpperCase() : 'COMPLETED';
+
+    // Kiểm tra tham số đầu vào (tránh lỗi 500 do ép kiểu ngày / trạng thái lạ)
+    if (statusFilter !== 'ALL' && !isOrderStatus(statusFilter)) {
+      return NextResponse.json({ success: false, error: `Trạng thái không hợp lệ: ${statusFilter}` }, { status: 400 });
+    }
+    if ((startDate && !DATE_ONLY.test(startDate)) || (endDate && !DATE_ONLY.test(endDate))) {
+      return NextResponse.json({ success: false, error: 'Ngày phải có dạng YYYY-MM-DD.' }, { status: 400 });
+    }
+    if (!['day', 'month', 'product', 'store'].includes(groupBy)) {
+      return NextResponse.json({ success: false, error: 'groupBy chỉ nhận day | month | product | store.' }, { status: 400 });
+    }
     const whereClauses: string[] = [];
     const params: any[] = [];
 
@@ -56,11 +76,11 @@ export async function GET(req: NextRequest) {
       SELECT
         COUNT(DISTINCT o.id) AS total_orders,
         COALESCE(SUM(oi.price * oi.quantity), 0) AS total_revenue,
-        COALESCE(SUM(CASE WHEN oi.cost_price IS NOT NULL THEN (oi.cost_price * oi.quantity) ELSE 0 END), 0) AS total_cost,
-        COALESCE(SUM(CASE WHEN oi.cost_price IS NOT NULL THEN ((oi.price - oi.cost_price) * oi.quantity) ELSE 0 END), 0) AS gross_profit,
-        COUNT(CASE WHEN oi.cost_price IS NOT NULL THEN 1 END) AS items_with_cost,
-        COUNT(CASE WHEN oi.cost_price IS NULL THEN 1 END) AS items_without_cost,
-        COALESCE(SUM(CASE WHEN oi.cost_price IS NULL THEN (oi.price * oi.quantity) ELSE 0 END), 0) AS revenue_without_cost
+        COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) > 0 THEN (oi.cost_price * oi.quantity) ELSE 0 END), 0) AS total_cost,
+        COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) > 0 THEN ((oi.price - oi.cost_price) * oi.quantity) ELSE 0 END), 0) AS gross_profit,
+        COUNT(CASE WHEN COALESCE(oi.cost_price, 0) > 0 THEN 1 END) AS items_with_cost,
+        COUNT(CASE WHEN COALESCE(oi.cost_price, 0) <= 0 THEN 1 END) AS items_without_cost,
+        COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) <= 0 THEN (oi.price * oi.quantity) ELSE 0 END), 0) AS revenue_without_cost
       FROM orders o
       JOIN order_items oi ON oi.order_id = o.id
       ${whereSql};
@@ -93,9 +113,10 @@ export async function GET(req: NextRequest) {
           to_char(o.created_at, 'MM/YYYY') AS label,
           COUNT(DISTINCT o.id) AS orders_count,
           COALESCE(SUM(oi.price * oi.quantity), 0) AS revenue,
-          COALESCE(SUM(CASE WHEN oi.cost_price IS NOT NULL THEN (oi.cost_price * oi.quantity) ELSE 0 END), 0) AS cost,
-          COALESCE(SUM(CASE WHEN oi.cost_price IS NOT NULL THEN ((oi.price - oi.cost_price) * oi.quantity) ELSE 0 END), 0) AS profit,
-          COUNT(CASE WHEN oi.cost_price IS NULL THEN 1 END) AS missing_cost_items
+          COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) > 0 THEN (oi.cost_price * oi.quantity) ELSE 0 END), 0) AS cost,
+          COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) > 0 THEN ((oi.price - oi.cost_price) * oi.quantity) ELSE 0 END), 0) AS profit,
+          COUNT(CASE WHEN COALESCE(oi.cost_price, 0) <= 0 THEN 1 END) AS missing_cost_items,
+          COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) <= 0 THEN (oi.price * oi.quantity) ELSE 0 END), 0) AS revenue_without_cost
         FROM orders o
         JOIN order_items oi ON oi.order_id = o.id
         ${whereSql}
@@ -110,7 +131,7 @@ export async function GET(req: NextRequest) {
         profit: Number(r.profit),
         orders_count: Number(r.orders_count),
         missing_cost_items: Number(r.missing_cost_items),
-        margin: Number(r.revenue) > 0 ? Math.round((Number(r.profit) / Number(r.revenue)) * 1000) / 10 : 0,
+        margin: marginOnCosted(r),
       }));
     } else if (groupBy === 'product') {
       const productSql = `
@@ -119,9 +140,10 @@ export async function GET(req: NextRequest) {
           oi.name,
           COALESCE(SUM(oi.quantity), 0) AS quantity_sold,
           COALESCE(SUM(oi.price * oi.quantity), 0) AS revenue,
-          COALESCE(SUM(CASE WHEN oi.cost_price IS NOT NULL THEN (oi.cost_price * oi.quantity) ELSE 0 END), 0) AS cost,
-          COALESCE(SUM(CASE WHEN oi.cost_price IS NOT NULL THEN ((oi.price - oi.cost_price) * oi.quantity) ELSE 0 END), 0) AS profit,
-          COUNT(CASE WHEN oi.cost_price IS NULL THEN 1 END) AS missing_cost_items
+          COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) > 0 THEN (oi.cost_price * oi.quantity) ELSE 0 END), 0) AS cost,
+          COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) > 0 THEN ((oi.price - oi.cost_price) * oi.quantity) ELSE 0 END), 0) AS profit,
+          COUNT(CASE WHEN COALESCE(oi.cost_price, 0) <= 0 THEN 1 END) AS missing_cost_items,
+          COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) <= 0 THEN (oi.price * oi.quantity) ELSE 0 END), 0) AS revenue_without_cost
         FROM orders o
         JOIN order_items oi ON oi.order_id = o.id
         ${whereSql}
@@ -136,7 +158,7 @@ export async function GET(req: NextRequest) {
         cost: Number(r.cost),
         profit: Number(r.profit),
         missing_cost_items: Number(r.missing_cost_items),
-        margin: Number(r.revenue) > 0 ? Math.round((Number(r.profit) / Number(r.revenue)) * 1000) / 10 : 0,
+        margin: marginOnCosted(r),
       }));
     } else if (groupBy === 'store') {
       const storeSql = `
@@ -145,9 +167,10 @@ export async function GET(req: NextRequest) {
           COALESCE(s.name, 'Chưa xác định') AS store_name,
           COUNT(DISTINCT o.id) AS orders_count,
           COALESCE(SUM(oi.price * oi.quantity), 0) AS revenue,
-          COALESCE(SUM(CASE WHEN oi.cost_price IS NOT NULL THEN (oi.cost_price * oi.quantity) ELSE 0 END), 0) AS cost,
-          COALESCE(SUM(CASE WHEN oi.cost_price IS NOT NULL THEN ((oi.price - oi.cost_price) * oi.quantity) ELSE 0 END), 0) AS profit,
-          COUNT(CASE WHEN oi.cost_price IS NULL THEN 1 END) AS missing_cost_items
+          COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) > 0 THEN (oi.cost_price * oi.quantity) ELSE 0 END), 0) AS cost,
+          COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) > 0 THEN ((oi.price - oi.cost_price) * oi.quantity) ELSE 0 END), 0) AS profit,
+          COUNT(CASE WHEN COALESCE(oi.cost_price, 0) <= 0 THEN 1 END) AS missing_cost_items,
+          COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) <= 0 THEN (oi.price * oi.quantity) ELSE 0 END), 0) AS revenue_without_cost
         FROM orders o
         JOIN order_items oi ON oi.order_id = o.id
         LEFT JOIN stores s ON s.code = o.store_code
@@ -163,7 +186,7 @@ export async function GET(req: NextRequest) {
         cost: Number(r.cost),
         profit: Number(r.profit),
         missing_cost_items: Number(r.missing_cost_items),
-        margin: Number(r.revenue) > 0 ? Math.round((Number(r.profit) / Number(r.revenue)) * 1000) / 10 : 0,
+        margin: marginOnCosted(r),
       }));
     } else {
       // Default: 'day'
@@ -173,9 +196,10 @@ export async function GET(req: NextRequest) {
           to_char(o.created_at, 'DD/MM/YYYY') AS label,
           COUNT(DISTINCT o.id) AS orders_count,
           COALESCE(SUM(oi.price * oi.quantity), 0) AS revenue,
-          COALESCE(SUM(CASE WHEN oi.cost_price IS NOT NULL THEN (oi.cost_price * oi.quantity) ELSE 0 END), 0) AS cost,
-          COALESCE(SUM(CASE WHEN oi.cost_price IS NOT NULL THEN ((oi.price - oi.cost_price) * oi.quantity) ELSE 0 END), 0) AS profit,
-          COUNT(CASE WHEN oi.cost_price IS NULL THEN 1 END) AS missing_cost_items
+          COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) > 0 THEN (oi.cost_price * oi.quantity) ELSE 0 END), 0) AS cost,
+          COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) > 0 THEN ((oi.price - oi.cost_price) * oi.quantity) ELSE 0 END), 0) AS profit,
+          COUNT(CASE WHEN COALESCE(oi.cost_price, 0) <= 0 THEN 1 END) AS missing_cost_items,
+          COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) <= 0 THEN (oi.price * oi.quantity) ELSE 0 END), 0) AS revenue_without_cost
         FROM orders o
         JOIN order_items oi ON oi.order_id = o.id
         ${whereSql}
@@ -191,7 +215,7 @@ export async function GET(req: NextRequest) {
         profit: Number(r.profit),
         orders_count: Number(r.orders_count),
         missing_cost_items: Number(r.missing_cost_items),
-        margin: Number(r.revenue) > 0 ? Math.round((Number(r.profit) / Number(r.revenue)) * 1000) / 10 : 0,
+        margin: marginOnCosted(r),
       }));
     }
 

@@ -136,7 +136,7 @@ export async function GET() {
             COALESCE(SUM(oi.quantity * oi.price), 0) AS total_earned
           FROM products p
           LEFT JOIN categories c ON p.category_id = c.id
-          INNER JOIN order_items oi ON oi.product_id = p.id
+          INNER JOIN order_items oi ON COALESCE(oi.canonical_product_id, oi.product_id) = p.id
           INNER JOIN orders o ON o.id = oi.order_id AND o.status = 'COMPLETED'
           WHERE o.store_code = $1
           GROUP BY p.id, p.name, p.thumbnail, p.price, p.unit, c.name
@@ -156,7 +156,7 @@ export async function GET() {
             COALESCE(SUM(oi.quantity * oi.price), 0) AS total_earned
           FROM products p
           LEFT JOIN categories c ON p.category_id = c.id
-          INNER JOIN order_items oi ON oi.product_id = p.id
+          INNER JOIN order_items oi ON COALESCE(oi.canonical_product_id, oi.product_id) = p.id
           INNER JOIN orders o ON o.id = oi.order_id AND o.status = 'COMPLETED'
           GROUP BY p.id, p.name, p.thumbnail, p.price, p.unit, c.name
           ORDER BY total_sold DESC, p.price DESC
@@ -208,9 +208,9 @@ export async function GET() {
       const profitRes = await query(`
         SELECT
           COALESCE(SUM(oi.price * oi.quantity), 0) AS total_revenue,
-          COALESCE(SUM(CASE WHEN oi.cost_price IS NOT NULL THEN (oi.cost_price * oi.quantity) ELSE 0 END), 0) AS total_cost,
-          COALESCE(SUM(CASE WHEN oi.cost_price IS NOT NULL THEN ((oi.price - oi.cost_price) * oi.quantity) ELSE 0 END), 0) AS gross_profit,
-          COUNT(CASE WHEN oi.cost_price IS NULL THEN 1 END) AS missing_cost_items
+          COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) > 0 THEN (oi.cost_price * oi.quantity) ELSE 0 END), 0) AS total_cost,
+          COALESCE(SUM(CASE WHEN COALESCE(oi.cost_price, 0) > 0 THEN ((oi.price - oi.cost_price) * oi.quantity) ELSE 0 END), 0) AS gross_profit,
+          COUNT(CASE WHEN COALESCE(oi.cost_price, 0) <= 0 THEN 1 END) AS missing_cost_items
         FROM orders o
         JOIN order_items oi ON oi.order_id = o.id
         WHERE o.status = 'COMPLETED';
@@ -227,7 +227,8 @@ export async function GET() {
       products: prodCountRes.rows[0] || {},
       combos: comboCountRes.rows[0] || {},
       categories: catCountRes.rows[0] || {},
-      members: memberCountRes.rows[0] || {},
+      // Số liệu khách hàng chỉ dành cho người có quyền xem thành viên (nhân viên chi nhánh không thấy tổng khách toàn công ty)
+      members: hasPermission(session, 'members.view_full') || hasPermission(session, 'members.view_masked') ? (memberCountRes.rows[0] || {}) : {},
       statusBreakdown: statusBreakdownRes.rows || [],
       recentOrders: recentOrdersRes.rows || [],
       topProducts: topProductsRes.rows || [],

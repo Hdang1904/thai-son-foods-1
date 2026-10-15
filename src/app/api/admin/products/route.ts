@@ -583,8 +583,10 @@ export async function DELETE(request: Request) {
     }
     const productToDelete = currRes.rows[0];
 
-    // Không cho xóa sản phẩm đang được dùng: khóa ngoại ON DELETE CASCADE sẽ âm thầm xóa dòng combo,
-    // giữ chỗ tồn kho của đơn đang chờ và các lô hàng. Gợi ý "tạm ẩn" (is_active = false) thay vì xóa.
+    // Không cho xóa sản phẩm đang được dùng. Xóa sản phẩm sẽ (theo ON DELETE CASCADE) kéo theo tồn kho chi nhánh,
+    // giữ chỗ tồn kho của đơn đang chờ, lô hàng, quy cách và ảnh; riêng combo_items KHÔNG có khóa ngoại nên combo
+    // sẽ còn tham chiếu "treo" tới sản phẩm đã mất (combo không tính được tồn kho / không bán được).
+    // Gợi ý "tạm ẩn" (is_active = false) thay vì xóa.
     // combo_items có thể lưu mã danh mục tĩnh ("sua-bap-nep") thay vì mã bảng products ("prod-sb-01"):
     // quy đổi từng mã đang dùng về mã chuẩn để phát hiện mọi combo chứa sản phẩm này
     const comboRefs = await query(
