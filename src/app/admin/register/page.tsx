@@ -82,8 +82,8 @@ export default function AdminRegisterPage() {
       return;
     }
 
-    if (hasAdmins && !registerKey.trim()) {
-      setErrorMsg('Vui lòng nhập Mã bảo mật đăng ký được cấp bởi Quản trị viên cấp cao');
+    if (!registerKey.trim()) {
+      setErrorMsg('Vui lòng nhập Mã bảo mật đăng ký (ADMIN_REGISTER_KEY của máy chủ)');
       return;
     }
 
@@ -98,7 +98,7 @@ export default function AdminRegisterPage() {
           username,
           email,
           password,
-          registerKey: hasAdmins ? registerKey : undefined,
+          registerKey,
         }),
       });
 
@@ -338,13 +338,13 @@ export default function AdminRegisterPage() {
             </div>
 
             {/* Secret Register Key (Required if hasAdmins) */}
-            {!checkingInit && hasAdmins && (
+            {!checkingInit && (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
                     Mã bảo mật đăng ký <span className="text-emerald-400">*</span>
                   </label>
-                  <span className="text-[11px] text-slate-400">Cấp bởi Super Admin</span>
+                  <span className="text-[11px] text-slate-400">Cấu hình trên máy chủ</span>
                 </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-amber-400">

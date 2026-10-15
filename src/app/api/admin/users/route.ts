@@ -3,6 +3,7 @@ import { query } from '@/lib/db';
 import { getAdminSession, hashPassword } from '@/lib/auth';
 import { hasPermission, Role } from '@/lib/rbac';
 import { writeAuditLog } from '@/lib/audit';
+import { validateAdminPassword } from '@/lib/password-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,11 +72,9 @@ export async function POST(req: NextRequest) {
     }
     const cleanEmail = email.trim().toLowerCase();
 
-    if (!password || typeof password !== 'string' || password.length < 6) {
-      return NextResponse.json(
-        { success: false, error: 'Mật khẩu phải có ít nhất 6 ký tự' },
-        { status: 400 }
-      );
+    const passwordError = validateAdminPassword(password);
+    if (passwordError) {
+      return NextResponse.json({ success: false, error: passwordError }, { status: 400 });
     }
 
     const assignedRole = (role as Role) || 'STORE_STAFF';
@@ -233,7 +232,17 @@ export async function PUT(req: NextRequest) {
       updates.push(`full_name = $${params.length}`);
     }
 
-    if (email !== undefined && email.includes('@')) {
+    if (email !== undefined && typeof email === 'string' && email.includes('@')) {
+      const dupEmail = await query(
+        'SELECT id FROM admin_users WHERE LOWER(email) = LOWER($1) AND id <> $2 LIMIT 1;',
+        [email.trim(), id]
+      );
+      if (dupEmail.rows.length > 0) {
+        return NextResponse.json(
+          { success: false, error: `Email "${email.trim().toLowerCase()}" đã được sử dụng bởi tài khoản khác` },
+          { status: 409 }
+        );
+      }
       params.push(email.trim().toLowerCase());
       updates.push(`email = $${params.length}`);
     }
@@ -250,6 +259,13 @@ export async function PUT(req: NextRequest) {
     }
 
     const effectiveRole = role !== undefined ? role : targetUser.role;
+    // Nhân viên cửa hàng luôn phải gắn một chi nhánh (kể cả khi chỉ đổi vai trò mà không gửi storeCode)
+    if (effectiveRole === 'STORE_STAFF' && storeCode === undefined && !targetUser.store_code) {
+      return NextResponse.json(
+        { success: false, error: 'Tài khoản nhân viên cửa hàng (STORE_STAFF) bắt buộc phải gắn với mã cửa hàng.' },
+        { status: 400 }
+      );
+    }
 
     if (storeCode !== undefined) {
       if (effectiveRole === 'STORE_STAFF') {
@@ -289,7 +305,11 @@ export async function PUT(req: NextRequest) {
     }
 
     let passwordChanged = false;
-    if (password && typeof password === 'string' && password.trim().length >= 6) {
+    if (password !== undefined && password !== null && password !== '') {
+      const resetError = validateAdminPassword(password);
+      if (resetError) {
+        return NextResponse.json({ success: false, error: resetError }, { status: 400 });
+      }
       const hashedPassword = await hashPassword(password.trim());
       params.push(hashedPassword);
       updates.push(`password_hash = $${params.length}`);
@@ -377,9 +397,11 @@ export async function DELETE(req: NextRequest) {
     const targetUser = targetUserRes.rows[0];
 
     // Không cho phép xóa SUPER_ADMIN cuối cùng
-    if (targetUser.role === 'SUPER_ADMIN') {
+    // Chỉ tính Super Admin ĐANG HOẠT ĐỘNG: xóa tài khoản đã khóa thì không ảnh hưởng, còn xóa Super Admin
+    // hoạt động cuối cùng (dù còn tài khoản Super Admin đã khóa) sẽ làm hệ thống không ai quản trị được.
+    if (targetUser.role === 'SUPER_ADMIN' && targetUser.is_active === true) {
       const superAdminsCountRes = await query(
-        "SELECT COUNT(*)::int AS count FROM admin_users WHERE role = 'SUPER_ADMIN';"
+        "SELECT COUNT(*)::int AS count FROM admin_users WHERE role = 'SUPER_ADMIN' AND is_active = true;"
       );
       const superAdminCount = superAdminsCountRes.rows[0]?.count || 0;
       if (superAdminCount <= 1) {

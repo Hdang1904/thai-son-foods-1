@@ -4,9 +4,7 @@ import { cookies } from 'next/headers';
 
 import { query } from '@/lib/db';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'tsf_super_secret_jwt_key_2026_thai_son_foods'
-);
+import { getJwtSecretBytes, INSECURE_DEFAULT_JWT_SECRET } from '@/lib/jwtSecret';
 
 /**
  * Validate required environment variables in production mode (fail-closed principle).
@@ -21,7 +19,7 @@ export function validateProductionEnvironment(): { isValid: boolean; errors: str
       errors.push('CRON_SECRET is required and must be at least 16 characters in production.');
     }
     const jwt = process.env.JWT_SECRET;
-    if (!jwt || jwt === 'tsf_super_secret_jwt_key_2026_thai_son_foods' || jwt.length < 32) {
+    if (!jwt || jwt === INSECURE_DEFAULT_JWT_SECRET || jwt.length < 32) {
       errors.push('JWT_SECRET must be set to a secure, unique string (min 32 chars) in production.');
     }
     if (process.env.ENABLE_MOCK_OAUTH === 'true') {
@@ -53,6 +51,8 @@ export interface AdminJWTPayload {
   role: string;
   storeCode?: string | null;
   mustChangePassword?: boolean;
+  /** Thời điểm token được ký (ms) — dùng để vô hiệu token cũ sau khi đổi mật khẩu */
+  issuedAtMs?: number;
 }
 
 /**
@@ -78,7 +78,7 @@ export async function signAdminToken(payload: Partial<AdminJWTPayload> & { id: s
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(ADMIN_TOKEN_EXPIRY)
-    .sign(JWT_SECRET);
+    .sign(getJwtSecretBytes());
 }
 
 /**
@@ -86,7 +86,7 @@ export async function signAdminToken(payload: Partial<AdminJWTPayload> & { id: s
  */
 export async function verifyAdminToken(token: string): Promise<AdminJWTPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecretBytes());
     const id = payload.id as string;
     return {
       id,
@@ -97,6 +97,7 @@ export async function verifyAdminToken(token: string): Promise<AdminJWTPayload |
       role: (payload.role as string) || 'STORE_STAFF',
       storeCode: (payload.storeCode as string) || null,
       mustChangePassword: Boolean(payload.mustChangePassword),
+      issuedAtMs: typeof payload.iat === 'number' ? payload.iat * 1000 : undefined,
     };
   } catch {
     return null;
@@ -106,9 +107,12 @@ export async function verifyAdminToken(token: string): Promise<AdminJWTPayload |
 interface CachedAdminSession {
   session: AdminJWTPayload | null;
   expiresAt: number;
+  /** Mốc đổi mật khẩu gần nhất (ms) của tài khoản — token ký trước mốc này bị từ chối */
+  passwordChangedAtMs: number | null;
 }
 const adminSessionCache = new Map<string, CachedAdminSession>();
 const ADMIN_SESSION_CACHE_TTL_MS = 5000;
+const PASSWORD_CHANGE_CLOCK_SKEW_MS = 5000;
 
 export function invalidateAdminSessionCache(id?: string) {
   if (id) {
@@ -133,47 +137,51 @@ export async function getAdminSession(): Promise<AdminJWTPayload | null> {
     if (!decoded || !decoded.id) return null;
 
     const now = Date.now();
-    const cached = adminSessionCache.get(decoded.id);
-    if (cached && cached.expiresAt > now) {
-      return cached.session;
+    let entry = adminSessionCache.get(decoded.id);
+
+    if (!entry || entry.expiresAt <= now) {
+      const res = await query(
+        `SELECT id, username, email, full_name, role, store_code, is_active, must_change_password, password_changed_at
+         FROM admin_users
+         WHERE id = $1
+         LIMIT 1;`,
+        [decoded.id]
+      );
+
+      const user = res.rows[0];
+      if (!user || !user.is_active) {
+        entry = { session: null, expiresAt: now + ADMIN_SESSION_CACHE_TTL_MS, passwordChangedAtMs: null };
+      } else {
+        entry = {
+          session: {
+            id: user.id,
+            userId: user.id,
+            username: user.username,
+            email: user.email,
+            fullName: user.full_name || decoded.fullName || null,
+            role: user.role,
+            storeCode: user.store_code || null,
+            mustChangePassword: Boolean(user.must_change_password),
+          },
+          expiresAt: now + ADMIN_SESSION_CACHE_TTL_MS,
+          passwordChangedAtMs: user.password_changed_at ? new Date(user.password_changed_at).getTime() : null,
+        };
+      }
+      adminSessionCache.set(decoded.id, entry);
     }
 
-    const res = await query(
-      `SELECT id, username, email, full_name, role, store_code, is_active, must_change_password
-       FROM admin_users
-       WHERE id = $1
-       LIMIT 1;`,
-      [decoded.id]
-    );
+    if (!entry.session) return null;
 
-    if (res.rows.length === 0) {
-      adminSessionCache.set(decoded.id, { session: null, expiresAt: now + ADMIN_SESSION_CACHE_TTL_MS });
+    // Đổi / đặt lại mật khẩu → mọi token ký TRƯỚC thời điểm đó mất hiệu lực (sai số 5 giây cho lệch đồng hồ)
+    if (
+      entry.passwordChangedAtMs !== null &&
+      decoded.issuedAtMs !== undefined &&
+      decoded.issuedAtMs < entry.passwordChangedAtMs - PASSWORD_CHANGE_CLOCK_SKEW_MS
+    ) {
       return null;
     }
 
-    const user = res.rows[0];
-    if (!user.is_active) {
-      adminSessionCache.set(decoded.id, { session: null, expiresAt: now + ADMIN_SESSION_CACHE_TTL_MS });
-      return null;
-    }
-
-    const verifiedSession: AdminJWTPayload = {
-      id: user.id,
-      userId: user.id,
-      username: user.username,
-      email: user.email,
-      fullName: user.full_name || decoded.fullName || null,
-      role: user.role,
-      storeCode: user.store_code || null,
-      mustChangePassword: Boolean(user.must_change_password),
-    };
-
-    adminSessionCache.set(decoded.id, {
-      session: verifiedSession,
-      expiresAt: now + ADMIN_SESSION_CACHE_TTL_MS,
-    });
-
-    return verifiedSession;
+    return entry.session;
   } catch (error) {
     console.error('Error in getAdminSession DB verification:', error);
     return null;
@@ -199,7 +207,7 @@ export async function signUserToken(payload: UserJWTPayload): Promise<string> {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(`${TOKEN_EXPIRY_DAYS}d`)
-    .sign(JWT_SECRET);
+    .sign(getJwtSecretBytes());
 }
 
 /**
@@ -207,7 +215,7 @@ export async function signUserToken(payload: UserJWTPayload): Promise<string> {
  */
 export async function verifyUserToken(token: string): Promise<UserJWTPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecretBytes());
     return {
       id: payload.id as string,
       email: payload.email as string,

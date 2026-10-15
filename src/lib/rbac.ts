@@ -219,10 +219,14 @@ export function requirePermission(
  * - STORE_STAFF: trả về store_code bắt buộc (không được xem/sửa ngoài store này)
  * - SUPER_ADMIN / MARKETING: trả về null (toàn công ty hoặc không giới hạn theo 1 store)
  */
+/** Mã phạm vi "không khớp cửa hàng nào": dùng cho nhân viên cửa hàng chưa được gán chi nhánh (fail-closed) */
+export const NO_STORE_SCOPE = '__NO_STORE_ASSIGNED__';
+
 export function getStoreScope(session: { role?: string | null; storeCode?: string | null } | null | undefined): string | null {
   if (!session) return null;
   if (session.role === 'STORE_STAFF') {
-    return session.storeCode || null;
+    // Fail-closed: STORE_STAFF thiếu chi nhánh KHÔNG được hiểu là "toàn công ty"
+    return session.storeCode || NO_STORE_SCOPE;
   }
   return null;
 }

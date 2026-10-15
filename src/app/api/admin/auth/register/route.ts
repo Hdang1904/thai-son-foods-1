@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query, initDatabase } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
 import { writeAuditLog } from '@/lib/audit';
+import { validateAdminPassword } from '@/lib/password-policy';
+import crypto from 'node:crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +38,34 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { username, email, password, fullName } = body;
+    const { username, email, password, fullName, registerKey } = body;
+
+    // Khởi tạo Super Admin đầu tiên bắt buộc có mã bảo mật (ADMIN_REGISTER_KEY) — tránh bị chiếm quyền khi CSDL mới trống
+    const expectedKey = process.env.ADMIN_REGISTER_KEY;
+    if (!expectedKey) {
+      if (process.env.NODE_ENV === 'production') {
+        return NextResponse.json(
+          { success: false, error: 'Máy chủ chưa cấu hình ADMIN_REGISTER_KEY nên không thể khởi tạo Super Admin đầu tiên.', code: 'REGISTER_KEY_NOT_CONFIGURED' },
+          { status: 403 }
+        );
+      }
+    } else {
+      const digest = (v: string) => crypto.createHash('sha256').update(v).digest();
+      const provided = typeof registerKey === 'string' ? registerKey : '';
+      if (!crypto.timingSafeEqual(digest(provided), digest(expectedKey))) {
+        await writeAuditLog({
+          action: 'AUTH_REGISTER_BLOCKED',
+          entityType: 'AUTH',
+          afterJson: { reason: 'INVALID_REGISTER_KEY', ip },
+          ip,
+          userAgent,
+        });
+        return NextResponse.json(
+          { success: false, error: 'Mã bảo mật đăng ký không đúng.', code: 'INVALID_REGISTER_KEY' },
+          { status: 403 }
+        );
+      }
+    }
 
     // 1. Validation
     if (!username || typeof username !== 'string' || username.trim().length < 3) {
@@ -63,11 +92,9 @@ export async function POST(req: NextRequest) {
     }
     const cleanEmail = email.trim().toLowerCase();
 
-    if (!password || typeof password !== 'string' || password.length < 8) {
-      return NextResponse.json(
-        { success: false, error: 'Mật khẩu phải có ít nhất 8 ký tự' },
-        { status: 400 }
-      );
+    const passwordError = validateAdminPassword(password);
+    if (passwordError) {
+      return NextResponse.json({ success: false, error: passwordError }, { status: 400 });
     }
 
     const assignedRole = 'SUPER_ADMIN';

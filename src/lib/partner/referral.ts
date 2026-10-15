@@ -1,8 +1,9 @@
+import { resolveJwtSecret } from '@/lib/jwtSecret';
 import crypto from 'node:crypto';
 import { query } from '@/lib/db';
 import { PARTNER_CONFIG } from '@/config/partner';
 
-const SIGN_SECRET = process.env.JWT_SECRET || 'tsf_super_secret_jwt_key_2026_thai_son_foods';
+const getSignSecret = () => resolveJwtSecret();
 
 /**
  * Sinh mã Đối tác ngẫu nhiên duy nhất dạng TSF-CTV-XXXX
@@ -18,7 +19,7 @@ export function generatePartnerCode(type: 'CTV' | 'DEALER' = 'CTV'): string {
  * Ký mã ref thành chuỗi cookie an toàn chống sửa đổi: "CODE.SIGNATURE"
  */
 export function signReferralCookie(code: string): string {
-  const hmac = crypto.createHmac('sha256', SIGN_SECRET).update(code).digest('hex').substring(0, 16);
+  const hmac = crypto.createHmac('sha256', getSignSecret()).update(code).digest('hex').substring(0, 16);
   return `${code}.${hmac}`;
 }
 
@@ -30,7 +31,7 @@ export function verifyReferralCookie(cookieVal: string | undefined | null): stri
   const [code, sig] = cookieVal.split('.');
   if (!code || !sig) return null;
 
-  const expectedSig = crypto.createHmac('sha256', SIGN_SECRET).update(code).digest('hex').substring(0, 16);
+  const expectedSig = crypto.createHmac('sha256', getSignSecret()).update(code).digest('hex').substring(0, 16);
   if (crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) {
     return code;
   }

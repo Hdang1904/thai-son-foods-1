@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
 const ADMIN_COOKIE_NAME = 'tsf_admin_token';
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'tsf_super_secret_jwt_key_2026_thai_son_foods'
-);
+import { getJwtSecretBytes } from '@/lib/jwtSecret';
 
 // Allowlist các route ngoại lệ có chủ đích (webhook cổng thanh toán, cronjob có Bearer token)
 const CSRF_EXEMPT_ROUTES: readonly string[] = [
@@ -255,7 +253,7 @@ export async function middleware(req: NextRequest) {
 
   if (token) {
     try {
-      const { payload } = await jwtVerify(token, JWT_SECRET);
+      const { payload } = await jwtVerify(token, getJwtSecretBytes());
       isAuthenticated = true;
       mustChangePassword = Boolean(payload.mustChangePassword);
     } catch {
@@ -324,7 +322,7 @@ export async function middleware(req: NextRequest) {
       let isUserAuth = false;
       if (userToken) {
         try {
-          await jwtVerify(userToken, JWT_SECRET);
+          await jwtVerify(userToken, getJwtSecretBytes());
           isUserAuth = true;
         } catch {
           isUserAuth = false;
@@ -346,7 +344,7 @@ export async function middleware(req: NextRequest) {
     let isUserAuth = false;
     if (userToken) {
       try {
-        await jwtVerify(userToken, JWT_SECRET);
+        await jwtVerify(userToken, getJwtSecretBytes());
         isUserAuth = true;
       } catch {
         isUserAuth = false;

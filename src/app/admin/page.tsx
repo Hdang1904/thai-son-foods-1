@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -61,6 +61,7 @@ import {
   Copy
 } from 'lucide-react';
 import { hasPermission, Role, Permission } from '@/lib/rbac';
+import { canDeleteOrder, canTransitionOrderStatus } from '@/lib/order-status';
 import { safeFetchJson } from '@/lib/utils';
 
 // ==================== INTERFACES ====================
@@ -209,6 +210,9 @@ interface Order {
   cod_collected_amount?: number | null;
   cod_reconciled_at?: string | null;
   cod_reconciled_by?: string | null;
+  payment_status?: string | null;
+  payment_reference?: string | null;
+  payment_reconciled_by?: string | null;
   return_reason?: string | null;
   return_disposition?: string | null;
   return_at?: string | null;
@@ -338,6 +342,19 @@ export default function AdminPage() {
   const [combos, setCombos] = useState<Combo[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersTotal, setOrdersTotal] = useState(0);
+  const [orderPaymentCounts, setOrderPaymentCounts] = useState<Record<string, number>>({});
+  // Tab Đơn hàng: phân trang + lọc + tìm kiếm phía máy chủ
+  const [orderRows, setOrderRows] = useState<Order[]>([]);
+  const [orderPage, setOrderPage] = useState(1);
+  const [orderPageInfo, setOrderPageInfo] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
+  const [orderStatusCounts, setOrderStatusCounts] = useState<Record<string, number>>({ ALL: 0 });
+  const [orderListLoading, setOrderListLoading] = useState(false);
+  const [debouncedOrderSearch, setDebouncedOrderSearch] = useState('');
+  const [orderListVersion, setOrderListVersion] = useState(0);
+  // Thông báo đơn mới: số đơn mới chưa xem (tự làm mới định kỳ)
+  const [newOrderCount, setNewOrderCount] = useState(0);
+  const knownOrderTotalRef = useRef<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
@@ -533,7 +550,7 @@ export default function AdminPage() {
         safeFetchJson('/api/admin/products', { cache: 'no-store' }),
         safeFetchJson('/api/admin/combos', { cache: 'no-store' }),
         safeFetchJson('/api/admin/categories', { cache: 'no-store' }),
-        safeFetchJson('/api/admin/orders', { cache: 'no-store' }),
+        safeFetchJson('/api/admin/orders?page=1&limit=50', { cache: 'no-store' }),
         safeFetchJson('/api/admin/members', { cache: 'no-store' }),
       ]);
 
@@ -541,7 +558,12 @@ export default function AdminPage() {
       if (prodsRes?.success) setProducts(prodsRes.data || []);
       if (combosRes?.success) setCombos(combosRes.data || []);
       if (catsRes?.success) setCategories(catsRes.data || []);
-      if (ordersRes?.success) setOrders(ordersRes.data || []);
+      if (ordersRes?.success) {
+        setOrders(ordersRes.data || []);
+        setOrdersTotal(ordersRes.pagination?.total ?? (ordersRes.data || []).length);
+        setOrderPaymentCounts(ordersRes.paymentCounts || {});
+        knownOrderTotalRef.current = ordersRes.pagination?.total ?? (ordersRes.data || []).length;
+      }
       if (membersRes?.success) setMembers(membersRes.members || []);
     } catch (err: any) {
       console.error('Error fetching data:', err);
@@ -658,6 +680,102 @@ export default function AdminPage() {
     if (currentUser?.role === 'STORE_STAFF') return 'orders';
     return 'overview';
   };
+
+  // ==================== ĐƠN HÀNG: PHÂN TRANG PHÍA MÁY CHỦ ====================
+  // Gõ tìm kiếm → chờ 350ms rồi mới gọi API; đổi từ khóa/bộ lọc → về trang 1
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedOrderSearch(orderSearch.trim()), 350);
+    return () => clearTimeout(t);
+  }, [orderSearch]);
+
+  useEffect(() => {
+    setOrderPage(1);
+  }, [orderStatusFilter, debouncedOrderSearch]);
+
+  const refreshOrderList = () => setOrderListVersion((v) => v + 1);
+
+  useEffect(() => {
+    if (activeTab !== 'orders') return;
+    let cancelled = false;
+    const params = new URLSearchParams({ page: String(orderPage), limit: '20' });
+    if (orderStatusFilter !== 'ALL') params.set('status', orderStatusFilter);
+    if (debouncedOrderSearch) params.set('q', debouncedOrderSearch);
+    setOrderListLoading(true);
+    safeFetchJson<any>(`/api/admin/orders?${params.toString()}`, { cache: 'no-store' })
+      .then((res) => {
+        if (cancelled || !res?.success) return;
+        setOrderRows(res.data || []);
+        setOrderPageInfo(res.pagination || { page: 1, limit: 20, total: 0, totalPages: 1 });
+        setOrderStatusCounts(res.statusCounts || { ALL: 0 });
+        // Máy chủ có thể kéo về trang cuối nếu trang yêu cầu vượt quá tổng số trang
+        if (res.pagination && res.pagination.page !== orderPage) setOrderPage(res.pagination.page);
+      })
+      .finally(() => {
+        if (!cancelled) setOrderListLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, orderPage, orderStatusFilter, debouncedOrderSearch, orderListVersion]);
+
+  // Lô hàng của chi nhánh đang chọn: tải lại khi vào tab Tồn kho hoặc đổi chi nhánh
+  useEffect(() => {
+    if (activeTab === 'inventory') fetchInventoryLots(selectedStoreCode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, selectedStoreCode]);
+
+  // ==================== THÔNG BÁO ĐƠN MỚI (tự làm mới mỗi 30 giây) ====================
+  useEffect(() => {
+    if (!currentUser) return;
+    if (!(hasPermission(currentUser, 'orders.view_all') || hasPermission(currentUser, 'orders.view_own_store'))) return;
+    let stopped = false;
+
+    const poll = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const res = await safeFetchJson<any>('/api/admin/orders?page=1&limit=1', { cache: 'no-store' });
+      if (stopped || !res?.success || !res.pagination) return;
+      const total: number = res.pagination.total;
+      const known = knownOrderTotalRef.current;
+      knownOrderTotalRef.current = total;
+      setOrdersTotal(total);
+      setOrderPaymentCounts(res.paymentCounts || {});
+      if (known !== null && total > known) {
+        const added = total - known;
+        setNewOrderCount((c) => c + added);
+        showToast(`🔔 Có ${added} đơn hàng mới!`, 'info');
+        // Làm mới số liệu tổng quan, danh sách đơn gần đây và tab Đơn hàng
+        safeFetchJson<any>('/api/admin/orders?page=1&limit=50', { cache: 'no-store' }).then((r) => {
+          if (!stopped && r?.success) setOrders(r.data || []);
+        });
+        safeFetchJson<any>('/api/admin/stats', { cache: 'no-store' }).then((d) => {
+          if (!stopped && d?.success) setStats(d);
+        });
+        refreshOrderList();
+      }
+    };
+
+    const timer = setInterval(poll, 30000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') poll();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
+
+  // Vào tab Đơn hàng → coi như đã xem các đơn mới; tiêu đề tab trình duyệt hiện số đơn mới
+  useEffect(() => {
+    if (activeTab === 'orders') setNewOrderCount(0);
+  }, [activeTab]);
+
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+\)\s*/, '');
+    document.title = newOrderCount > 0 ? `(${newOrderCount}) ${base}` : base;
+  }, [newOrderCount]);
 
   // Fetch admin accounts (Super Admin only)
   const fetchAdminUsers = async () => {
@@ -806,6 +924,61 @@ export default function AdminPage() {
       console.error('Error fetching inventory:', err);
     } finally {
       setInventoryLoading(false);
+    }
+  };
+
+  // ==================== LÔ HÀNG & HẠN SỬ DỤNG ====================
+  const [inventoryLots, setInventoryLots] = useState<any[]>([]);
+  const [lotsLoading, setLotsLoading] = useState(false);
+  const [lotFormOpen, setLotFormOpen] = useState(false);
+  const [lotForm, setLotForm] = useState({ productId: '', lotCode: '', manufacturingDate: '', expiryDate: '', quantity: '' });
+
+  const fetchInventoryLots = async (storeCode?: string) => {
+    setLotsLoading(true);
+    try {
+      const code = storeCode || selectedStoreCode;
+      const res = await safeFetchJson<any>(`/api/admin/inventory/lots?storeCode=${encodeURIComponent(code)}`, { cache: 'no-store' });
+      if (res?.success) setInventoryLots(res.lots || []);
+    } finally {
+      setLotsLoading(false);
+    }
+  };
+
+  const handleSaveLot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const quantity = Math.round(Number(lotForm.quantity));
+    if (!lotForm.productId || !lotForm.lotCode.trim() || !lotForm.manufacturingDate || !lotForm.expiryDate) {
+      showToast('Vui lòng nhập đủ sản phẩm, mã lô, ngày sản xuất và hạn sử dụng', 'error');
+      return;
+    }
+    if (!Number.isFinite(quantity) || quantity < 1) {
+      showToast('Số lượng phải là số nguyên từ 1 trở lên', 'error');
+      return;
+    }
+    if (lotForm.expiryDate <= lotForm.manufacturingDate) {
+      showToast('Hạn sử dụng phải sau ngày sản xuất', 'error');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/admin/inventory/lots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...lotForm, lotCode: lotForm.lotCode.trim(), quantity, storeCode: selectedStoreCode }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'Đã nhập lô hàng!');
+        setLotForm({ productId: lotForm.productId, lotCode: '', manufacturingDate: '', expiryDate: '', quantity: '' });
+        setLotFormOpen(false);
+        fetchInventoryLots(selectedStoreCode);
+      } else {
+        showToast(data.error || 'Không thể nhập lô hàng', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1872,12 +2045,14 @@ export default function AdminPage() {
             store_code: data.data?.store_code ?? selectedOrder.store_code,
           });
         }
+        refreshOrderList();
         // Làm mới tồn kho nếu đang quản lý kho
         fetchInventory(selectedStoreCode);
         // Refresh stats
         safeFetchJson('/api/admin/stats').then((d) => d?.success && setStats(d));
       } else {
         showToast(data.error || 'Cập nhật thất bại', 'error');
+        refreshOrderList(); // đồng bộ lại nếu trạng thái đơn đã bị người khác đổi
       }
     } catch (err: any) {
       showToast('Lỗi: ' + err.message, 'error');
@@ -1902,6 +2077,7 @@ export default function AdminPage() {
       const data = await res.json();
       if (data.success) {
         showToast(data.message || 'Đã đối soát COD thành công!');
+        refreshOrderList();
         setOrders((prev) =>
           prev.map((o) =>
             o.id === orderId
@@ -1932,6 +2108,39 @@ export default function AdminPage() {
     }
   };
 
+  // Xác nhận đã nhận tiền chuyển khoản cho đơn không phải COD (nhập mã giao dịch ngân hàng)
+  const [paymentRefInput, setPaymentRefInput] = useState('');
+  const handleConfirmPayment = async (orderId: string) => {
+    const ref = paymentRefInput.trim();
+    if (!ref) {
+      showToast('Vui lòng nhập mã giao dịch ngân hàng', 'error');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}/confirm-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentReference: ref }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'Đã xác nhận thanh toán chuyển khoản!');
+        setPaymentRefInput('');
+        if (data.order) setSelectedOrder((prev) => (prev && prev.id === orderId ? { ...prev, ...data.order, items: prev.items } : prev));
+        refreshOrderList();
+        fetchData();
+        fetchInventory(selectedStoreCode);
+      } else {
+        showToast(data.error || 'Không thể xác nhận thanh toán', 'error');
+      }
+    } catch (err: any) {
+      showToast('Lỗi: ' + err.message, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleDeleteOrder = async (id: string, code: string) => {
     if (!confirm(`Bạn có chắc muốn xóa đơn hàng #${code}? Hành động này không thể hoàn tác.`)) return;
     setActionLoading(true);
@@ -1940,6 +2149,7 @@ export default function AdminPage() {
       const data = await res.json();
       if (data.success) {
         showToast(`Đã xóa đơn hàng #${code}`);
+        refreshOrderList();
         if (selectedOrder?.id === id) setIsOrderDetailModalOpen(false);
         fetchData();
       } else {
@@ -2138,31 +2348,21 @@ export default function AdminPage() {
 
   // ==================== CSV EXPORT ====================
   const handleExportOrdersCSV = () => {
-    if (orders.length === 0) {
+    if (orderStatusCounts.ALL === 0) {
       showToast('Chưa có đơn hàng nào để xuất', 'info');
       return;
     }
-    const headers = ['Mã Đơn', 'Khách Hàng', 'Điện Thoại', 'Tỉnh/TP', 'Địa Chỉ', 'Tổng Tiền', 'Trạng Thái', 'Ngày Đặt'];
-    const rows = orders.map((o) => [
-      o.order_code,
-      `"${o.full_name}"`,
-      `"${o.phone}"`,
-      `"${o.province}"`,
-      `"${o.address}"`,
-      o.total,
-      o.status,
-      new Date(o.created_at).toLocaleDateString('vi-VN'),
-    ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    // Xuất TOÀN BỘ đơn khớp bộ lọc hiện tại (không chỉ trang đang xem) — máy chủ sinh file, thoát ký tự an toàn
+    const params = new URLSearchParams({ export: 'csv' });
+    if (orderStatusFilter !== 'ALL') params.set('status', orderStatusFilter);
+    if (debouncedOrderSearch) params.set('q', debouncedOrderSearch);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Don_Hang_Thai_Son_Foods_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.href = `/api/admin/orders?${params.toString()}`;
+    link.rel = 'noopener';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Đã xuất file CSV thành công!');
+    showToast('Đang tải file CSV...');
   };
 
   // ==================== FILTER LOGIC ====================
@@ -2196,17 +2396,6 @@ export default function AdminPage() {
       return matchSearch && matchFilter;
     });
   }, [combos, comboSearch, comboFilter]);
-
-  const filteredOrders = useMemo(() => {
-    return orders.filter((o) => {
-      const matchSearch =
-        o.order_code.toLowerCase().includes(orderSearch.toLowerCase()) ||
-        o.full_name.toLowerCase().includes(orderSearch.toLowerCase()) ||
-        o.phone.includes(orderSearch);
-      const matchStatus = orderStatusFilter === 'ALL' || o.status === orderStatusFilter;
-      return matchSearch && matchStatus;
-    });
-  }, [orders, orderSearch, orderStatusFilter]);
 
   // Bộ lọc danh sách tồn kho mặt hàng
   const filteredInventory = useMemo(() => {
@@ -2510,8 +2699,18 @@ export default function AdminPage() {
                     <ShoppingCart className="w-4 h-4" />
                     <span>Đơn hàng</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">
-                    {orders.length}
+                  <span className="flex items-center gap-1.5">
+                    {newOrderCount > 0 && (
+                      <span
+                        className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white animate-pulse"
+                        title={`${newOrderCount} đơn hàng mới chưa xem`}
+                      >
+                        +{newOrderCount} mới
+                      </span>
+                    )}
+                    <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700">
+                      {ordersTotal}
+                    </span>
                   </span>
                 </button>
               )}
@@ -2888,7 +3087,7 @@ export default function AdminPage() {
                     </span>
                   </div>
                   <div className="text-2xl font-black text-white mt-2 tracking-tight">
-                    {stats?.summary?.total_orders || orders.length || 0}
+                    {stats?.summary?.total_orders || ordersTotal || 0}
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-2">
                     <span className="text-amber-400 font-semibold">{stats?.summary?.pending_orders || 0} chờ duyệt</span>
@@ -3088,7 +3287,7 @@ export default function AdminPage() {
                     onClick={() => setActiveTab('orders')}
                     className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
                   >
-                    <span>Xem tất cả đơn hàng ({orders.length})</span>
+                    <span>Xem tất cả đơn hàng ({ordersTotal})</span>
                     <span>→</span>
                   </button>
                 </div>
@@ -3598,7 +3797,7 @@ export default function AdminPage() {
                   <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
                     <span>Quản Lý Đơn Hàng</span>
                     <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-slate-800 text-emerald-400 border border-slate-700">
-                      {orders.length} đơn
+                      {orderStatusCounts.ALL} đơn
                     </span>
                   </h1>
                   <p className="text-xs text-slate-400 mt-1">
@@ -3620,12 +3819,13 @@ export default function AdminPage() {
               {/* Status Tab Filter Buttons */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-800">
                 {[
-                  { key: 'ALL', label: 'Tất cả đơn', count: orders.length },
-                  { key: 'PENDING', label: 'Chờ xử lý', count: orders.filter((o) => o.status === 'PENDING').length },
-                  { key: 'CONFIRMED', label: 'Đã xác nhận', count: orders.filter((o) => o.status === 'CONFIRMED').length },
-                  { key: 'SHIPPING', label: 'Đang giao', count: orders.filter((o) => o.status === 'SHIPPING').length },
-                  { key: 'COMPLETED', label: 'Hoàn thành', count: orders.filter((o) => o.status === 'COMPLETED').length },
-                  { key: 'CANCELLED', label: 'Đã hủy', count: orders.filter((o) => o.status === 'CANCELLED').length },
+                  { key: 'ALL', label: 'Tất cả đơn', count: orderStatusCounts.ALL || 0 },
+                  { key: 'PENDING', label: 'Chờ xử lý', count: orderStatusCounts.PENDING || 0 },
+                  { key: 'CONFIRMED', label: 'Đã xác nhận', count: orderStatusCounts.CONFIRMED || 0 },
+                  { key: 'PROCESSING', label: 'Đang chuẩn bị', count: orderStatusCounts.PROCESSING || 0 },
+                  { key: 'SHIPPING', label: 'Đang giao', count: orderStatusCounts.SHIPPING || 0 },
+                  { key: 'COMPLETED', label: 'Hoàn thành', count: orderStatusCounts.COMPLETED || 0 },
+                  { key: 'CANCELLED', label: 'Đã hủy', count: orderStatusCounts.CANCELLED || 0 },
                 ].map((t) => (
                   <button
                     key={t.key}
@@ -3673,7 +3873,7 @@ export default function AdminPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
-                      {filteredOrders.map((order) => {
+                      {orderRows.map((order) => {
                         const st = statusMap[order.status] || statusMap['PENDING'];
                         return (
                           <tr key={order.id} className="hover:bg-slate-800/40 transition-colors">
@@ -3743,12 +3943,21 @@ export default function AdminPage() {
                                     : 'cursor-pointer'
                                 } ${st.bg}`}
                               >
-                                <option value="PENDING" className="bg-slate-900 text-amber-400">Chờ xử lý</option>
-                                <option value="CONFIRMED" className="bg-slate-900 text-blue-400">Đã xác nhận</option>
-                                <option value="PROCESSING" className="bg-slate-900 text-purple-400">Đang chuẩn bị</option>
-                                <option value="SHIPPING" className="bg-slate-900 text-cyan-400">Đang giao hàng</option>
-                                <option value="COMPLETED" className="bg-slate-900 text-emerald-400">Hoàn thành</option>
-                                <option value="CANCELLED" className="bg-slate-900 text-rose-400">Đã hủy</option>
+                                {/* Chỉ hiện trạng thái hiện tại + các bước hợp lệ tiếp theo (xem lib/order-status.ts) */}
+                                {([
+                                  ['PENDING', 'text-amber-400', 'Chờ xử lý'],
+                                  ['CONFIRMED', 'text-blue-400', 'Đã xác nhận'],
+                                  ['PROCESSING', 'text-purple-400', 'Đang chuẩn bị'],
+                                  ['SHIPPING', 'text-cyan-400', 'Đang giao hàng'],
+                                  ['COMPLETED', 'text-emerald-400', 'Hoàn thành'],
+                                  ['CANCELLED', 'text-rose-400', 'Đã hủy'],
+                                ] as const)
+                                  .filter(([value]) => value === order.status || canTransitionOrderStatus(order.status, value))
+                                  .map(([value, color, label]) => (
+                                    <option key={value} value={value} className={`bg-slate-900 ${color}`}>
+                                      {label}
+                                    </option>
+                                  ))}
                               </select>
                             </td>
                             <td className="py-3 px-4 text-slate-400 text-[11px]">
@@ -3767,7 +3976,7 @@ export default function AdminPage() {
                                 >
                                   Chi tiết
                                 </button>
-                                {hasPermission(currentUser, 'orders.update_status_all') && (
+                                {hasPermission(currentUser, 'orders.update_status_all') && canDeleteOrder(order.status) && (
                                   <button
                                     onClick={() => handleDeleteOrder(order.id, order.order_code)}
                                     title="Xóa đơn hàng"
@@ -3781,15 +3990,65 @@ export default function AdminPage() {
                           </tr>
                         );
                       })}
-                      {filteredOrders.length === 0 && (
+                      {orderRows.length === 0 && (
                         <tr>
                           <td colSpan={8} className="py-8 text-center text-slate-500">
-                            Không có đơn hàng nào khớp với tìm kiếm hoặc bộ lọc trạng thái.
+                            {orderListLoading
+                              ? 'Đang tải danh sách đơn hàng...'
+                              : 'Không có đơn hàng nào khớp với tìm kiếm hoặc bộ lọc trạng thái.'}
                           </td>
                         </tr>
                       )}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Phân trang */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-800 bg-slate-950/50 text-xs text-slate-400">
+                  <span>
+                    {orderPageInfo.total === 0
+                      ? 'Không có đơn hàng'
+                      : `Hiển thị ${(orderPageInfo.page - 1) * orderPageInfo.limit + 1}–${Math.min(
+                          orderPageInfo.page * orderPageInfo.limit,
+                          orderPageInfo.total
+                        )} / ${orderPageInfo.total} đơn`}
+                    {orderListLoading && <span className="ml-2 text-emerald-400">• đang tải…</span>}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      disabled={orderPageInfo.page <= 1 || orderListLoading}
+                      onClick={() => setOrderPage(1)}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      aria-label="Trang đầu"
+                    >
+                      «
+                    </button>
+                    <button
+                      disabled={orderPageInfo.page <= 1 || orderListLoading}
+                      onClick={() => setOrderPage((p) => Math.max(1, p - 1))}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      ‹ Trước
+                    </button>
+                    <span className="px-3 font-mono text-slate-300">
+                      {orderPageInfo.page} / {orderPageInfo.totalPages}
+                    </span>
+                    <button
+                      disabled={orderPageInfo.page >= orderPageInfo.totalPages || orderListLoading}
+                      onClick={() => setOrderPage((p) => Math.min(orderPageInfo.totalPages, p + 1))}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      Sau ›
+                    </button>
+                    <button
+                      disabled={orderPageInfo.page >= orderPageInfo.totalPages || orderListLoading}
+                      onClick={() => setOrderPage(orderPageInfo.totalPages)}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      aria-label="Trang cuối"
+                    >
+                      »
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -4156,17 +4415,17 @@ export default function AdminPage() {
                   <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800">
                     <p className="text-xs text-slate-400">Đơn trung bình (AOV)</p>
                     <p className="text-base font-extrabold text-white mt-1">
-                      {orders.length > 0
-                        ? formatVND(Math.round(Number(stats?.summary?.total_revenue || 0) / orders.length))
+                      {ordersTotal > 0
+                        ? formatVND(Math.round(Number(stats?.summary?.total_revenue || 0) / ordersTotal))
                         : '0 ₫'}
                     </p>
                   </div>
                   <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800">
                     <p className="text-xs text-slate-400">Tỷ lệ hoàn thành</p>
                     <p className="text-base font-extrabold text-emerald-400 mt-1">
-                      {orders.length > 0
+                      {ordersTotal > 0
                         ? Math.round(
-                            (Number(stats?.summary?.completed_orders || 0) / orders.length) * 100
+                            (Number(stats?.summary?.completed_orders || 0) / ordersTotal) * 100
                           )
                         : 0}
                       %
@@ -4179,7 +4438,7 @@ export default function AdminPage() {
                   <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800">
                     <p className="text-xs text-slate-400">Thanh toán COD</p>
                     <p className="text-base font-extrabold text-blue-400 mt-1">
-                      {orders.filter((o) => o.payment_method === 'cod').length} đơn
+                      {orderPaymentCounts.cod || 0} đơn
                     </p>
                   </div>
                 </div>
@@ -4588,14 +4847,14 @@ export default function AdminPage() {
                       <tr>
                         <td className="py-3 px-4 font-mono font-bold text-emerald-400">orders</td>
                         <td className="py-3 px-4">Đơn đặt hàng từ website khách hàng</td>
-                        <td className="py-3 px-4 font-mono font-bold">{orders.length} dòng</td>
+                        <td className="py-3 px-4 font-mono font-bold">{ordersTotal} dòng</td>
                         <td className="py-3 px-4 text-emerald-400 font-semibold">Đã đồng bộ</td>
                       </tr>
                       <tr>
                         <td className="py-3 px-4 font-mono font-bold text-emerald-400">order_items</td>
                         <td className="py-3 px-4">Chi tiết các món trong từng đơn hàng</td>
                         <td className="py-3 px-4 font-mono font-bold">
-                          {orders.reduce((acc, o) => acc + (o.item_count || 1), 0)} dòng
+                          {ordersTotal > orders.length ? '≥ ' : ''}{orders.reduce((acc, o) => acc + (o.item_count || 1), 0)} dòng
                         </td>
                         <td className="py-3 px-4 text-emerald-400 font-semibold">Đã đồng bộ</td>
                       </tr>
@@ -4999,6 +5258,179 @@ export default function AdminPage() {
                           );
                         })
                       )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* LÔ HÀNG & HẠN SỬ DỤNG */}
+              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-4 border-b border-slate-800">
+                  <div>
+                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-emerald-400" />
+                      <span>Lô hàng &amp; hạn sử dụng</span>
+                      <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                        {inventoryLots.length} lô
+                      </span>
+                    </h2>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Theo dõi từng lô theo ngày sản xuất / hạn dùng (xuất theo lô hết hạn trước — FEFO). Chi nhánh:{' '}
+                      <strong className="text-slate-200">{selectedStoreCode}</strong>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fetchInventoryLots(selectedStoreCode)}
+                      disabled={lotsLoading}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${lotsLoading ? 'animate-spin' : ''}`} />
+                      <span>Làm mới</span>
+                    </button>
+                    {(hasPermission(currentUser, 'inventory.update_own_store') || hasPermission(currentUser, 'dealer.manage')) && (
+                      <button
+                        type="button"
+                        onClick={() => setLotFormOpen((o) => !o)}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>{lotFormOpen ? 'Đóng biểu mẫu' : 'Nhập lô mới'}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {lotFormOpen && (
+                  <form onSubmit={handleSaveLot} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 px-5 py-4 border-b border-slate-800 bg-slate-950/50">
+                    <label className="text-[11px] font-semibold text-slate-300 lg:col-span-2">
+                      Sản phẩm *
+                      <select
+                        value={lotForm.productId}
+                        onChange={(e) => setLotForm({ ...lotForm, productId: e.target.value })}
+                        required
+                        className="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="">— Chọn sản phẩm —</option>
+                        {products.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name.length > 60 ? `${p.name.slice(0, 58)}…` : p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-[11px] font-semibold text-slate-300">
+                      Mã lô *
+                      <input
+                        type="text"
+                        value={lotForm.lotCode}
+                        onChange={(e) => setLotForm({ ...lotForm, lotCode: e.target.value })}
+                        maxLength={100}
+                        required
+                        placeholder="VD: LOT-2610-01"
+                        className="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                      />
+                    </label>
+                    <label className="text-[11px] font-semibold text-slate-300">
+                      Ngày sản xuất *
+                      <input
+                        type="date"
+                        value={lotForm.manufacturingDate}
+                        onChange={(e) => setLotForm({ ...lotForm, manufacturingDate: e.target.value })}
+                        required
+                        className="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                      />
+                    </label>
+                    <label className="text-[11px] font-semibold text-slate-300">
+                      Hạn sử dụng *
+                      <input
+                        type="date"
+                        value={lotForm.expiryDate}
+                        min={lotForm.manufacturingDate || undefined}
+                        onChange={(e) => setLotForm({ ...lotForm, expiryDate: e.target.value })}
+                        required
+                        className="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                      />
+                    </label>
+                    <label className="text-[11px] font-semibold text-slate-300">
+                      Số lượng (chai) *
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={lotForm.quantity}
+                        onChange={(e) => setLotForm({ ...lotForm, quantity: e.target.value })}
+                        required
+                        className="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                      />
+                    </label>
+                    <div className="sm:col-span-2 lg:col-span-4 flex items-end text-[11px] text-slate-500">
+                      Nhập trùng mã lô và đúng ngày sẽ cộng thêm số lượng vào lô đó; trùng mã lô nhưng khác ngày sẽ bị từ chối.
+                    </div>
+                    <div className="flex items-end justify-end">
+                      <button
+                        type="submit"
+                        disabled={actionLoading}
+                        className="w-full px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold cursor-pointer"
+                      >
+                        Lưu lô hàng
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-slate-950/80 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
+                      <tr>
+                        <th className="py-3 px-4">Sản phẩm</th>
+                        <th className="py-3 px-4">Mã lô</th>
+                        <th className="py-3 px-4">NSX</th>
+                        <th className="py-3 px-4">HSD</th>
+                        <th className="py-3 px-4 text-right">Tồn</th>
+                        <th className="py-3 px-4 text-right">Giữ chỗ</th>
+                        <th className="py-3 px-4 text-right">Còn bán</th>
+                        <th className="py-3 px-4">Tình trạng</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {inventoryLots.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="py-8 text-center text-slate-500">
+                            {lotsLoading
+                              ? 'Đang tải lô hàng...'
+                              : 'Chi nhánh này chưa có lô hàng nào. Bấm "Nhập lô mới" để bắt đầu theo dõi hạn sử dụng.'}
+                          </td>
+                        </tr>
+                      )}
+                      {inventoryLots.map((lot) => {
+                        const badge =
+                          lot.expiryStatus === 'EXPIRED'
+                            ? { cls: 'bg-rose-500/15 text-rose-300 border-rose-500/30', text: `Đã hết hạn ${Math.abs(lot.daysRemaining)} ngày` }
+                            : lot.expiryStatus === 'CRITICAL'
+                            ? { cls: 'bg-rose-500/10 text-rose-300 border-rose-500/30 animate-pulse', text: `Còn ${lot.daysRemaining} ngày` }
+                            : lot.expiryStatus === 'NEAR_EXPIRY'
+                            ? { cls: 'bg-amber-500/10 text-amber-300 border-amber-500/30', text: `Sắp hết hạn · ${lot.daysRemaining} ngày` }
+                            : { cls: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20', text: `Còn ${lot.daysRemaining} ngày` };
+                        const fmtDate = (d: string) => new Date(d).toLocaleDateString('vi-VN');
+                        return (
+                          <tr key={lot.id} className="hover:bg-slate-800/40 transition-colors">
+                            <td className="py-3 px-4 font-semibold text-slate-100 max-w-[240px] truncate" title={lot.product_name}>
+                              {lot.product_name}
+                            </td>
+                            <td className="py-3 px-4 font-mono text-emerald-400">{lot.lot_code}</td>
+                            <td className="py-3 px-4 text-slate-400">{fmtDate(lot.manufacturing_date)}</td>
+                            <td className="py-3 px-4 text-slate-200">{fmtDate(lot.expiry_date)}</td>
+                            <td className="py-3 px-4 text-right font-mono">{lot.stock_quantity}</td>
+                            <td className="py-3 px-4 text-right font-mono text-amber-300">{lot.reserved_quantity}</td>
+                            <td className="py-3 px-4 text-right font-mono font-bold text-white">{lot.available_quantity}</td>
+                            <td className="py-3 px-4">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${badge.cls}`}>{badge.text}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -7381,6 +7813,45 @@ export default function AdminPage() {
                     <span>Xác nhận đã thu COD ({formatVND(selectedOrder.total)})</span>
                   </button>
                 )}
+                {/* Thanh toán chuyển khoản (đơn không phải COD) */}
+                {selectedOrder.payment_method !== 'cod' && selectedOrder.status !== 'CANCELLED' && (
+                  <div className="mt-2 pt-2 border-t border-slate-900 space-y-2">
+                    <div className="flex justify-between items-center text-slate-400">
+                      <span>Thanh toán chuyển khoản:</span>
+                      {selectedOrder.payment_status === 'PAID' ? (
+                        <span className="font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 text-[11px]">
+                          ✓ Đã nhận · GD: {selectedOrder.payment_reference || '—'}
+                        </span>
+                      ) : (
+                        <span className="font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 text-[11px]">
+                          ⏳ Chưa xác nhận
+                        </span>
+                      )}
+                    </div>
+                    {selectedOrder.payment_status !== 'PAID' &&
+                      (hasPermission(currentUser, 'cod.reconcile') || hasPermission(currentUser, 'orders.update_status_all')) && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={paymentRefInput}
+                            onChange={(e) => setPaymentRefInput(e.target.value)}
+                            maxLength={100}
+                            placeholder="Mã giao dịch ngân hàng..."
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                          />
+                          <button
+                            type="button"
+                            disabled={actionLoading || !paymentRefInput.trim()}
+                            onClick={() => handleConfirmPayment(selectedOrder.id)}
+                            className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Xác nhận đã nhận tiền</span>
+                          </button>
+                        </div>
+                      )}
+                  </div>
+                )}
               </div>
 
               {/* Chuyển đơn sang chi nhánh khác (Chỉ SUPER_ADMIN khi đơn PENDING) */}
@@ -7745,10 +8216,10 @@ export default function AdminPage() {
                 <input
                   type="password"
                   required={userModalMode === 'create'}
-                  minLength={6}
+                  minLength={8}
                   value={userFormData.password}
                   onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
-                  placeholder={userModalMode === 'create' ? 'Tối thiểu 6 ký tự' : 'Nhập mật khẩu mới nếu muốn đổi...'}
+                  placeholder={userModalMode === 'create' ? 'Tối thiểu 8 ký tự, gồm chữ và số' : 'Nhập mật khẩu mới nếu muốn đổi...'}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
