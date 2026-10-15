@@ -65,7 +65,7 @@ export default function AmazonHeroCarousel({ banners, autoplayMs = 6000 }: Amazo
         touchX.current = null;
       }}
     >
-      <div className="relative w-full aspect-[16/9] sm:aspect-[2/1] lg:aspect-auto lg:h-[clamp(320px,27vw,420px)]">
+      <div className="relative w-full aspect-[16/9] sm:aspect-[1920/850]">
         {slides.map((banner, i) => {
           const active = i === index;
           const src = failed[banner.id] ? FALLBACK_BANNER : banner.image;
@@ -75,7 +75,7 @@ export default function AmazonHeroCarousel({ banners, autoplayMs = 6000 }: Amazo
               alt={banner.alt || 'Thái Sơn Foods'}
               fill
               sizes="(max-width: 1500px) 100vw, 1500px"
-              className="object-cover object-center lg:object-top"
+              className="object-cover object-center"
               priority={i === 0}
               loading={i === 0 ? 'eager' : 'lazy'}
               onError={() => setFailed((f) => ({ ...f, [banner.id]: true }))}
