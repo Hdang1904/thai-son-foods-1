@@ -6,12 +6,15 @@ import Link from 'next/link';
 import { Star, Info } from 'lucide-react';
 import { products } from '@/data/products';
 import { Product } from '@/types';
+import { getPackLabel, useRandomSponsoredProduct } from '@/lib/sponsored-products';
 
 interface ProductSponsoredMiniCardProps {
   currentProductId?: string;
   className?: string;
   /** Ẩn số liệu chưa xác thực (sao/lượt đánh giá mẫu, prime). Mặc định giữ hành vi cũ. */
   hideUnverifiedStats?: boolean;
+  /** Chọn ngẫu nhiên sản phẩm khác mỗi lần mở trang (giao diện mới). Mặc định giữ hành vi cũ. */
+  randomize?: boolean;
 }
 
 function getProductSubtitle(product: Product): string {
@@ -35,25 +38,32 @@ function getProductSubtitle(product: Product): string {
   }
 
   const firstPart = product.name.split(',')[0].trim();
-  return `${firstPart} (Lốc 7 chai 330ml) | 100% Nguyên liệu tự nhiên`;
+  const variant = product.variants?.find((v) => v.quantity === 7) || product.variants?.[0];
+  return `${firstPart} (${getPackLabel(product, variant)}) | 100% Nguyên liệu tự nhiên`;
 }
 
 export default function ProductSponsoredMiniCard({
   currentProductId,
   className = '',
   hideUnverifiedStats = false,
+  randomize = false,
 }: ProductSponsoredMiniCardProps) {
+  const randomProduct = useRandomSponsoredProduct(currentProductId, 0, randomize);
+
   // Chọn sản phẩm gợi ý khác với sản phẩm hiện tại
   const candidates = products.filter(
     (p) => p.id !== currentProductId && p.slug !== currentProductId && p.isActive
   );
 
-  const recommendedProduct: Product =
+  const fixedProduct: Product =
     candidates.find((p) => p.id === 'sua-hat-sen-mekong') ||
     candidates.find((p) => p.id === 'sua-bap-nep') ||
     candidates.find((p) => p.id === 'sua-gao-lut-mekong') ||
     candidates[0] ||
     products[0];
+  const recommendedProduct: Product = randomProduct || fixedProduct;
+  // Chế độ ngẫu nhiên: ẩn (giữ chỗ) cho tới khi chọn xong phía trình duyệt, tránh nháy sản phẩm
+  const waitingRandom = randomize && !randomProduct;
 
   if (!recommendedProduct) return null;
 
@@ -73,7 +83,7 @@ export default function ProductSponsoredMiniCard({
 
   return (
     <div
-      className={`w-full bg-white rounded-lg border border-gray-200/90 p-3 sm:p-3.5 shadow-[0_1px_4px_rgba(0,0,0,0.03)] hover:shadow-[0_2px_10px_rgba(0,0,0,0.07)] transition-all duration-300 ${className}`}
+      className={`w-full bg-white rounded-lg border border-gray-200/90 p-3 sm:p-3.5 shadow-[0_1px_4px_rgba(0,0,0,0.03)] hover:shadow-[0_2px_10px_rgba(0,0,0,0.07)] transition-all duration-300 ${waitingRandom ? 'invisible' : ''} ${className}`}
     >
       <div className="flex items-center gap-3 sm:gap-4">
         {/* Ảnh sản phẩm bên trái (Tỉ lệ chuẩn Amazon) */}

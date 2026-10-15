@@ -5,19 +5,26 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Star, Info } from 'lucide-react';
 import { Product } from '@/types';
+import { getPackLabel, useRandomSponsoredProduct } from '@/lib/sponsored-products';
 
 interface ProductSponsoredBannerProps {
   product?: Product;
   className?: string;
   /** Ẩn số liệu chưa xác thực (sao/lượt đánh giá mẫu, prime, -15%, giá gốc ước tính). Mặc định giữ hành vi cũ. */
   hideUnverifiedStats?: boolean;
+  /** Chọn ngẫu nhiên một sản phẩm KHÁC sản phẩm đang xem mỗi lần mở trang (giao diện mới). Mặc định giữ hành vi cũ. */
+  randomize?: boolean;
 }
 
 export default function ProductSponsoredBanner({
-  product,
+  product: currentProduct,
   className = '',
   hideUnverifiedStats = false,
+  randomize = false,
 }: ProductSponsoredBannerProps) {
+  const randomProduct = useRandomSponsoredProduct(currentProduct?.id, 2, randomize);
+  const product = randomize ? randomProduct || undefined : currentProduct;
+  const waitingRandom = randomize && !randomProduct;
   // Lấy giá lốc hoặc mặc định tương ứng với sản phẩm
   const defaultPackVariant = product?.variants?.find((v) => v.quantity === 7) || product?.variants?.[0];
   const price = defaultPackVariant ? defaultPackVariant.price : (product?.price ? product.price * 7 : 126000);
@@ -26,14 +33,14 @@ export default function ProductSponsoredBanner({
     : hideUnverifiedStats ? 0 : Math.round(price * 1.35);
 
   const displayTitle = product?.name
-    ? `${product.name.replace(/,.*$/, '')} (Lốc 7 chai 330ml)`
+    ? `${product.name.replace(/,.*$/, '')} (${getPackLabel(product, defaultPackVariant)})`
     : 'Sữa Bắp Nếp Tươi Thái Sơn (Lốc 7 chai 330ml)';
 
   const productImg = product?.thumbnail || '/images/products/1200x900-sb1.jpg';
   const productLink = product?.slug ? `/san-pham/${product.slug}` : '/san-pham/sua-bap-nep-thai-son';
 
   return (
-    <section className={`w-full py-4 sm:py-6 ${className}`}>
+    <section className={`w-full py-4 sm:py-6 ${waitingRandom ? 'invisible' : ''} ${className}`}>
       {/* ── Khung Banner Chính Chuẩn Amazon Sponsored Brand Showcase ── */}
       <div className="relative bg-white rounded-xl sm:rounded-2xl border border-gray-200/90 shadow-[0_1px_6px_rgba(0,0,0,0.03)] overflow-hidden transition-all duration-300 hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]">
         <div className="flex flex-col md:flex-row items-stretch md:h-[220px] lg:h-[230px]">

@@ -6,12 +6,15 @@ import Link from 'next/link';
 import { Star, Info } from 'lucide-react';
 import { products } from '@/data/products';
 import { Product } from '@/types';
+import { getPackLabel, useRandomSponsoredProduct } from '@/lib/sponsored-products';
 
 interface ProductSidebarSponsoredCardProps {
   currentProductId?: string;
   className?: string;
   /** Ẩn số liệu chưa xác thực (sao/lượt đánh giá mẫu, prime, -15%, giá gốc ước tính). Mặc định giữ hành vi cũ. */
   hideUnverifiedStats?: boolean;
+  /** Chọn ngẫu nhiên sản phẩm khác mỗi lần mở trang (giao diện mới). Mặc định giữ hành vi cũ. */
+  randomize?: boolean;
 }
 
 /**
@@ -36,17 +39,22 @@ export default function ProductSidebarSponsoredCard({
   currentProductId,
   className = '',
   hideUnverifiedStats = false,
+  randomize = false,
 }: ProductSidebarSponsoredCardProps) {
+  const randomProduct = useRandomSponsoredProduct(currentProductId, 1, randomize);
+
   // Chọn sản phẩm Best Seller hoặc Đang Sale khác với sản phẩm hiện tại
   const candidateProducts = products.filter((p) => p.id !== currentProductId && p.isActive);
 
   // Ưu tiên sản phẩm Bestseller hoặc có ưu đãi tốt
-  const recommendedProduct: Product =
+  const fixedProduct: Product =
     candidateProducts.find((p) => p.id === 'sua-bap-nep' || p.slug === 'sua-bap-nep-thai-son') ||
     candidateProducts.find((p) => p.id === 'sua-hat-sen-mekong' || p.slug === 'sua-hat-sen-mekong-xanh') ||
     candidateProducts.find((p) => p.isBestSeller) ||
     candidateProducts[0] ||
     products[0];
+  const recommendedProduct: Product = randomProduct || fixedProduct;
+  const waitingRandom = randomize && !randomProduct;
 
   if (!recommendedProduct) return null;
 
@@ -58,7 +66,7 @@ export default function ProductSidebarSponsoredCard({
     : hideUnverifiedStats ? 0 : Math.round(price * 1.35);
 
   const cleanName = getCleanProductName(recommendedProduct);
-  const packUnit = defaultPackVariant ? `Lốc ${defaultPackVariant.name} 330ml` : 'Lốc 7 chai 330ml';
+  const packUnit = getPackLabel(recommendedProduct, defaultPackVariant);
   const productLink = `/san-pham/${recommendedProduct.slug}`;
   const thumbnail = recommendedProduct.thumbnail || '/images/products/1200x900-sb1.jpg';
 
@@ -96,7 +104,7 @@ export default function ProductSidebarSponsoredCard({
       </div>
 
       {/* ── Box quảng cáo gợi ý chuẩn Amazon Sponsored Product Card ── */}
-      <div>
+      <div className={waitingRandom ? 'invisible' : undefined}>
         <div className="relative bg-white rounded-lg border border-gray-200/90 p-3.5 sm:p-4 shadow-[0_1px_4px_rgba(0,0,0,0.03)] hover:shadow-[0_3px_12px_rgba(0,0,0,0.07)] transition-all duration-300">
           <Link href={productLink} className="block group">
             {/* HÀNG TRÊN: Logo thương hiệu bên trái + Mini banner/ảnh sản phẩm bên phải */}

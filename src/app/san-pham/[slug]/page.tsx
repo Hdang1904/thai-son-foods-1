@@ -325,7 +325,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         {/* ── BANNER SHOWCASE THƯƠNG HIỆU ── */}
         <div className="border-t border-gray-200 bg-white">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <ProductSponsoredBanner product={product} hideUnverifiedStats />
+            <ProductSponsoredBanner product={product} hideUnverifiedStats randomize />
           </div>
         </div>
 

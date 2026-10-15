@@ -344,7 +344,7 @@ export default function ProductMainSection({
           <div key="gallery">{gallery}</div>
           {/* Thẻ sản phẩm được tài trợ dưới thư viện ảnh (khối có sẵn của TSF) */}
           <div className="hidden md:block mt-4">
-            <ProductSponsoredMiniCard currentProductId={product.id} hideUnverifiedStats />
+            <ProductSponsoredMiniCard currentProductId={product.id} hideUnverifiedStats randomize />
           </div>
         </div>
 
@@ -533,7 +533,7 @@ export default function ProductMainSection({
           />
           {/* Khối hội viên + gợi ý được tài trợ (khối có sẵn của TSF) dưới Buy Box */}
           <div className="hidden xl:block mt-4">
-            <ProductSidebarSponsoredCard currentProductId={product.id} hideUnverifiedStats />
+            <ProductSidebarSponsoredCard currentProductId={product.id} hideUnverifiedStats randomize />
           </div>
         </div>
 
@@ -566,9 +566,9 @@ export default function ProductMainSection({
           {/* Màn hình nhỏ hơn xl: các khối được tài trợ chuyển xuống dưới phần đặc điểm */}
           <div className="xl:hidden mt-6 space-y-4">
             <div className="md:hidden">
-              <ProductSponsoredMiniCard currentProductId={product.id} hideUnverifiedStats />
+              <ProductSponsoredMiniCard currentProductId={product.id} hideUnverifiedStats randomize />
             </div>
-            <ProductSidebarSponsoredCard currentProductId={product.id} hideUnverifiedStats />
+            <ProductSidebarSponsoredCard currentProductId={product.id} hideUnverifiedStats randomize />
           </div>
         </div>
       </div>
