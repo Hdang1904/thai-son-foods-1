@@ -46,7 +46,7 @@ export default function AmazonHeroCarousel({ banners, autoplayMs = 6000 }: Amazo
     <section
       aria-roledescription="carousel"
       aria-label="Banner quảng cáo"
-      className="relative w-full max-w-[1500px] mx-auto overflow-hidden"
+      className="relative w-full overflow-hidden rounded-2xl shadow-xs"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocusCapture={() => setPaused(true)}
@@ -65,7 +65,7 @@ export default function AmazonHeroCarousel({ banners, autoplayMs = 6000 }: Amazo
         touchX.current = null;
       }}
     >
-      <div className="relative w-full aspect-[16/9] sm:aspect-[2/1] lg:aspect-auto lg:h-[clamp(380px,32vw,480px)]">
+      <div className="relative w-full aspect-[16/9] sm:aspect-[2/1] lg:aspect-auto lg:h-[clamp(320px,27vw,420px)]">
         {slides.map((banner, i) => {
           const active = i === index;
           const src = failed[banner.id] ? FALLBACK_BANNER : banner.image;
@@ -104,8 +104,6 @@ export default function AmazonHeroCarousel({ banners, autoplayMs = 6000 }: Amazo
           );
         })}
 
-        {/* Lớp mờ chân hero: ảnh tan dần vào nền trang để lưới thẻ danh mục chồng lên (desktop) */}
-        <div className="hidden lg:block absolute inset-x-0 bottom-0 h-10 z-[2] pointer-events-none bg-gradient-to-b from-transparent to-ivory-dark/60" />
 
         {count > 1 && (
           <>
@@ -113,7 +111,7 @@ export default function AmazonHeroCarousel({ banners, autoplayMs = 6000 }: Amazo
               type="button"
               onClick={() => go(-1)}
               aria-label="Banner trước"
-              className="absolute left-0 top-0 z-[3] h-full lg:h-[250px] w-12 sm:w-16 lg:w-20 flex items-center justify-center text-white/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-corn cursor-pointer group"
+              className="absolute left-0 top-0 z-[3] h-full w-12 sm:w-16 lg:w-20 flex items-center justify-center text-white/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-corn cursor-pointer group"
             >
               <span className="flex items-center justify-center w-9 h-9 lg:w-11 lg:h-11 rounded-full bg-black/25 group-hover:bg-black/45 transition-colors">
                 <ChevronLeft className="w-6 h-6 lg:w-8 lg:h-8" strokeWidth={2.5} />
@@ -123,7 +121,7 @@ export default function AmazonHeroCarousel({ banners, autoplayMs = 6000 }: Amazo
               type="button"
               onClick={() => go(1)}
               aria-label="Banner tiếp theo"
-              className="absolute right-0 top-0 z-[3] h-full lg:h-[250px] w-12 sm:w-16 lg:w-20 flex items-center justify-center text-white/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-corn cursor-pointer group"
+              className="absolute right-0 top-0 z-[3] h-full w-12 sm:w-16 lg:w-20 flex items-center justify-center text-white/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-corn cursor-pointer group"
             >
               <span className="flex items-center justify-center w-9 h-9 lg:w-11 lg:h-11 rounded-full bg-black/25 group-hover:bg-black/45 transition-colors">
                 <ChevronRight className="w-6 h-6 lg:w-8 lg:h-8" strokeWidth={2.5} />
@@ -131,7 +129,7 @@ export default function AmazonHeroCarousel({ banners, autoplayMs = 6000 }: Amazo
             </button>
 
             {/* Chấm chỉ số slide (mobile/tablet — trên desktop phần chân hero bị lưới thẻ che) */}
-            <div className="lg:hidden absolute bottom-2 inset-x-0 z-[3] flex justify-center gap-1.5">
+            <div className="absolute bottom-3 inset-x-0 z-[3] flex justify-center gap-1.5">
               {slides.map((b, i) => (
                 <button
                   key={b.id}

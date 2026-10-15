@@ -99,14 +99,12 @@ export default function HomePage({ heroBanners, liveProducts, liveCombos }: Home
     <div data-homepage="amazon" className="bg-ivory-dark pb-8">
       <h1 className="sr-only">Thái Sơn Foods — Thức uống tự nhiên từ nguyên liệu chọn lọc</h1>
 
-      {/* 1. HERO */}
-      <AmazonHeroCarousel banners={heroSlides} />
+      <div className="max-w-[1500px] mx-auto px-3 sm:px-4 lg:px-5 pt-3 lg:pt-4 space-y-4 lg:space-y-5">
+        {/* 1. HERO — cùng bề rộng với lưới thẻ, bo góc, sát phía trên */}
+        <AmazonHeroCarousel banners={heroSlides} />
 
-      <div className="max-w-[1500px] mx-auto px-3 sm:px-4 lg:px-5 space-y-4 lg:space-y-5">
-        {/* 2. LƯỚI THẺ DANH MỤC — chồng lên chân hero trên desktop */}
-        <div className="relative z-10 pt-4 lg:pt-0 lg:-mt-[clamp(20px,2.4vw,36px)]">
-          <AmazonCategoryCards categories={categoryGroups} combos={combos} />
-        </div>
+        {/* 2. LƯỚI THẺ DANH MỤC — nằm ngay dưới hero, không che banner */}
+        <AmazonCategoryCards categories={categoryGroups} combos={combos} />
 
         {/* 3. SẢN PHẨM THÁI SƠN (giữ anchor #san-pham cho Header/Footer/tìm kiếm/breadcrumb) */}
         <AmazonProductRow
