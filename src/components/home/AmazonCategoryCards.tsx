@@ -102,7 +102,7 @@ function CategoryQuadCard({ group }: { group: HomeCategoryGroup }) {
           const name = getShortProductName(p, language);
           return (
             <Link key={p.id} href={`/san-pham/${p.slug}`} className="group min-w-0">
-              <div className="relative aspect-square rounded-lg bg-ivory overflow-hidden">
+              <div className="relative aspect-[4/3] rounded-lg bg-ivory overflow-hidden">
                 <TileImage src={getProductImage(p)} alt={name} sizes="(max-width: 640px) 40vw, 160px" />
               </div>
               <p className="mt-1 text-[12px] leading-tight text-text-body line-clamp-2 group-hover:text-green-primary" title={name}>
@@ -223,7 +223,7 @@ function ComboQuadCard({ combos }: { combos: Combo[] }) {
           const name = (language === 'en' && c.nameEn ? c.nameEn : c.name).split(',')[0].trim();
           return (
             <Link key={c.id} href={`/combo/${c.slug}`} className="group min-w-0">
-              <div className="relative aspect-square rounded-lg bg-ivory overflow-hidden">
+              <div className="relative aspect-[4/3] rounded-lg bg-ivory overflow-hidden">
                 <TileImage src={c.image} alt={name} sizes="(max-width: 640px) 40vw, 160px" />
                 {c.discount > 0 && (
                   <span className="absolute top-1 left-1 px-1.5 py-0.5 text-[10px] font-bold bg-sale text-white rounded">
@@ -271,7 +271,7 @@ function BuyAgainPlaceholderCard() {
         {Array.from({ length: BUY_AGAIN_PLACEHOLDER.slotCount }).map((_, i) => (
           <div
             key={i}
-            className="aspect-square rounded-lg border-2 border-dashed border-border bg-ivory/60 flex items-center justify-center"
+            className="aspect-[4/3] rounded-lg border-2 border-dashed border-border bg-ivory/60 flex items-center justify-center"
           >
             <Package className="w-7 h-7 text-border" />
           </div>

@@ -65,7 +65,7 @@ export default function AmazonHeroCarousel({ banners, autoplayMs = 6000 }: Amazo
         touchX.current = null;
       }}
     >
-      <div className="relative w-full aspect-[16/9] sm:aspect-[2/1] lg:aspect-auto lg:h-[600px]">
+      <div className="relative w-full aspect-[16/9] sm:aspect-[2/1] lg:aspect-auto lg:h-[clamp(380px,32vw,480px)]">
         {slides.map((banner, i) => {
           const active = i === index;
           const src = failed[banner.id] ? FALLBACK_BANNER : banner.image;
@@ -75,7 +75,7 @@ export default function AmazonHeroCarousel({ banners, autoplayMs = 6000 }: Amazo
               alt={banner.alt || 'Thái Sơn Foods'}
               fill
               sizes="(max-width: 1500px) 100vw, 1500px"
-              className="object-cover object-center"
+              className="object-cover object-center lg:object-top"
               priority={i === 0}
               loading={i === 0 ? 'eager' : 'lazy'}
               onError={() => setFailed((f) => ({ ...f, [banner.id]: true }))}
@@ -105,7 +105,7 @@ export default function AmazonHeroCarousel({ banners, autoplayMs = 6000 }: Amazo
         })}
 
         {/* Lớp mờ chân hero: ảnh tan dần vào nền trang để lưới thẻ danh mục chồng lên (desktop) */}
-        <div className="hidden lg:block absolute inset-x-0 bottom-0 h-[55%] z-[2] pointer-events-none bg-gradient-to-b from-transparent via-ivory-dark/70 to-ivory-dark" />
+        <div className="hidden lg:block absolute inset-x-0 bottom-0 h-[26%] z-[2] pointer-events-none bg-gradient-to-b from-transparent to-ivory-dark/90" />
 
         {count > 1 && (
           <>
