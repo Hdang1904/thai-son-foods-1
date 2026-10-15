@@ -91,6 +91,15 @@ export async function PUT(
       return NextResponse.json({ success: false, error: 'Chưa đăng nhập quản trị', code: 'UNAUTHORIZED' }, { status: 401 });
     }
 
+    // Kiểm tra quyền trước khi tra cứu: tránh để người không có quyền dò xem mã đối tác có tồn tại hay không
+    if (
+      !hasPermission(session, 'partners.review') &&
+      !hasPermission(session, 'partners.suspend') &&
+      !hasPermission(session, 'dealer.manage')
+    ) {
+      return NextResponse.json({ success: false, error: 'Bạn không có quyền cập nhật đối tác', code: 'FORBIDDEN' }, { status: 403 });
+    }
+
     const { id } = await props.params;
     const body = await request.json();
     const { action, reason, tierId } = body;

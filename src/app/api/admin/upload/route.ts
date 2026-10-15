@@ -78,7 +78,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const formData = await request.formData();
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Yêu cầu tải lên phải là multipart/form-data.' }, { status: 400 });
+    }
     const folderType = (formData.get('folder') as string) || 'products'; // products, combos, banners
     const files = formData.getAll('files') as File[];
     const singleFile = formData.get('file') as File | null;
