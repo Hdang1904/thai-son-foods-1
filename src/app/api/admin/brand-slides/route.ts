@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { query } from '@/lib/db';
 import { getAdminSession } from '@/lib/auth';
+import { isOptionalSafeUrl, isSafeUrl, resolveUploadedFile } from '@/lib/content-validation';
 import { hasPermission } from '@/lib/rbac';
 import { writeAuditLog } from '@/lib/audit';
 
@@ -48,6 +49,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Tiêu đề, mô tả và hình ảnh là bắt buộc' }, { status: 400 });
     }
 
+
+    if (!isSafeUrl(image) || !isOptionalSafeUrl(cta_link)) {
+      return NextResponse.json(
+        { success: false, error: 'Ảnh và liên kết nút phải là đường dẫn nội bộ ("/...") hoặc địa chỉ http(s) hợp lệ.' },
+        { status: 400 }
+      );
+    }
     const id = `slide_${Date.now()}`;
     const res = await query(
       `INSERT INTO brand_slides (id, tag, title, description, image, cta_text, cta_link, sort_order, is_active)
@@ -90,6 +98,16 @@ export async function PUT(request: Request) {
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'Thiếu ID brand slide' }, { status: 400 });
+    }
+
+    if ((image !== undefined && !isSafeUrl(image)) || !isOptionalSafeUrl(cta_link)) {
+      return NextResponse.json(
+        { success: false, error: 'Ảnh và liên kết nút phải là đường dẫn nội bộ ("/...") hoặc địa chỉ http(s) hợp lệ.' },
+        { status: 400 }
+      );
+    }
+    if (sort_order !== undefined && !Number.isInteger(Number(sort_order))) {
+      return NextResponse.json({ success: false, error: 'Thứ tự hiển thị phải là số nguyên.' }, { status: 400 });
     }
 
     const check = await query(`SELECT * FROM brand_slides WHERE id = $1;`, [id]);
@@ -180,10 +198,9 @@ export async function DELETE(request: Request) {
 
     if (check.rows.length > 0) {
       const imgUrl = check.rows[0].image;
-      if (imgUrl && imgUrl.startsWith('/uploads/')) {
+      const absPath = resolveUploadedFile(imgUrl);
+      if (imgUrl && absPath) {
         try {
-          const relPath = imgUrl.replace(/^\//, '');
-          const absPath = path.join(process.cwd(), 'public', relPath);
           if (fs.existsSync(absPath)) {
             await fs.promises.unlink(absPath);
           }

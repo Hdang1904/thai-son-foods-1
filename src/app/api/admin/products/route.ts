@@ -1,11 +1,31 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, pool } from '@/lib/db';
+import { resolveProductCanonical } from '@/lib/inventory';
 import { getAdminSession } from '@/lib/auth';
 import { hasPermission } from '@/lib/rbac';
 import { writeAuditLog } from '@/lib/audit';
 import { syncProductToStaticFile } from '@/lib/products-file-sync';
 
 export const dynamic = 'force-dynamic';
+
+const MAX_MONEY = 100_000_000;
+
+/** Giá/số lượng của biến thể phải là số nguyên hợp lệ (dòng trống không tên/giá bị bỏ qua như trước). */
+function validateVariantsInput(variants: unknown): string | null {
+  if (!Array.isArray(variants)) return null;
+  for (const v of variants) {
+    if (!(v && v.name && v.price)) continue;
+    const price = Number(v.price);
+    const qty = Number(v.quantity || 1);
+    if (!Number.isInteger(price) || price < 1 || price > MAX_MONEY) {
+      return `Biến thể "${v.name}": giá phải là số nguyên từ 1 đến ${MAX_MONEY.toLocaleString('vi-VN')} đồng.`;
+    }
+    if (!Number.isInteger(qty) || qty < 1 || qty > 1000) {
+      return `Biến thể "${v.name}": số lượng phải là số nguyên từ 1 đến 1.000.`;
+    }
+  }
+  return null;
+}
 
 function slugify(text: string) {
   return text
@@ -168,6 +188,14 @@ export async function POST(request: Request) {
       );
     }
 
+    const priceCheck = Number(price);
+    if (!Number.isInteger(priceCheck) || priceCheck < 1 || priceCheck > 100_000_000) {
+      return NextResponse.json(
+        { success: false, error: 'Giá bán phải là số nguyên từ 1 đến 100.000.000 đồng.' },
+        { status: 400 }
+      );
+    }
+
     const baseSlug = slugify(name);
     const uniqueSuffix = Date.now().toString().slice(-4);
     const slug = `${baseSlug}-${uniqueSuffix}`;
@@ -203,6 +231,11 @@ export async function POST(request: Request) {
       Boolean(is_active),
       costPriceVal,
     ];
+
+    const variantsError = validateVariantsInput(variants);
+    if (variantsError) {
+      return NextResponse.json({ success: false, error: variantsError }, { status: 400 });
+    }
 
     // Validate variants trước khi insert product vào DB để tránh rò rỉ bản ghi khi lỗi
     if (Array.isArray(variants) && variants.length > 0) {
@@ -323,6 +356,21 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: false, error: 'Không tìm thấy sản phẩm' }, { status: 404 });
     }
     const currentProd = currRes.rows[0];
+
+    // Kiểm tra dữ liệu giá / biến thể TRƯỚC khi ghi để không cập nhật dở dang
+    if (price !== undefined) {
+      const priceNum = Number(price);
+      if (!Number.isInteger(priceNum) || priceNum < 1 || priceNum > MAX_MONEY) {
+        return NextResponse.json(
+          { success: false, error: `Giá bán phải là số nguyên từ 1 đến ${MAX_MONEY.toLocaleString('vi-VN')} đồng.` },
+          { status: 400 }
+        );
+      }
+    }
+    const putVariantsError = validateVariantsInput(variants);
+    if (putVariantsError) {
+      return NextResponse.json({ success: false, error: putVariantsError }, { status: 400 });
+    }
 
     // Kiểm tra quyền sửa giá bán
     const isPriceChanging = price !== undefined && parseInt(price, 10) !== currentProd.price;
@@ -535,11 +583,66 @@ export async function DELETE(request: Request) {
     }
     const productToDelete = currRes.rows[0];
 
-    // Set null trong order_items để không vi phạm ràng buộc khóa ngoại
-    await query(`UPDATE order_items SET product_id = NULL WHERE product_id = $1;`, [id]);
-    await query(`DELETE FROM product_variants WHERE product_id = $1;`, [id]);
-    await query(`DELETE FROM product_images WHERE product_id = $1;`, [id]);
-    await query(`DELETE FROM products WHERE id = $1;`, [id]);
+    // Không cho xóa sản phẩm đang được dùng: khóa ngoại ON DELETE CASCADE sẽ âm thầm xóa dòng combo,
+    // giữ chỗ tồn kho của đơn đang chờ và các lô hàng. Gợi ý "tạm ẩn" (is_active = false) thay vì xóa.
+    // combo_items có thể lưu mã danh mục tĩnh ("sua-bap-nep") thay vì mã bảng products ("prod-sb-01"):
+    // quy đổi từng mã đang dùng về mã chuẩn để phát hiện mọi combo chứa sản phẩm này
+    const comboRefs = await query(
+      `SELECT DISTINCT ci.product_id AS ref, c.name FROM combo_items ci JOIN combos c ON c.id = ci.combo_id;`
+    );
+    const refCanonical = new Map<string, string | null>();
+    const comboNames = new Set<string>();
+    for (const row of comboRefs.rows) {
+      if (!refCanonical.has(row.ref)) {
+        refCanonical.set(row.ref, (await resolveProductCanonical(row.ref))?.id ?? null);
+      }
+      if (row.ref === id || refCanonical.get(row.ref) === id) comboNames.add(row.name);
+    }
+    const combosUsing = { rows: Array.from(comboNames).sort().slice(0, 5).map((name) => ({ name })) };
+    if (combosUsing.rows.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Sản phẩm đang nằm trong combo: ${combosUsing.rows.map((r: any) => r.name).join(', ')}. Hãy gỡ khỏi combo trước, hoặc chọn "Tạm ẩn" thay vì xóa.`,
+          code: 'PRODUCT_IN_USE',
+        },
+        { status: 409 }
+      );
+    }
+    const openOrders = await query(
+      `SELECT COUNT(DISTINCT o.id)::int AS n
+       FROM order_items oi JOIN orders o ON o.id = oi.order_id
+       WHERE (oi.product_id = $1 OR oi.canonical_product_id = $1 OR oi.product_id LIKE $1 || '-%')
+         AND o.status IN ('PENDING','CONFIRMED','PROCESSING','SHIPPING');`,
+      [id]
+    );
+    if ((openOrders.rows[0]?.n || 0) > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Còn ${openOrders.rows[0].n} đơn hàng chưa hoàn tất có sản phẩm này. Hãy xử lý xong các đơn đó hoặc chọn "Tạm ẩn" thay vì xóa.`,
+          code: 'PRODUCT_IN_USE',
+        },
+        { status: 409 }
+      );
+    }
+
+    // Xóa trong MỘT transaction: không để lại trạng thái dở dang nếu một bước lỗi
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN;');
+      // Giữ lịch sử đơn: order_items không còn trỏ tới sản phẩm đã xóa
+      await client.query(`UPDATE order_items SET product_id = NULL WHERE product_id = $1;`, [id]);
+      await client.query(`DELETE FROM product_variants WHERE product_id = $1;`, [id]);
+      await client.query(`DELETE FROM product_images WHERE product_id = $1;`, [id]);
+      await client.query(`DELETE FROM products WHERE id = $1;`, [id]);
+      await client.query('COMMIT;');
+    } catch (txErr) {
+      await client.query('ROLLBACK;');
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     await writeAuditLog({
       adminId: session.id,

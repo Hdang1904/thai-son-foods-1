@@ -146,7 +146,38 @@ export async function PUT(
       return NextResponse.json({ success: false, error: `Hành động không hợp lệ: ${action}` }, { status: 400 });
     }
 
-    await query(
+    // Quy trình trạng thái hợp lệ (tránh bỏ qua bước duyệt hồ sơ):
+    //  - APPROVE: hồ sơ đã nộp (SUBMITTED / UNDER_REVIEW / APPROVED) hoặc đang bị từ chối chờ duyệt lại
+    //  - REJECT / REQUEST_MORE_INFO: hồ sơ đang chờ xét duyệt; đối tác ACTIVE phải dùng "Tạm khóa"
+    //  - SUSPEND: chỉ đối tác ACTIVE; ACTIVATE: chỉ đối tác đang bị SUSPENDED
+    //  - UPGRADE_DEALER: đối tác ACTIVE hoặc đang UNDER_REVIEW (khi đối tác tự gửi yêu cầu nâng cấp)
+    const allowedFrom: Record<string, string[]> = {
+      APPROVE: ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'],
+      REJECT: ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED'],
+      REQUEST_MORE_INFO: ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED'],
+      SUSPEND: ['ACTIVE'],
+      ACTIVATE: ['SUSPENDED'],
+      UPGRADE_DEALER: ['ACTIVE', 'UNDER_REVIEW'],
+    };
+    if (!allowedFrom[action].includes(current.lifecycle_status)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Không thể "${action}" khi đối tác đang ở trạng thái ${current.lifecycle_status}.`,
+          code: 'INVALID_PARTNER_STATE',
+        },
+        { status: 409 }
+      );
+    }
+    if (action === 'UPGRADE_DEALER' && tierId !== undefined && tierId !== null && tierId !== '') {
+      const tierRes = await query(`SELECT id FROM dealer_tiers WHERE id = $1 LIMIT 1;`, [String(tierId)]);
+      if (tierRes.rows.length === 0) {
+        return NextResponse.json({ success: false, error: 'Hạng đại lý không tồn tại.' }, { status: 400 });
+      }
+    }
+
+    // Cập nhật có điều kiện theo trạng thái đã đọc: nếu admin khác vừa đổi trạng thái thì báo xung đột thay vì ghi đè
+    const updateRes = await query(
       `UPDATE partner_profiles
        SET lifecycle_status = $1,
            partner_type = $2,
@@ -156,9 +187,15 @@ export async function PUT(
            approved_by = $6,
            verified_at = $7,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $8;`,
-      [newStatus, newType, newTierId, rejectionReason, suspensionReason, approvedBy, verifiedAt, id]
+       WHERE id = $8 AND lifecycle_status = $9;`,
+      [newStatus, newType, newTierId, rejectionReason, suspensionReason, approvedBy, verifiedAt, id, current.lifecycle_status]
     );
+    if (updateRes.rowCount === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Trạng thái đối tác vừa được người khác thay đổi. Hãy tải lại và thử lại.', code: 'CONFLICT' },
+        { status: 409 }
+      );
+    }
 
     await writeAuditLog({
       adminId: session.userId || session.id,

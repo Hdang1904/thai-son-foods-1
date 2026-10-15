@@ -15,6 +15,8 @@ import {
 import { validateAdminPassword } from '../src/lib/password-policy.ts';
 import { resolveJwtSecret, INSECURE_DEFAULT_JWT_SECRET } from '../src/lib/jwtSecret.ts';
 import { getStoreScope, NO_STORE_SCOPE } from '../src/lib/rbac.ts';
+import { isSafeUrl, isOptionalSafeUrl, resolveUploadedFile } from '../src/lib/content-validation.ts';
+import path from 'node:path';
 
 let failed = 0;
 const check = (name, ok, detail = '') => {
@@ -60,5 +62,16 @@ check('STORE_STAFF có chi nhánh → đúng chi nhánh đó', getStoreScope({ r
 check('STORE_STAFF KHÔNG có chi nhánh → mã chặn (fail-closed), không phải null', getStoreScope({ role: 'STORE_STAFF', storeCode: null }) === NO_STORE_SCOPE);
 check('SUPER_ADMIN / MARKETING → không giới hạn (null)', getStoreScope({ role: 'SUPER_ADMIN' }) === null && getStoreScope({ role: 'MARKETING', storeCode: 'D1' }) === null);
 
+
+// ── URL do admin nhập / xóa file upload ──
+check('URL nội bộ & https hợp lệ', isSafeUrl('/images/banners/a.jpg') && isSafeUrl('https://cdn.example.com/a.png') && isSafeUrl('/uploads/banners/x.webp'));
+check('Chặn javascript: / data: / //host / chuỗi rỗng', !isSafeUrl('javascript:alert(1)') && !isSafeUrl('data:text/html;base64,AAA') && !isSafeUrl('//evil.com/a.png') && !isSafeUrl('') && !isSafeUrl(undefined));
+check('Chặn ../ và %2e%2e trong URL', !isSafeUrl('/uploads/../../.env') && !isSafeUrl('/uploads/%2e%2e/%2e%2e/.env') && !isSafeUrl('/uploads/..\\..\\x'));
+check('Trường tùy chọn: rỗng được phép, độc hại thì không', isOptionalSafeUrl('') && isOptionalSafeUrl(undefined) && !isOptionalSafeUrl('javascript:x'));
+const uploadsRoot = path.resolve(process.cwd(), 'public', 'uploads');
+const okFile = resolveUploadedFile('/uploads/banners/a b.jpg');
+check('File upload hợp lệ → đường dẫn trong public/uploads', typeof okFile === 'string' && okFile.startsWith(uploadsRoot + path.sep));
+check('Path traversal /uploads/../../.env bị từ chối (không xóa được file ngoài uploads)', resolveUploadedFile('/uploads/../../.env') === null && resolveUploadedFile('/uploads/..%2f..%2f.env') === null && resolveUploadedFile('/uploads/%2e%2e/%2e%2e/package.json') === null);
+check('Không phải /uploads/ → null', resolveUploadedFile('/images/logo.png') === null && resolveUploadedFile('uploads/x.png') === null && resolveUploadedFile(null) === null);
 console.log(failed ? `\n${failed} kiểm tra thất bại` : '\nTất cả kiểm tra đạt');
 process.exit(failed ? 1 : 0);

@@ -47,8 +47,68 @@ export async function POST(req: NextRequest) {
     try {
       await client.query('BEGIN;');
 
+      // Khóa dòng đơn và kiểm tra điều kiện nghiệp vụ trước khi tác động tới tiền / kho
+      const lockRes = await client.query(
+        `SELECT id, status, total, payment_method, cod_reconciled FROM orders WHERE id = $1 FOR UPDATE;`,
+        [orderId]
+      );
+      if (lockRes.rows.length === 0) {
+        await client.query('ROLLBACK;');
+        return NextResponse.json({ success: false, error: 'Không tìm thấy đơn hàng' }, { status: 404 });
+      }
+      const lockedOrder = lockRes.rows[0];
+
       if (action === 'reconcile_cod') {
-        const amount = Math.round(Number(body.amount) || 0);
+        if (String(lockedOrder.payment_method || '').toLowerCase() !== 'cod') {
+          await client.query('ROLLBACK;');
+          return NextResponse.json(
+            { success: false, error: 'Chỉ đối soát COD cho đơn thanh toán khi nhận hàng.', code: 'ORDER_NOT_COD' },
+            { status: 409 }
+          );
+        }
+        if (lockedOrder.status === 'CANCELLED' || lockedOrder.status === 'PENDING') {
+          await client.query('ROLLBACK;');
+          return NextResponse.json(
+            { success: false, error: 'Chỉ đối soát COD khi đơn đã được xác nhận và chưa bị hủy.', code: 'INVALID_ORDER_STATE' },
+            { status: 409 }
+          );
+        }
+        if (lockedOrder.cod_reconciled) {
+          await client.query('ROLLBACK;');
+          return NextResponse.json(
+            { success: true, alreadyReconciled: true, message: 'Đơn này đã được đối soát COD trước đó.' }
+          );
+        }
+        // Số tiền thu: mặc định = tổng đơn; phải là số nguyên dương và không vượt tổng đơn
+        const rawAmount = body.amount === undefined || body.amount === null || body.amount === '' ? Number(lockedOrder.total) : Number(body.amount);
+        const orderTotal = Math.round(Number(lockedOrder.total) || 0);
+        if (!Number.isFinite(rawAmount) || Math.round(rawAmount) < 1 || Math.round(rawAmount) > orderTotal) {
+          await client.query('ROLLBACK;');
+          return NextResponse.json(
+            { success: false, error: `Số tiền thu phải từ 1 đến tổng đơn hàng (${orderTotal.toLocaleString('vi-VN')} ₫).`, code: 'INVALID_AMOUNT' },
+            { status: 400 }
+          );
+        }
+        body.amount = Math.round(rawAmount);
+      } else if (action === 'process_return') {
+        if (lockedOrder.status === 'PENDING') {
+          await client.query('ROLLBACK;');
+          return NextResponse.json(
+            { success: false, error: 'Đơn đang Chờ xử lý chưa giao — hãy dùng "Hủy đơn" thay vì xử lý hoàn hàng.', code: 'INVALID_ORDER_STATE' },
+            { status: 409 }
+          );
+        }
+        if (lockedOrder.status === 'CANCELLED') {
+          await client.query('ROLLBACK;');
+          return NextResponse.json(
+            { success: false, error: 'Đơn đã hủy / đã xử lý hoàn trả trước đó.', code: 'ALREADY_CANCELLED' },
+            { status: 409 }
+          );
+        }
+      }
+
+      if (action === 'reconcile_cod') {
+        const amount = Math.round(Number(body.amount));
         const note = body.note ? String(body.note).slice(0, 500) : 'Đối soát COD thành công';
         const res = await reconcileCodPayment(orderId, client, {
           collectedAmount: amount,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query, initDatabase } from '@/lib/db';
-import { getAdminSession } from '@/lib/auth';
+import { query, pool, initDatabase } from '@/lib/db';
+import { getAdminSession, invalidateUserSessionCache } from '@/lib/auth';
 import { hasPermission } from '@/lib/rbac';
 import { writeAuditLog } from '@/lib/audit';
 
@@ -215,6 +215,7 @@ export async function PUT(req: NextRequest) {
          WHERE id = $2;`,
         [Boolean(isActive), id]
       );
+      invalidateUserSessionCache(id); // khóa có hiệu lực ngay trên máy chủ này
 
       await writeAuditLog({
         adminId: session.userId,
@@ -300,10 +301,23 @@ export async function DELETE(req: NextRequest) {
 
     const check = await query(`SELECT * FROM users WHERE id = $1;`, [id]);
     const beforeUser = check.rows[0] || null;
+    if (!beforeUser) {
+      return NextResponse.json({ success: false, error: 'Không tìm thấy thành viên' }, { status: 404 });
+    }
 
-    // Gỡ liên kết trong orders để giữ lại lịch sử đơn hàng
-    await query(`UPDATE orders SET user_id = NULL WHERE user_id = $1;`, [id]);
-    await query(`DELETE FROM users WHERE id = $1;`, [id]);
+    // Gỡ liên kết trong orders (giữ lịch sử đơn hàng) và xóa tài khoản trong CÙNG một transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN;');
+      await client.query(`UPDATE orders SET user_id = NULL WHERE user_id = $1;`, [id]);
+      await client.query(`DELETE FROM users WHERE id = $1;`, [id]);
+      await client.query('COMMIT;');
+    } catch (txErr) {
+      await client.query('ROLLBACK;');
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     await writeAuditLog({
       adminId: session.userId,

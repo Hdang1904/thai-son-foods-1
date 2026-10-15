@@ -102,54 +102,148 @@ export async function PUT(req: NextRequest) {
     const checkRes = await query(`SELECT * FROM stores WHERE code = $1 LIMIT 1;`, [code]);
     const beforeStore = checkRes.rows[0] || null;
 
-    const finalMapUrl = map_url || mapUrl || (latitude && longitude
-      ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
-      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address || '')}`);
+    // Chỉ quyền chỉnh sửa toàn hệ thống mới được TẠO cửa hàng mới / đổi trạng thái, khu vực, nhóm
+    if (!beforeStore && !canEditAll) {
+      return NextResponse.json(
+        { success: false, error: 'Không tìm thấy cửa hàng của bạn để cập nhật.', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
 
-    const isActive = storeStatus === undefined ? true : storeStatus === 1;
+    // Chuẩn hóa đầu vào: trường KHÔNG gửi lên (undefined) nghĩa là "giữ nguyên", không phải "xóa"
+    const text = (v: unknown, max: number): string | undefined | null => {
+      if (v === undefined || v === null) return undefined;
+      if (typeof v !== 'string') return null; // sai kiểu → báo lỗi
+      const t = v.trim();
+      return t.length > max ? null : t;
+    };
+    const fields = {
+      name: text(name, 255),
+      address: text(address, 500),
+      phone: text(phone, 50),
+      province: text(province, 100),
+      district: text(district, 100),
+      ward: text(ward, 100),
+      notes: text(notes, 1000),
+    };
+    for (const [k, v] of Object.entries(fields)) {
+      if (v === null) {
+        return NextResponse.json({ success: false, error: `Giá trị "${k}" không hợp lệ (sai kiểu hoặc quá dài).` }, { status: 400 });
+      }
+    }
+    if (fields.name === '' || fields.address === '') {
+      return NextResponse.json({ success: false, error: 'Tên và địa chỉ cửa hàng không được để trống.' }, { status: 400 });
+    }
 
-    const updateSql = `
-      INSERT INTO stores (id, code, name, address, phone, province, district, ward, map_url, latitude, longitude, region, group_code, status, notes, is_active, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
-      ON CONFLICT (code) DO UPDATE
-      SET name = COALESCE(EXCLUDED.name, stores.name),
-          address = COALESCE(EXCLUDED.address, stores.address),
-          phone = COALESCE(EXCLUDED.phone, stores.phone),
-          province = COALESCE(EXCLUDED.province, stores.province),
-          district = COALESCE(EXCLUDED.district, stores.district),
-          ward = COALESCE(EXCLUDED.ward, stores.ward),
-          map_url = COALESCE(EXCLUDED.map_url, stores.map_url),
-          latitude = COALESCE(EXCLUDED.latitude, stores.latitude),
-          longitude = COALESCE(EXCLUDED.longitude, stores.longitude),
-          region = COALESCE(EXCLUDED.region, stores.region),
-          group_code = COALESCE(EXCLUDED.group_code, stores.group_code),
-          status = COALESCE(EXCLUDED.status, stores.status),
-          notes = COALESCE(EXCLUDED.notes, stores.notes),
-          is_active = EXCLUDED.is_active,
-          updated_at = CURRENT_TIMESTAMP
-      RETURNING *;
-    `;
+    let lat: number | undefined;
+    let lng: number | undefined;
+    if (latitude !== undefined && latitude !== null && latitude !== '') {
+      lat = Number(latitude);
+      if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+        return NextResponse.json({ success: false, error: 'Vĩ độ không hợp lệ (-90 đến 90).' }, { status: 400 });
+      }
+    }
+    if (longitude !== undefined && longitude !== null && longitude !== '') {
+      lng = Number(longitude);
+      if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+        return NextResponse.json({ success: false, error: 'Kinh độ không hợp lệ (-180 đến 180).' }, { status: 400 });
+      }
+    }
 
-    const storeId = `store_${code}`;
-    const res = await query(updateSql, [
-      storeId,
-      code,
-      name || `Cửa hàng ${code}`,
-      address || '',
-      phone || '',
-      province || 'Hồ Chí Minh',
-      district || '',
-      ward || '',
-      finalMapUrl,
-      latitude || null,
-      longitude || null,
-      region || null,
-      group_code || null,
-      storeStatus ?? 1,
-      notes || null,
-      isActive,
-    ]);
+    // Liên kết bản đồ chỉ nhận http(s) — chặn javascript:/data: được hiển thị thành thẻ <a>
+    const rawMap = map_url ?? mapUrl;
+    let mapUrlValue: string | undefined;
+    if (typeof rawMap === 'string' && rawMap.trim()) {
+      try {
+        const u = new URL(rawMap.trim());
+        if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('protocol');
+        mapUrlValue = u.toString();
+      } catch {
+        return NextResponse.json({ success: false, error: 'Liên kết bản đồ phải là địa chỉ http(s) hợp lệ.' }, { status: 400 });
+      }
+    } else if (typeof rawMap === 'string' && fields.address) {
+      // Để trống khi đang đổi địa chỉ → tự tạo liên kết tìm kiếm theo địa chỉ mới
+      mapUrlValue = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fields.address)}`;
+    }
 
+    // Trạng thái / khu vực / nhóm: chỉ quyền chỉnh sửa toàn hệ thống; không gửi lên = giữ nguyên
+    let statusValue: number | undefined;
+    if (canEditAll && storeStatus !== undefined && storeStatus !== null) {
+      if (storeStatus !== 0 && storeStatus !== 1) {
+        return NextResponse.json({ success: false, error: 'Trạng thái cửa hàng chỉ nhận 0 (tạm ngưng) hoặc 1 (hoạt động).' }, { status: 400 });
+      }
+      statusValue = storeStatus;
+    }
+    const regionValue = canEditAll ? text(region, 100) : undefined;
+    const groupValue = canEditAll ? text(group_code, 50) : undefined;
+
+    let res;
+    if (beforeStore) {
+      // Cửa hàng đã có: chỉ ghi đè các trường được gửi lên (COALESCE giữ nguyên giá trị cũ khi $n = NULL)
+      res = await query(
+        `UPDATE stores SET
+           name = COALESCE($2, name),
+           address = COALESCE($3, address),
+           phone = COALESCE($4, phone),
+           province = COALESCE($5, province),
+           district = COALESCE($6, district),
+           ward = COALESCE($7, ward),
+           map_url = COALESCE($8, map_url),
+           latitude = COALESCE($9, latitude),
+           longitude = COALESCE($10, longitude),
+           region = COALESCE($11, region),
+           group_code = COALESCE($12, group_code),
+           status = COALESCE($13, status),
+           is_active = COALESCE($14, is_active),
+           notes = COALESCE($15, notes),
+           updated_at = CURRENT_TIMESTAMP
+         WHERE code = $1
+         RETURNING *;`,
+        [
+          code,
+          fields.name ?? null,
+          fields.address ?? null,
+          fields.phone ?? null,
+          fields.province ?? null,
+          fields.district ?? null,
+          fields.ward ?? null,
+          mapUrlValue ?? null,
+          lat ?? null,
+          lng ?? null,
+          regionValue ?? null,
+          groupValue ?? null,
+          statusValue ?? null,
+          statusValue === undefined ? null : statusValue === 1,
+          fields.notes ?? null,
+        ]
+      );
+    } else {
+      // Cửa hàng mới (chỉ quyền chỉnh sửa toàn hệ thống)
+      const newStatus = statusValue ?? 1;
+      res = await query(
+        `INSERT INTO stores (id, code, name, address, phone, province, district, ward, map_url, latitude, longitude, region, group_code, status, notes, is_active, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
+         RETURNING *;`,
+        [
+          `store_${code}`,
+          code,
+          fields.name || `Cửa hàng ${code}`,
+          fields.address || '',
+          fields.phone || '',
+          fields.province || 'Hồ Chí Minh',
+          fields.district || '',
+          fields.ward || '',
+          mapUrlValue ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fields.address || '')}`,
+          lat ?? null,
+          lng ?? null,
+          regionValue ?? null,
+          groupValue ?? null,
+          newStatus,
+          fields.notes ?? null,
+          newStatus === 1,
+        ]
+      );
+    }
     const updatedStore = res.rows[0];
     await writeAuditLog({
       adminId: session.userId,

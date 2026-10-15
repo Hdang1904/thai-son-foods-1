@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { query } from '@/lib/db';
 import { getAdminSession } from '@/lib/auth';
+import { isSafeUrl, resolveUploadedFile } from '@/lib/content-validation';
 import { hasPermission } from '@/lib/rbac';
 import { syncProductToStaticFile } from '@/lib/products-file-sync';
 
@@ -93,8 +94,22 @@ export async function POST(request: Request, context: RouteContext) {
     );
     let nextSort = parseInt(maxSortRes.rows[0]?.max_sort || '0', 10) + 1;
 
+    // Kiểm tra TẤT CẢ đường dẫn ảnh trước khi ghi để không thêm dở dang
+    if (items.some((it: any) => it && it.url && !isSafeUrl(it.url))) {
+      return NextResponse.json(
+        { success: false, error: 'Đường dẫn ảnh phải là đường dẫn nội bộ ("/...") hoặc địa chỉ http(s) hợp lệ.' },
+        { status: 400 }
+      );
+    }
+
     for (const item of items) {
       if (!item.url) continue;
+      if (!isSafeUrl(item.url)) {
+        return NextResponse.json(
+          { success: false, error: 'Đường dẫn ảnh phải là đường dẫn nội bộ ("/...") hoặc địa chỉ http(s) hợp lệ.' },
+          { status: 400 }
+        );
+      }
 
       const imgId = `pimg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       const alt = item.alt || product.name;
@@ -272,10 +287,9 @@ export async function DELETE(request: Request, context: RouteContext) {
     await query(`DELETE FROM product_images WHERE id = $1;`, [imageId]);
 
     // Xóa file vật lý nếu là file nằm trong /uploads/
-    if (img.url && img.url.startsWith('/uploads/')) {
+    const absolutePath = resolveUploadedFile(img.url);
+    if (img.url && absolutePath) {
       try {
-        const relativePath = img.url.replace(/^\//, '');
-        const absolutePath = path.join(process.cwd(), 'public', relativePath);
         if (fs.existsSync(absolutePath)) {
           await fs.promises.unlink(absolutePath);
           console.log(`[DELETE] Deleted physical file: ${absolutePath}`);

@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Find user by email
     const res = await query(
-      `SELECT id, email, password_hash, full_name, phone, address, province, district, ward
+      `SELECT id, email, password_hash, full_name, phone, address, province, district, ward, is_active
        FROM users
        WHERE email = $1
        LIMIT 1;`,
@@ -80,6 +80,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Email hoặc mật khẩu không chính xác' },
         { status: 401 }
+      );
+    }
+
+    // Mật khẩu đúng nhưng tài khoản đã bị admin khóa → từ chối (chỉ nói rõ khi đã chứng minh biết mật khẩu)
+    if (user.is_active === false) {
+      return NextResponse.json(
+        { success: false, error: 'Tài khoản đã bị tạm khóa. Vui lòng liên hệ Thái Sơn Foods để được hỗ trợ.', code: 'ACCOUNT_LOCKED' },
+        { status: 403 }
       );
     }
 

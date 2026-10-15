@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, pool } from '@/lib/db';
 import { getAdminSession } from '@/lib/auth';
 import { hasPermission, getStoreScope } from '@/lib/rbac';
 import { writeAuditLog } from '@/lib/audit';
@@ -134,7 +134,27 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PUT: Cập nhật số lượng mặt hàng (1 sản phẩm hoặc nhiều sản phẩm theo mảng)
+const MAX_STOCK_QUANTITY = 1_000_000;
+const MAX_BATCH_ITEMS = 200;
+
+/** Tồn kho phải là số nguyên không âm (chuỗi số hoặc số); trả về null nếu không hợp lệ */
+function parseStockQuantity(value: unknown): number | null {
+  if (typeof value === 'string' && value.trim() === '') return null;
+  if (value === null || value === undefined) return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > MAX_STOCK_QUANTITY) return null;
+  return n;
+}
+
+class InventoryInputError extends Error {
+  constructor(message: string, public status = 400, public extra: Record<string, unknown> = {}) {
+    super(message);
+  }
+}
+
+// PUT: Cập nhật số lượng mặt hàng (1 sản phẩm hoặc nhiều sản phẩm theo mảng).
+// Toàn bộ thao tác nằm trong MỘT transaction và khóa dòng tồn kho (SELECT ... FOR UPDATE):
+// tránh ghi đè mất lượng trừ kho của đơn vừa xác nhận cùng lúc, và batch không bao giờ cập nhật dở dang.
 export async function PUT(req: NextRequest) {
   try {
     const session = await getAdminSession();
@@ -150,95 +170,131 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    let { storeCode } = body;
+    let storeCode: string = typeof body.storeCode === 'string' ? body.storeCode.trim() : '';
     const { productId, stockQuantity, items } = body;
 
     // Phân quyền cửa hàng: STAFF chỉ được sửa kho của chính mình
     const storeScope = getStoreScope(session);
     if (storeScope) {
       storeCode = storeScope;
-    } else {
-      if (!storeCode) storeCode = 'NH';
+    } else if (!storeCode) {
+      storeCode = 'NH';
     }
 
-    // 1. Trường hợp cập nhật danh sách hàng loạt (batch update)
-    if (Array.isArray(items) && items.length > 0) {
-      // Validate toàn bộ danh sách trước: không cho phép bất kỳ món nào giảm dưới số đang giữ chỗ
-      const validationErrors: string[] = [];
-      const preloadedData: Array<{ pId: string; qty: number; oldStock: number; oldReserved: number }> = [];
+    // Chuẩn hóa danh sách cần cập nhật (1 sản phẩm lẻ hoặc batch) và kiểm tra đầu vào TRƯỚC khi chạm CSDL
+    const isBatch = Array.isArray(items) && items.length > 0;
+    const rawList: Array<{ productId: unknown; stockQuantity: unknown }> = isBatch
+      ? items
+      : [{ productId, stockQuantity }];
 
-      for (const item of items) {
-        const pId = item.productId;
-        const qty = Math.max(0, parseInt(item.stockQuantity ?? '0', 10));
-        const prevBatch = await query(
-          `SELECT stock_quantity, reserved FROM store_inventory WHERE store_code = $1 AND product_id = $2;`,
-          [storeCode, pId]
-        );
-        const oldStockBatch = prevBatch.rows.length > 0 ? Number(prevBatch.rows[0].stock_quantity) || 0 : 0;
-        const oldReservedBatch = prevBatch.rows.length > 0 ? Number(prevBatch.rows[0].reserved) || 0 : 0;
+    if (rawList.length > MAX_BATCH_ITEMS) {
+      return NextResponse.json({ success: false, error: `Mỗi lần chỉ cập nhật tối đa ${MAX_BATCH_ITEMS} mặt hàng.` }, { status: 400 });
+    }
 
-        if (qty < oldReservedBatch) {
-          validationErrors.push(`Mã ${pId}: tồn mới (${qty}) < đang giữ chỗ (${oldReservedBatch} chai)`);
-        }
-        preloadedData.push({ pId, qty, oldStock: oldStockBatch, oldReserved: oldReservedBatch });
+    const updates = new Map<string, number>();
+    for (const it of rawList) {
+      const pId = typeof it?.productId === 'string' ? it.productId.trim() : '';
+      if (!pId) {
+        return NextResponse.json({ success: false, error: 'Thiếu mã sản phẩm (productId)' }, { status: 400 });
       }
-
-      if (validationErrors.length > 0) {
+      const qty = parseStockQuantity(it.stockQuantity);
+      if (qty === null) {
         return NextResponse.json(
-          {
-            success: false,
-            error: `Không thể giảm tồn kho xuống dưới số lượng đang giữ chỗ: ${validationErrors.join('; ')}. Vui lòng xử lý đơn giữ chỗ trước khi giảm tồn.`,
-          },
+          { success: false, error: `Mã ${pId}: số lượng tồn phải là số nguyên từ 0 đến ${MAX_STOCK_QUANTITY.toLocaleString('vi-VN')}.` },
           { status: 400 }
         );
       }
+      if (updates.has(pId)) {
+        return NextResponse.json({ success: false, error: `Mã ${pId} bị lặp trong danh sách cập nhật.` }, { status: 400 });
+      }
+      updates.set(pId, qty);
+    }
 
-      for (const data of preloadedData) {
-        const { pId, qty, oldStock: oldStockBatch, oldReserved: oldReservedBatch } = data;
-        const invId = `inv_${storeCode}_${pId}`;
+    const storeRes = await query('SELECT code FROM stores WHERE code = $1 LIMIT 1;', [storeCode]);
+    if (storeRes.rows.length === 0) {
+      return NextResponse.json({ success: false, error: `Chi nhánh "${storeCode}" không tồn tại.` }, { status: 400 });
+    }
 
-        await query(
+    const results: Array<{ productId: string; oldStock: number; newStock: number }> = [];
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN;');
+
+      for (const [pId, qty] of updates) {
+        const prodRes = await client.query('SELECT id FROM products WHERE id = $1 LIMIT 1;', [pId]);
+        if (prodRes.rows.length === 0) {
+          throw new InventoryInputError(`Sản phẩm "${pId}" không tồn tại.`, 404);
+        }
+
+        // Khóa dòng tồn kho (nếu đã có) trước khi đọc số cũ
+        const prev = await client.query(
+          `SELECT stock_quantity, reserved FROM store_inventory WHERE store_code = $1 AND product_id = $2 FOR UPDATE;`,
+          [storeCode, pId]
+        );
+        const oldStock = prev.rows.length > 0 ? Number(prev.rows[0].stock_quantity) || 0 : 0;
+        const oldReserved = prev.rows.length > 0 ? Number(prev.rows[0].reserved) || 0 : 0;
+
+        // Chặn nghiêm ngặt không cho giảm tồn xuống dưới số lượng đang giữ chỗ
+        if (qty < oldReserved) {
+          throw new InventoryInputError(
+            `Mã ${pId}: không thể giảm tồn kho (${qty} chai) xuống dưới số lượng đang giữ chỗ (${oldReserved} chai). Hãy xử lý các đơn đang giữ chỗ trước.`,
+            400,
+            { reserved: oldReserved }
+          );
+        }
+
+        await client.query(
           `INSERT INTO store_inventory (id, store_code, product_id, stock_quantity, updated_by, updated_at)
            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
            ON CONFLICT (store_code, product_id) DO UPDATE
            SET stock_quantity = EXCLUDED.stock_quantity,
                updated_by = EXCLUDED.updated_by,
                updated_at = CURRENT_TIMESTAMP;`,
-          [invId, storeCode, pId, qty, session.username]
+          [`inv_${storeCode}_${pId}`, storeCode, pId, qty, session.username]
         );
 
-        // Ghi log cho batch update
-        const batchLogId = `invlog_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-        await query(
+        await client.query(
           `INSERT INTO inventory_logs (
             id, store_code, product_id, old_stock, new_stock, old_reserved, new_reserved, change_type, actor, note
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'manual_update', $8, $9);`,
           [
-            batchLogId,
+            `invlog_${Date.now()}_${Math.floor(100000 + Math.random() * 900000)}`,
             storeCode,
             pId,
-            oldStockBatch,
+            oldStock,
             qty,
-            oldReservedBatch,
-            oldReservedBatch,
+            oldReserved,
+            oldReserved,
             session.username,
-            `Admin batch update tồn kho từ ${oldStockBatch} -> ${qty} chai`,
+            isBatch
+              ? `Admin batch update tồn kho từ ${oldStock} -> ${qty} chai`
+              : `Admin cập nhật tồn kho thủ công từ ${oldStock} -> ${qty} chai`,
           ]
         );
 
-        // Cập nhật tồn kho tổng của sản phẩm = TỔNG TỒN KHO CỦA TẤT CẢ CỬA HÀNG
-        await query(
-          `UPDATE products 
-           SET stock_quantity = (
-             SELECT COALESCE(SUM(stock_quantity), 0) 
-             FROM store_inventory 
-             WHERE product_id = $1
-           )
+        // Tồn kho tổng của sản phẩm = TỔNG TỒN KHO CỦA TẤT CẢ CỬA HÀNG
+        await client.query(
+          `UPDATE products
+           SET stock_quantity = (SELECT COALESCE(SUM(stock_quantity), 0) FROM store_inventory WHERE product_id = $1)
            WHERE id = $1;`,
           [pId]
         );
+
+        results.push({ productId: pId, oldStock, newStock: qty });
       }
 
+      await client.query('COMMIT;');
+    } catch (txErr) {
+      await client.query('ROLLBACK;');
+      if (txErr instanceof InventoryInputError) {
+        return NextResponse.json({ success: false, error: txErr.message, ...txErr.extra }, { status: txErr.status });
+      }
+      throw txErr;
+    } finally {
+      client.release();
+    }
+
+    if (isBatch) {
       await writeAuditLog({
         adminId: session.userId,
         adminUsername: session.username,
@@ -246,106 +302,36 @@ export async function PUT(req: NextRequest) {
         action: 'INVENTORY_BATCH_UPDATE',
         entityType: 'INVENTORY',
         storeCode,
-        afterJson: { storeCode, itemCount: items.length },
+        afterJson: { storeCode, itemCount: results.length },
       });
-
-      const { invalidateGatekeeperCache } = await import('@/lib/inventoryGatekeeper');
-      invalidateGatekeeperCache(storeCode);
-
-      return NextResponse.json({
-        success: true,
-        message: `Đã cập nhật tồn kho thành công cho ${items.length} mặt hàng tại ${storeCode}!`,
-      });
-    }
-
-    // 2. Trường hợp cập nhật lẻ từng sản phẩm
-    if (!productId) {
-      return NextResponse.json({ success: false, error: 'Thiếu mã sản phẩm (productId)' }, { status: 400 });
-    }
-
-    const qty = Math.max(0, parseInt(stockQuantity ?? '0', 10));
-    const invId = `inv_${storeCode}_${productId}`;
-
-    // Lấy số lượng tồn cũ để ghi log và kiểm tra
-    const prevRes = await query(
-      `SELECT stock_quantity, reserved FROM store_inventory WHERE store_code = $1 AND product_id = $2;`,
-      [storeCode, productId]
-    );
-    const oldStock = prevRes.rows.length > 0 ? Number(prevRes.rows[0].stock_quantity) || 0 : 0;
-    const oldReserved = prevRes.rows.length > 0 ? Number(prevRes.rows[0].reserved) || 0 : 0;
-
-    // Chặn nghiêm ngặt không cho giảm tồn xuống dưới số lượng đang giữ chỗ
-    if (qty < oldReserved) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Không thể giảm tồn kho (${qty} chai) xuống dưới số lượng đang giữ chỗ (${oldReserved} chai). Đang có khách đặt giữ chỗ cho sản phẩm này.`,
-          reserved: oldReserved,
-        },
-        { status: 400 }
-      );
-    }
-
-    await query(
-      `INSERT INTO store_inventory (id, store_code, product_id, stock_quantity, updated_by, updated_at)
-       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
-       ON CONFLICT (store_code, product_id) DO UPDATE
-       SET stock_quantity = EXCLUDED.stock_quantity,
-           updated_by = EXCLUDED.updated_by,
-           updated_at = CURRENT_TIMESTAMP;`,
-      [invId, storeCode, productId, qty, session.username]
-    );
-
-    // Ghi log biến động kho
-    const logId = `invlog_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-    await query(
-      `INSERT INTO inventory_logs (
-        id, store_code, product_id, old_stock, new_stock, old_reserved, new_reserved, change_type, actor, note
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'manual_update', $8, $9);`,
-      [
-        logId,
+    } else {
+      const r = results[0];
+      await writeAuditLog({
+        adminId: session.userId,
+        adminUsername: session.username,
+        role: session.role,
+        action: 'INVENTORY_UPDATE',
+        entityType: 'INVENTORY',
+        entityId: r.productId,
         storeCode,
-        productId,
-        oldStock,
-        qty,
-        oldReserved,
-        oldReserved,
-        session.username,
-        `Admin cập nhật tồn kho thủ công từ ${oldStock} -> ${qty} chai`,
-      ]
-    );
-
-    // Cập nhật tồn kho tổng của sản phẩm = TỔNG TỒN KHO CỦA TẤT CẢ CÁC CỬA HÀNG
-    await query(
-      `UPDATE products 
-       SET stock_quantity = (
-         SELECT COALESCE(SUM(stock_quantity), 0) 
-         FROM store_inventory 
-         WHERE product_id = $1
-       )
-       WHERE id = $1;`,
-      [productId]
-    );
-
-    await writeAuditLog({
-      adminId: session.userId,
-      adminUsername: session.username,
-      role: session.role,
-      action: 'INVENTORY_UPDATE',
-      entityType: 'INVENTORY',
-      entityId: productId,
-      storeCode,
-      beforeJson: { stock_quantity: oldStock },
-      afterJson: { stock_quantity: qty },
-    });
+        beforeJson: { stock_quantity: r.oldStock },
+        afterJson: { stock_quantity: r.newStock },
+      });
+    }
 
     const { invalidateGatekeeperCache } = await import('@/lib/inventoryGatekeeper');
     invalidateGatekeeperCache(storeCode);
 
+    if (isBatch) {
+      return NextResponse.json({
+        success: true,
+        message: `Đã cập nhật tồn kho thành công cho ${results.length} mặt hàng tại ${storeCode}!`,
+      });
+    }
     return NextResponse.json({
       success: true,
-      message: `Đã cập nhật số lượng tồn kho thành ${qty} chai cho cửa hàng ${storeCode}!`,
-      data: { storeCode, productId, stockQuantity: qty },
+      message: `Đã cập nhật số lượng tồn kho thành ${results[0].newStock} chai cho cửa hàng ${storeCode}!`,
+      data: { storeCode, productId: results[0].productId, stockQuantity: results[0].newStock },
     });
   } catch (error: any) {
     console.error('Error updating store inventory:', error);

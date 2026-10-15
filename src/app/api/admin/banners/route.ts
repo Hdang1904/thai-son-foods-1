@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { query } from '@/lib/db';
+import { isOptionalSafeUrl, isSafeUrl } from '@/lib/content-validation';
 import { getAdminSession } from '@/lib/auth';
+import { resolveUploadedFile } from '@/lib/content-validation';
 import { hasPermission } from '@/lib/rbac';
 import { writeAuditLog } from '@/lib/audit';
 
@@ -81,6 +83,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Hình ảnh banner là bắt buộc' }, { status: 400 });
     }
 
+    if (!isSafeUrl(image) || !isOptionalSafeUrl(mobile_image) || !isOptionalSafeUrl(link)) {
+      return NextResponse.json(
+        { success: false, error: 'Ảnh và liên kết banner phải là đường dẫn nội bộ ("/...") hoặc địa chỉ http(s) hợp lệ.' },
+        { status: 400 }
+      );
+    }
+    if (typeof placement !== 'string' || !/^[a-z0-9_-]{1,30}$/i.test(placement)) {
+      return NextResponse.json({ success: false, error: 'Vị trí hiển thị banner không hợp lệ.' }, { status: 400 });
+    }
+
     const id = `ban_${Date.now()}`;
     const baseSlug = title ? slugify(title) : `banner-${Date.now()}`;
     const slug = `${baseSlug}-${Date.now().toString().slice(-4)}`;
@@ -152,6 +164,23 @@ export async function PUT(request: Request) {
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'Thiếu ID banner' }, { status: 400 });
+    }
+
+    if (
+      (image !== undefined && !isSafeUrl(image)) ||
+      !isOptionalSafeUrl(mobile_image) ||
+      !isOptionalSafeUrl(link)
+    ) {
+      return NextResponse.json(
+        { success: false, error: 'Ảnh và liên kết banner phải là đường dẫn nội bộ ("/...") hoặc địa chỉ http(s) hợp lệ.' },
+        { status: 400 }
+      );
+    }
+    if (placement !== undefined && (typeof placement !== 'string' || !/^[a-z0-9_-]{1,30}$/i.test(placement))) {
+      return NextResponse.json({ success: false, error: 'Vị trí hiển thị banner không hợp lệ.' }, { status: 400 });
+    }
+    if (sort_order !== undefined && !Number.isInteger(Number(sort_order))) {
+      return NextResponse.json({ success: false, error: 'Thứ tự hiển thị phải là số nguyên.' }, { status: 400 });
     }
 
     const check = await query(`SELECT * FROM banners WHERE id = $1;`, [id]);
@@ -250,10 +279,9 @@ export async function DELETE(request: Request) {
 
     if (check.rows.length > 0) {
       const imgUrl = check.rows[0].image;
-      if (imgUrl && imgUrl.startsWith('/uploads/')) {
+      const absPath = resolveUploadedFile(imgUrl);
+      if (imgUrl && absPath) {
         try {
-          const relPath = imgUrl.replace(/^\//, '');
-          const absPath = path.join(process.cwd(), 'public', relPath);
           if (fs.existsSync(absPath)) {
             await fs.promises.unlink(absPath);
           }

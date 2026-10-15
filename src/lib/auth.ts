@@ -229,15 +229,47 @@ export async function verifyUserToken(token: string): Promise<UserJWTPayload | n
   }
 }
 
+const userLockCache = new Map<string, { locked: boolean; expiresAt: number }>();
+const USER_LOCK_CACHE_TTL_MS = 10_000;
+
+export function invalidateUserSessionCache(id?: string) {
+  if (id) userLockCache.delete(id);
+  else userLockCache.clear();
+}
+
 /**
- * Get current customer user session from server components or route handlers
+ * Tài khoản khách có bị admin KHÓA không (users.is_active = false)?
+ * Chỉ coi là khóa khi có dòng và is_active === false; không có dòng / lỗi CSDL → không chặn (giữ hành vi cũ).
+ * Cache 10 giây để không truy vấn mỗi request.
+ */
+async function isUserLocked(id: string): Promise<boolean> {
+  const now = Date.now();
+  const cached = userLockCache.get(id);
+  if (cached && cached.expiresAt > now) return cached.locked;
+  try {
+    const res = await query(`SELECT is_active FROM users WHERE id = $1 LIMIT 1;`, [id]);
+    const locked = res.rows.length > 0 && res.rows[0].is_active === false;
+    userLockCache.set(id, { locked, expiresAt: now + USER_LOCK_CACHE_TTL_MS });
+    return locked;
+  } catch (err) {
+    console.error('Error checking customer lock status:', err);
+    return false;
+  }
+}
+
+/**
+ * Get current customer user session from server components or route handlers.
+ * Tài khoản khách đã bị admin khóa sẽ không còn phiên hợp lệ (có hiệu lực trong vòng ~10 giây).
  */
 export async function getUserSession(): Promise<UserJWTPayload | null> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get(USER_COOKIE_NAME)?.value;
     if (!token) return null;
-    return await verifyUserToken(token);
+    const session = await verifyUserToken(token);
+    if (!session) return null;
+    if (session.id && (await isUserLocked(session.id))) return null;
+    return session;
   } catch {
     return null;
   }

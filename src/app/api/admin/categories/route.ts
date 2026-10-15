@@ -64,6 +64,13 @@ export async function POST(request: Request) {
     }
 
     const catSlug = slug ? slugify(slug) : slugify(name);
+    if (typeof name !== 'string' || name.trim().length === 0 || name.length > 100 || !catSlug) {
+      return NextResponse.json({ success: false, error: 'Tên danh mục không hợp lệ (tối đa 100 ký tự).' }, { status: 400 });
+    }
+    const slugTaken = await query(`SELECT 1 FROM categories WHERE slug = $1 LIMIT 1;`, [catSlug]);
+    if (slugTaken.rows.length > 0) {
+      return NextResponse.json({ success: false, error: `Đường dẫn "${catSlug}" đã được danh mục khác sử dụng.`, code: 'SLUG_TAKEN' }, { status: 409 });
+    }
     const catId = `cat-${catSlug}-${Date.now().toString().slice(-4)}`;
 
     const res = await query(
@@ -113,6 +120,16 @@ export async function PUT(request: Request) {
     const beforeCategory = existingRes.rows[0] || null;
 
     const catSlug = slug ? slugify(slug) : slugify(name);
+    if (!beforeCategory) {
+      return NextResponse.json({ success: false, error: 'Không tìm thấy danh mục' }, { status: 404 });
+    }
+    if (typeof name !== 'string' || name.trim().length === 0 || name.length > 100 || !catSlug) {
+      return NextResponse.json({ success: false, error: 'Tên danh mục không hợp lệ (tối đa 100 ký tự).' }, { status: 400 });
+    }
+    const slugTakenByOther = await query(`SELECT 1 FROM categories WHERE slug = $1 AND id <> $2 LIMIT 1;`, [catSlug, id]);
+    if (slugTakenByOther.rows.length > 0) {
+      return NextResponse.json({ success: false, error: `Đường dẫn "${catSlug}" đã được danh mục khác sử dụng.`, code: 'SLUG_TAKEN' }, { status: 409 });
+    }
 
     const res = await query(
       `UPDATE categories SET name = $2, slug = $3 WHERE id = $1 RETURNING *;`,
@@ -159,8 +176,22 @@ export async function DELETE(request: Request) {
     const existingRes = await query(`SELECT * FROM categories WHERE id = $1 LIMIT 1;`, [id]);
     const beforeCategory = existingRes.rows[0] || null;
 
-    // Set null cho sản phẩm trước
-    await query(`UPDATE products SET category_id = NULL WHERE category_id = $1;`, [id]);
+    if (!beforeCategory) {
+      return NextResponse.json({ success: false, error: 'Không tìm thấy danh mục' }, { status: 404 });
+    }
+
+    // Không xóa danh mục còn sản phẩm: nếu xóa, sản phẩm mất danh mục và biến mất khỏi các mục theo danh mục trên trang chủ
+    const inUse = await query(`SELECT COUNT(*)::int AS n FROM products WHERE category_id = $1;`, [id]);
+    if ((inUse.rows[0]?.n || 0) > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Danh mục "${beforeCategory.name}" còn ${inUse.rows[0].n} sản phẩm. Hãy chuyển các sản phẩm sang danh mục khác trước khi xóa.`,
+          code: 'CATEGORY_IN_USE',
+        },
+        { status: 409 }
+      );
+    }
     await query(`DELETE FROM categories WHERE id = $1;`, [id]);
 
     await writeAuditLog({

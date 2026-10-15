@@ -31,27 +31,45 @@ export async function PUT(
     const body = await request.json();
     const { action, reason, bankReference } = body;
 
-    // 1. Kiểm tra yêu cầu rút tiền tồn tại
-    const payoutRes = await query(`SELECT * FROM payout_requests WHERE id = $1;`, [id]);
-    if (payoutRes.rows.length === 0) {
-      return NextResponse.json({ success: false, error: 'Không tìm thấy yêu cầu rút tiền' }, { status: 404 });
-    }
-
-    const currentPayout = payoutRes.rows[0];
-
-    // Không thể thao tác lại trên yêu cầu đã hoàn tất chi trả hoặc đã từ chối
-    if (currentPayout.status === 'PAID') {
-      return NextResponse.json({ success: false, error: 'Yêu cầu này đã được thanh toán thành công, không thể thay đổi.' }, { status: 400 });
-    }
-    if (currentPayout.status === 'REJECTED') {
-      return NextResponse.json({ success: false, error: 'Yêu cầu này đã bị từ chối trước đó, không thể thay đổi.' }, { status: 400 });
+    const VALID_ACTIONS = ['APPROVE', 'REJECT', 'MARK_AS_PAID'];
+    if (!VALID_ACTIONS.includes(action)) {
+      return NextResponse.json({ success: false, error: `Hành động không hợp lệ: ${action}` }, { status: 400 });
     }
 
     const client = await pool.connect();
     let updatedPayout;
+    let currentPayout: any;
 
     try {
       await client.query('BEGIN;');
+
+      // 1. Đọc + KHÓA dòng yêu cầu rút tiền trong transaction: hai thao tác đồng thời (bấm đúp, hai kế toán)
+      //    không thể cùng vượt qua kiểm tra trạng thái → không hoàn tiền / chi trả hai lần
+      const payoutRes = await client.query(`SELECT * FROM payout_requests WHERE id = $1 FOR UPDATE;`, [id]);
+      if (payoutRes.rows.length === 0) {
+        await client.query('ROLLBACK;');
+        return NextResponse.json({ success: false, error: 'Không tìm thấy yêu cầu rút tiền' }, { status: 404 });
+      }
+      currentPayout = payoutRes.rows[0];
+
+      // Quy trình hợp lệ: Chờ duyệt → (Duyệt | Từ chối); Đã duyệt → (Đã chi trả | Từ chối). PAID / REJECTED là trạng thái cuối.
+      const allowedFrom: Record<string, string[]> = {
+        APPROVE: ['PENDING'],
+        REJECT: ['PENDING', 'APPROVED'],
+        MARK_AS_PAID: ['APPROVED'],
+      };
+      if (!allowedFrom[action].includes(currentPayout.status)) {
+        await client.query('ROLLBACK;');
+        const msg =
+          currentPayout.status === 'PAID'
+            ? 'Yêu cầu này đã được thanh toán thành công, không thể thay đổi.'
+            : currentPayout.status === 'REJECTED'
+            ? 'Yêu cầu này đã bị từ chối trước đó, không thể thay đổi.'
+            : action === 'MARK_AS_PAID'
+            ? 'Yêu cầu phải được DUYỆT trước khi xác nhận chi trả.'
+            : `Không thể thực hiện "${action}" khi yêu cầu đang ở trạng thái ${currentPayout.status}.`;
+        return NextResponse.json({ success: false, error: msg, code: 'INVALID_PAYOUT_STATE' }, { status: 409 });
+      }
 
       switch (action) {
         case 'APPROVE': {
