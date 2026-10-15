@@ -105,7 +105,7 @@ export default function AmazonHeroCarousel({ banners, autoplayMs = 6000 }: Amazo
         })}
 
         {/* Lớp mờ chân hero: ảnh tan dần vào nền trang để lưới thẻ danh mục chồng lên (desktop) */}
-        <div className="hidden lg:block absolute inset-x-0 bottom-0 h-[26%] z-[2] pointer-events-none bg-gradient-to-b from-transparent to-ivory-dark/90" />
+        <div className="hidden lg:block absolute inset-x-0 bottom-0 h-10 z-[2] pointer-events-none bg-gradient-to-b from-transparent to-ivory-dark/60" />
 
         {count > 1 && (
           <>

@@ -104,7 +104,7 @@ export default function HomePage({ heroBanners, liveProducts, liveCombos }: Home
 
       <div className="max-w-[1500px] mx-auto px-3 sm:px-4 lg:px-5 space-y-4 lg:space-y-5">
         {/* 2. LƯỚI THẺ DANH MỤC — chồng lên chân hero trên desktop */}
-        <div className="relative z-10 pt-4 lg:pt-0 lg:-mt-[clamp(72px,7vw,110px)]">
+        <div className="relative z-10 pt-4 lg:pt-0 lg:-mt-[clamp(20px,2.4vw,36px)]">
           <AmazonCategoryCards categories={categoryGroups} combos={combos} />
         </div>
 
