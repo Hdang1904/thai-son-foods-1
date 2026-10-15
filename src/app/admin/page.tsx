@@ -724,12 +724,6 @@ export default function AdminPage() {
     };
   }, [activeTab, orderPage, orderStatusFilter, debouncedOrderSearch, orderListVersion]);
 
-  // Lô hàng của chi nhánh đang chọn: tải lại khi vào tab Tồn kho hoặc đổi chi nhánh
-  useEffect(() => {
-    if (activeTab === 'inventory') fetchInventoryLots(selectedStoreCode);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, selectedStoreCode]);
-
   // ==================== THÔNG BÁO ĐƠN MỚI (tự làm mới mỗi 30 giây) ====================
   useEffect(() => {
     if (!currentUser) return;
@@ -998,6 +992,12 @@ export default function AdminPage() {
       setActionLoading(false);
     }
   };
+
+  // Lô hàng của chi nhánh đang chọn: tải lại khi vào tab Tồn kho hoặc đổi chi nhánh
+  useEffect(() => {
+    if (activeTab === 'inventory') fetchInventoryLots(selectedStoreCode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, selectedStoreCode]);
 
   // Nạp lịch sử biến động tồn kho
   const fetchInventoryLogs = async (storeCode?: string) => {
