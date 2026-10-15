@@ -116,7 +116,12 @@ export default function ProductCompareTable({ current, others, maxColumns = 6 }:
   const [addedId, setAddedId] = useState<string | null>(null);
   const addedTimer = useRef<number | null>(null);
 
-  const columns = [current, ...others.filter((p) => !isSameProduct(p, current))].slice(0, maxColumns);
+  // Chỉ so sánh với sản phẩm CÙNG DANH MỤC (vd. Sữa Hạt chỉ so với sữa hạt, Trà Sữa chỉ với Ciao/Go)
+  const categoryOf = (p: Product) => (p.categoryId || '').replace(/^cat-/, '');
+  const columns = [
+    current,
+    ...others.filter((p) => !isSameProduct(p, current) && categoryOf(p) === categoryOf(current)),
+  ].slice(0, maxColumns);
   const reviews = useReviewSummaries(columns);
 
   useEffect(() => () => {

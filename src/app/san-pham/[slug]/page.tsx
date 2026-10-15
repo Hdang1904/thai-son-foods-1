@@ -300,7 +300,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
         {/* ── SO SÁNH VỚI SẢN PHẨM TƯƠNG TỰ (dữ liệu thật) ── */}
         <div className="border-t border-gray-200 bg-white">
-          <ProductCompareTable current={product} others={similarProducts.slice(0, 5)} />
+          <ProductCompareTable current={product} others={similarProducts} />
         </div>
 
         {/* ── COMBO ── */}
