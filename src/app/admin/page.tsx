@@ -354,7 +354,9 @@ export default function AdminPage() {
   const [orderListVersion, setOrderListVersion] = useState(0);
   // Thông báo đơn mới: số đơn mới chưa xem (tự làm mới định kỳ)
   const [newOrderCount, setNewOrderCount] = useState(0);
-  const knownOrderTotalRef = useRef<number | null>(null);
+  // Nhận diện đơn mới theo mã đơn + thời điểm tạo (không phụ thuộc tổng số đơn: vẫn đúng khi có đơn vừa thêm vừa xóa)
+  const knownOrderIdsRef = useRef<Set<string> | null>(null);
+  const knownLatestOrderMsRef = useRef<number>(0);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
@@ -562,7 +564,11 @@ export default function AdminPage() {
         setOrders(ordersRes.data || []);
         setOrdersTotal(ordersRes.pagination?.total ?? (ordersRes.data || []).length);
         setOrderPaymentCounts(ordersRes.paymentCounts || {});
-        knownOrderTotalRef.current = ordersRes.pagination?.total ?? (ordersRes.data || []).length;
+        knownOrderIdsRef.current = new Set((ordersRes.data || []).map((o: Order) => o.id));
+        knownLatestOrderMsRef.current = (ordersRes.data || []).reduce(
+          (max: number, o: Order) => Math.max(max, new Date(o.created_at).getTime() || 0),
+          0
+        );
       }
       if (membersRes?.success) setMembers(membersRes.members || []);
     } catch (err: any) {
@@ -732,26 +738,37 @@ export default function AdminPage() {
 
     const poll = async () => {
       if (document.visibilityState !== 'visible') return;
-      const res = await safeFetchJson<any>('/api/admin/orders?page=1&limit=1', { cache: 'no-store' });
+      const res = await safeFetchJson<any>('/api/admin/orders?page=1&limit=20', { cache: 'no-store' });
       if (stopped || !res?.success || !res.pagination) return;
-      const total: number = res.pagination.total;
-      const known = knownOrderTotalRef.current;
-      knownOrderTotalRef.current = total;
-      setOrdersTotal(total);
+      setOrdersTotal(res.pagination.total);
       setOrderPaymentCounts(res.paymentCounts || {});
-      if (known !== null && total > known) {
-        const added = total - known;
-        setNewOrderCount((c) => c + added);
-        showToast(`🔔 Có ${added} đơn hàng mới!`, 'info');
-        // Làm mới số liệu tổng quan, danh sách đơn gần đây và tab Đơn hàng
-        safeFetchJson<any>('/api/admin/orders?page=1&limit=50', { cache: 'no-store' }).then((r) => {
-          if (!stopped && r?.success) setOrders(r.data || []);
-        });
-        safeFetchJson<any>('/api/admin/stats', { cache: 'no-store' }).then((d) => {
-          if (!stopped && d?.success) setStats(d);
-        });
-        refreshOrderList();
-      }
+
+      const known = knownOrderIdsRef.current;
+      if (!known) return; // chưa có mốc ban đầu (lần tải đầu thất bại) → chỉ lấy mốc ở lần này
+      const rows: Order[] = res.data || [];
+      const knownLatest = knownLatestOrderMsRef.current;
+      const fresh = rows.filter((o) => !known.has(o.id) && (new Date(o.created_at).getTime() || 0) >= knownLatest);
+      rows.forEach((o) => known.add(o.id));
+      knownLatestOrderMsRef.current = rows.reduce((max, o) => Math.max(max, new Date(o.created_at).getTime() || 0), knownLatest);
+      if (fresh.length === 0) return;
+
+      const newest = fresh[0];
+      const countLabel = fresh.length >= rows.length ? `${fresh.length}+` : String(fresh.length);
+      setNewOrderCount((c) => c + fresh.length);
+      showToast(
+        fresh.length === 1
+          ? `🔔 Đơn mới #${newest.order_code} — ${newest.full_name} (${formatVND(newest.total)})`
+          : `🔔 Có ${countLabel} đơn hàng mới! Mới nhất #${newest.order_code} — ${newest.full_name}`,
+        'info'
+      );
+      // Làm mới số liệu tổng quan, danh sách đơn gần đây và tab Đơn hàng
+      safeFetchJson<any>('/api/admin/orders?page=1&limit=50', { cache: 'no-store' }).then((r) => {
+        if (!stopped && r?.success) setOrders(r.data || []);
+      });
+      safeFetchJson<any>('/api/admin/stats', { cache: 'no-store' }).then((d) => {
+        if (!stopped && d?.success) setStats(d);
+      });
+      refreshOrderList();
     };
 
     const timer = setInterval(poll, 30000);
@@ -1783,6 +1800,16 @@ export default function AdminPage() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  // Mở hộp thoại đổi mật khẩu (nút chìa khóa và nút chữ ở chân thanh bên dùng chung)
+  const openPasswordModal = () => {
+    setPwdError('');
+    setPwdSuccess('');
+    setPwdCurrent('');
+    setPwdNew('');
+    setPwdConfirm('');
+    setIsPasswordModalOpen(true);
   };
 
   const handleLogout = async () => {
@@ -2967,14 +2994,8 @@ export default function AdminPage() {
 
               <div className="flex items-center gap-1 shrink-0">
                 <button
-                  onClick={() => {
-                    setPwdError('');
-                    setPwdSuccess('');
-                    setPwdCurrent('');
-                    setPwdNew('');
-                    setPwdConfirm('');
-                    setIsPasswordModalOpen(true);
-                  }}
+                  onClick={openPasswordModal}
+                  aria-label="Đổi mật khẩu"
                   title="Đổi mật khẩu tài khoản"
                   className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 transition-colors cursor-pointer"
                 >
@@ -2989,6 +3010,14 @@ export default function AdminPage() {
                 </button>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={openPasswordModal}
+              className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-slate-300 bg-slate-800/60 hover:bg-amber-500/10 hover:text-amber-300 border border-slate-700/70 transition-colors cursor-pointer"
+            >
+              <Key className="w-3.5 h-3.5" />
+              <span>Đổi mật khẩu</span>
+            </button>
           </div>
         </aside>
 
