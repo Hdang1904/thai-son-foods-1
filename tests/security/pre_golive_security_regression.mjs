@@ -800,6 +800,7 @@ async function runRegressionSuite() {
     const zeroResidual = Number(verifyOrders.rows[0].count) === 0;
     recordTest('CLEANUP-ZERO-RESIDUAL', 'Xác nhận dọn sạch 100%, 0 bản ghi test tồn dư trong cơ sở dữ liệu', zeroResidual, `Remaining QA orders: ${verifyOrders.rows[0].count}`);
 
+    try { await client.query("DELETE FROM products WHERE name = 'QA Test Product'"); } catch {}
     client.release();
     await pool.end();
 
