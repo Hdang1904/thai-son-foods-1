@@ -56,6 +56,9 @@ export default function LocationConfirmMapModal({
   const [isDragging, setIsDragging] = useState(false);
   const [distanceShiftMeters, setDistanceShiftMeters] = useState(0);
   const [isLocatingUser, setIsLocatingUser] = useState(false);
+  const [userPos, setUserPos] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [locationDenied, setLocationDenied] = useState(false);
+  const userDotRef = useRef<any>(null);
 
   const originalCoords = useRef<{ lat: number; lng: number }>(
     initialCoords || { lat: 10.7769, lng: 106.7009 }
@@ -180,6 +183,57 @@ export default function LocationConfirmMapModal({
       }
     };
   }, [isOpen]);
+
+  // Xin quyền vị trí khi mở popup để hiện chấm xanh "bạn đang ở đây" (không tự dời ghim)
+  useEffect(() => {
+    if (!isOpen || typeof navigator === 'undefined' || !navigator.geolocation) return;
+    setLocationDenied(false);
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setLocationDenied(false);
+        setUserPos({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+      },
+      () => setLocationDenied(true),
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [isOpen]);
+
+  // Vẽ / cập nhật chấm xanh vị trí hiện tại của khách trên bản đồ
+  useEffect(() => {
+    if (!mapReady || !userPos || !mapInstanceRef.current) return;
+    let cancelled = false;
+    (async () => {
+      const L = (await import('leaflet')).default;
+      const map = mapInstanceRef.current;
+      if (cancelled || !map) return;
+      if (userDotRef.current) {
+        try { map.removeLayer(userDotRef.current); } catch {}
+      }
+      const dot = L.layerGroup([
+        L.circle([userPos.lat, userPos.lng], {
+          radius: Math.min(userPos.accuracy || 30, 200),
+          color: '#2563eb',
+          weight: 1,
+          fillColor: '#3b82f6',
+          fillOpacity: 0.15,
+          interactive: false,
+        }),
+        L.circleMarker([userPos.lat, userPos.lng], {
+          radius: 8,
+          color: '#ffffff',
+          weight: 3,
+          fillColor: '#2563eb',
+          fillOpacity: 1,
+          interactive: false,
+        }),
+      ]).addTo(map);
+      userDotRef.current = dot;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mapReady, userPos]);
 
   // Chuyển đổi lớp bản đồ Đường phố vs Vệ tinh
   const toggleSatellite = useCallback(async () => {
@@ -349,6 +403,18 @@ export default function LocationConfirmMapModal({
               )}
             </button>
           </div>
+
+          {/* Chú thích chấm xanh vị trí của khách / nhắc bật định vị */}
+          {userPos ? (
+            <div className="absolute bottom-3 left-3 z-30 px-2.5 py-1.5 rounded-xl bg-white/95 text-[11px] font-semibold text-gray-700 shadow-md flex items-center gap-1.5 backdrop-blur-md pointer-events-none">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-600 ring-2 ring-white shadow" />
+              <span>Chấm xanh: vị trí hiện tại của bạn</span>
+            </div>
+          ) : locationDenied ? (
+            <div className="absolute bottom-3 left-3 right-16 sm:right-auto sm:max-w-xs z-30 px-2.5 py-1.5 rounded-xl bg-white/95 text-[11px] text-gray-700 shadow-md backdrop-blur-md">
+              Bật quyền vị trí của trình duyệt để thấy chấm xanh nơi bạn đang đứng, giúp ghim chính xác hơn.
+            </div>
+          ) : null}
 
           {/* Cảnh báo nếu khách kéo lệch quá 150m */}
           {distanceShiftMeters > 150 && (

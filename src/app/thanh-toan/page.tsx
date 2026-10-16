@@ -297,6 +297,14 @@ export default function CheckoutPage() {
   pinLockedRef.current = locationConfirmed && locationConfirmedBy === 'USER_MAP_PIN';
   // Địa chỉ do ghim điền vào: không bật gợi ý / không hiện khung xác định lại
   const pinAddressRef = useRef<string | null>(null);
+  // Tọa độ geocode của địa chỉ gõ tay (chỉ dùng để cảnh báo lệch so với ghim)
+  const [typedAddrCoords, setTypedAddrCoords] = useState<{ lat: number; lng: number } | null>(null);
+  // Khoảng cách (km) giữa ghim khách chấm và địa chỉ gõ tay; > 1km coi là lệch
+  const pinMismatchKm =
+    locationConfirmed && locationConfirmedBy === 'USER_MAP_PIN' && typedAddrCoords && customerCoords
+      ? calculateHaversineDistance(customerCoords.lat, customerCoords.lng, typedAddrCoords.lat, typedAddrCoords.lng)
+      : 0;
+  const hasPinMismatch = pinMismatchKm > 1;
   const [wasOverridden, setWasOverridden] = useState(false);
   const [recommendData, setRecommendData] = useState<{
     recommended: StoreRecommendationItem | null;
@@ -394,6 +402,7 @@ export default function CheckoutPage() {
     setLocationConfirmed(true);
     setLocationConfirmedBy('USER_MAP_PIN');
     pinAddressRef.current = confirmed.components?.street || null;
+    setTypedAddrCoords(null);
     setShowSuggestions(false);
     setSuggestions([]);
 
@@ -588,12 +597,6 @@ export default function CheckoutPage() {
     if (errors.address) {
       setErrors((prev) => ({ ...prev, address: '' }));
     }
-    // Khách gõ tay lại địa chỉ: nhả khóa ghim để gợi ý và định vị hoạt động bình thường
-    if (pinLockedRef.current) {
-      pinAddressRef.current = null;
-      setLocationConfirmed(false);
-      setLocationConfirmedBy('MANUAL_INPUT');
-    }
     // Xóa thông báo định vị cũ khi user gõ lại
     if (geoResolvedDesc) {
       setGeoResolvedDesc(null);
@@ -643,7 +646,11 @@ export default function CheckoutPage() {
 
   // Geocode ngầm địa chỉ tự động chọn Tỉnh, Quận, Phường khi người dùng gõ số nhà tên đường
   useEffect(() => {
-    if (form.address && form.address.trim().length >= 4 && !pinLockedRef.current) {
+    if (pinLockedRef.current && form.address === pinAddressRef.current) {
+      setTypedAddrCoords(null);
+      return;
+    }
+    if (form.address && form.address.trim().length >= 4) {
       const timer = setTimeout(async () => {
         try {
           const defaultProv = form.province || 'TP. Hồ Chí Minh';
@@ -660,7 +667,14 @@ export default function CheckoutPage() {
             )}&district=${encodeURIComponent(form.district)}&province=${encodeURIComponent(defaultProv)}`
           );
           if (data?.success) {
-            if (data.lat && data.lng && !pinLockedRef.current) {
+            if (pinLockedRef.current) {
+              // Khách đã ghim: chỉ so sánh địa chỉ gõ tay với ghim, không dời ghim, không đổi Tỉnh/Quận/Phường
+              setTypedAddrCoords(data.lat && data.lng ? { lat: data.lat, lng: data.lng } : null);
+              if (data.formattedAddress) setGeoResolvedDesc(data.formattedAddress);
+              return;
+            }
+            setTypedAddrCoords(null);
+            if (data.lat && data.lng) {
               setCustomerCoords({ lat: data.lat, lng: data.lng });
             }
             if (data.components) {
@@ -1714,7 +1728,44 @@ export default function CheckoutPage() {
                 )}
 
                 {/* Thông báo định vị thành công */}
-                {geoResolvedDesc && (
+                {hasPinMismatch && (
+                  <div className="mt-2 p-2.5 bg-amber-50 rounded-xl border border-amber-300 flex items-start gap-2 text-xs text-amber-900 shadow-2xs">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold mb-0.5">
+                        {language === 'en' ? 'Typed address does not match your map pin' : 'Địa chỉ đã nhập không khớp với ghim trên bản đồ'}
+                      </p>
+                      <p className="text-[11px] leading-snug">
+                        {language === 'en'
+                          ? `The pin is about ${pinMismatchKm.toFixed(1)} km from the typed address. Please check before ordering.`
+                          : `Ghim đang cách địa chỉ bạn gõ khoảng ${pinMismatchKm.toFixed(1)} km. Vui lòng kiểm tra lại trước khi đặt hàng.`}
+                      </p>
+                      <div className="mt-1.5 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsMapModalOpen(true)}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-800 text-white font-bold text-[11px] cursor-pointer"
+                        >
+                          {language === 'en' ? 'Adjust pin' : 'Chỉnh lại ghim'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (typedAddrCoords) setCustomerCoords(typedAddrCoords);
+                            pinAddressRef.current = null;
+                            setLocationConfirmed(false);
+                            setLocationConfirmedBy('MANUAL_INPUT');
+                            setTypedAddrCoords(null);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-white border border-amber-400 text-amber-900 font-bold text-[11px] cursor-pointer"
+                        >
+                          {language === 'en' ? 'Use typed address location' : 'Dùng vị trí theo địa chỉ đã gõ'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {geoResolvedDesc && !hasPinMismatch && (
                   <div className="mt-2 p-2.5 bg-emerald-50 rounded-xl border border-emerald-200/90 flex items-start gap-2 text-xs text-emerald-900 shadow-2xs">
                     <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
@@ -1784,29 +1835,6 @@ export default function CheckoutPage() {
                   rows={3}
                   className="w-full px-4 py-3 rounded-xl border border-border bg-white text-text-dark text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors resize-none"
                   placeholder={language === 'en' ? 'Optional order notes or delivery instructions...' : 'Ghi chú thêm cho đơn hàng...'}
-                />
-              </div>
-
-              {/* Referral Code (Mã đối tác / CTV) */}
-              <div className="sm:col-span-2">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="referralCode" className="block text-sm font-medium text-text-dark">
-                    {language === 'en' ? 'Partner Referral Code (Optional)' : 'Mã giới thiệu đối tác (Nếu có)'}
-                  </label>
-                  {referralCode && (
-                    <span className="text-xs text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full font-semibold border border-emerald-200">
-                      ✓ Đã ghi nhận mã giới thiệu
-                    </span>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  id="referralCode"
-                  name="referralCode"
-                  value={referralCode}
-                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                  className="w-full px-4 py-2.5 rounded-xl border border-border bg-white text-text-dark text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary transition-colors font-mono uppercase tracking-wider"
-                  placeholder="VD: TSF-CTV-1234"
                 />
               </div>
             </div>

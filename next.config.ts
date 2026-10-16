@@ -19,6 +19,8 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Allow internal LAN IP access without cross-origin blocking
   allowedDevOrigins: [
+    '137.107.16.94:3000',
+    '137.107.16.94',
     '137.107.16.62:3000',
     '137.107.16.62',
     'localhost:3000',
