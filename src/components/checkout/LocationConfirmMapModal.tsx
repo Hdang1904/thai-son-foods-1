@@ -61,10 +61,18 @@ export default function LocationConfirmMapModal({
     initialCoords || { lat: 10.7769, lng: 106.7009 }
   );
 
+  // Giá trị ban đầu chỉ đọc lúc mở popup; thay đổi props khi đang mở không được dựng lại bản đồ (làm nhảy ghim)
+  const initialCoordsRef = useRef(initialCoords);
+  const initialAddressRef = useRef(initialAddress);
+  initialCoordsRef.current = initialCoords;
+  initialAddressRef.current = initialAddress;
+
   // Khởi tạo bản đồ Leaflet
   useEffect(() => {
     if (!isOpen || typeof window === 'undefined') return;
 
+    const initialCoords = initialCoordsRef.current;
+    const initialAddress = initialAddressRef.current;
     let isMounted = true;
 
     async function initMap() {
@@ -171,7 +179,7 @@ export default function LocationConfirmMapModal({
         mapInstanceRef.current = null;
       }
     };
-  }, [isOpen, initialCoords, initialAddress]);
+  }, [isOpen]);
 
   // Chuyển đổi lớp bản đồ Đường phố vs Vệ tinh
   const toggleSatellite = useCallback(async () => {
@@ -266,7 +274,7 @@ export default function LocationConfirmMapModal({
 
         {/* Khung bản đồ tương tác */}
         <div className="relative flex-1 w-full bg-gray-100 overflow-hidden">
-          <div ref={mapContainerRef} className="w-full h-full" />
+          <div ref={mapContainerRef} className="relative z-0 w-full h-full" />
 
           {/* PIN CỐ ĐỊNH Ở TRUNG TÂM (Grab/ShopeeFood style) */}
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full pointer-events-none z-20 flex flex-col items-center">

@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useBranchStore } from '@/store/branch';
+import ProductSidebarSponsoredCard from '@/components/product/ProductSidebarSponsoredCard';
 import { MapPin, AlertCircle, Info } from 'lucide-react';
 
 interface ComboProductDetailItem {
@@ -318,10 +319,12 @@ export default function ComboDetailView({
       </div>
 
       {/* ─── Main Content (2 Columns Layout) ─── */}
-      <div className="section-container py-6 lg:py-10 max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
+      <div className="max-w-[1456px] mx-auto px-4 sm:px-6 py-6 lg:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+          {/* Khối Trái + Giữa (giống trang sản phẩm): Gallery + Thông tin & mua hàng */}
+          <div className="lg:col-span-9 grid grid-cols-1 lg:grid-cols-9 gap-6 lg:gap-8 items-start">
           {/* CỘT TRÁI: Gallery ảnh Combo (Thumbnails bên trái + Ảnh lớn bên phải) + Danh sách chi tiết chai */}
-          <div className="lg:col-span-6 space-y-4">
+          <div className="lg:col-span-5 w-full space-y-4">
             {/* Gallery Layout: Thumbnails Trái + Ảnh lớn Phải (Chuẩn theo ProductGallery) */}
             <div className="w-full flex flex-row items-stretch gap-3 select-none">
               {/* Cột Thumbnails dọc bên trái — hiển thị từ màn hình sm trở lên */}
@@ -627,7 +630,7 @@ export default function ComboDetailView({
           </div>
 
           {/* CỘT PHẢI: Thông tin Combo, Giá, Khuyến mãi & Nút mua hàng */}
-          <div className="lg:col-span-6 space-y-6">
+          <div className="lg:col-span-4 xl:col-span-4 space-y-6">
             <div>
               {/* Thương hiệu */}
               <div className="flex items-center gap-2 text-xs font-semibold text-green-primary uppercase tracking-wider mb-2">
@@ -1004,6 +1007,17 @@ export default function ComboDetailView({
               </div>
             </div>
           </div>
+          </div>
+
+          {/* Cột phải (giống trang sản phẩm): thẻ Sponsored */}
+          <div className="hidden lg:block lg:col-span-3 xl:col-span-3 lg:sticky lg:top-[168px]">
+            <ProductSidebarSponsoredCard currentProductId={combo.id} />
+          </div>
+        </div>
+
+        {/* Hiển thị dưới thông tin khi ở màn hình mobile (< lg) */}
+        <div className="block lg:hidden mt-6">
+          <ProductSidebarSponsoredCard currentProductId={combo.id} />
         </div>
       </div>
 

@@ -1,19 +1,19 @@
 {
-  "passedCount": 44,
-  "failedCount": 2,
+  "passedCount": 46,
+  "failedCount": 0,
   "total": 46,
   "testReport": [
     {
       "id": "VULN-01-GET",
       "name": "GET /api/auth/mock-oauth trả về HTTP 403 Disabled",
-      "status": "FAIL",
-      "details": "status: 200"
+      "status": "PASS",
+      "details": "status: 403"
     },
     {
       "id": "VULN-01-POST",
       "name": "POST /api/auth/mock-oauth trả về HTTP 403 và KHÔNG cấp Set-Cookie",
-      "status": "FAIL",
-      "details": "status: 500, set-cookie: false"
+      "status": "PASS",
+      "details": "status: 403, set-cookie: false"
     },
     {
       "id": "VULN-02-NO-PHONE",
@@ -85,7 +85,7 @@
       "id": "VULN-05-LOGS-SUPER-MASKED",
       "name": "GET /api/test-email/logs trả về danh sách log có che mờ email PII",
       "status": "PASS",
-      "details": "Recipient: r***@t.vn"
+      "details": "Recipient: qa***6@example.com"
     },
     {
       "id": "DEFECT-03-CONCURRENCY-STATUS",
@@ -121,7 +121,7 @@
       "id": "VULN-04-VALID-PNG-SECURE-NAME",
       "name": "Upload file PNG hợp lệ thành công HTTP 200, tên file sinh ngẫu nhiên an toàn",
       "status": "PASS",
-      "details": "URL: /uploads/products/1792044410899_9903bbcba0f6.png"
+      "details": "URL: /uploads/products/1792046693257_fa43c05f5818.png"
     },
     {
       "id": "VULN-06-NO-HEADER",

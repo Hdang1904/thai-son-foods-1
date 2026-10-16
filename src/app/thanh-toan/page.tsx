@@ -136,7 +136,7 @@ function DeliveryMiniMap({
       <div
         ref={containerRef}
         onClick={onOpenModal}
-        className="w-full h-[175px] cursor-pointer transition-opacity hover:opacity-95"
+        className="relative z-0 w-full h-[175px] cursor-pointer transition-opacity hover:opacity-95"
       />
       <div
         onClick={onOpenModal}
@@ -292,6 +292,11 @@ export default function CheckoutPage() {
   const [fulfillmentMode, setFulfillmentMode] = useState<'delivery' | 'pickup'>('delivery');
   const [locationConfirmed, setLocationConfirmed] = useState(false);
   const [locationConfirmedBy, setLocationConfirmedBy] = useState<string | null>(null);
+  // Ghim do khách tự chấm: các bước tự đoán tọa độ không được ghi đè
+  const pinLockedRef = useRef(false);
+  pinLockedRef.current = locationConfirmed && locationConfirmedBy === 'USER_MAP_PIN';
+  // Địa chỉ do ghim điền vào: không bật gợi ý / không hiện khung xác định lại
+  const pinAddressRef = useRef<string | null>(null);
   const [wasOverridden, setWasOverridden] = useState(false);
   const [recommendData, setRecommendData] = useState<{
     recommended: StoreRecommendationItem | null;
@@ -388,6 +393,9 @@ export default function CheckoutPage() {
     setCustomerCoords({ lat: confirmed.lat, lng: confirmed.lng });
     setLocationConfirmed(true);
     setLocationConfirmedBy('USER_MAP_PIN');
+    pinAddressRef.current = confirmed.components?.street || null;
+    setShowSuggestions(false);
+    setSuggestions([]);
 
     if (confirmed.components) {
       setForm((prev) => ({
@@ -499,7 +507,8 @@ export default function CheckoutPage() {
   });
 
   // Danh mục tỉnh / thành phố hành chính Việt Nam
-  const allProvinces = useMemo(() => getProvinceNames(), []);
+  // Hiện chỉ giao tại TP. Hồ Chí Minh
+  const allProvinces = useMemo(() => getProvinceNames().filter((p) => p === 'TP. Hồ Chí Minh'), []);
   const availableDistricts = useMemo(() => getDistrictsByProvince(form.province), [form.province]);
   const availableWards = useMemo(() => getWardsByDistrict(form.province, form.district), [form.province, form.district]);
 
@@ -534,7 +543,7 @@ export default function CheckoutPage() {
       setErrors((prev) => ({ ...prev, province: '' }));
     }
     const coords = findPreciseCoordinates(provinceVal);
-    if (coords) {
+    if (coords && !pinLockedRef.current) {
       setCustomerCoords(coords);
     }
   };
@@ -551,7 +560,7 @@ export default function CheckoutPage() {
       setErrors((prev) => ({ ...prev, district: '' }));
     }
     const coords = findPreciseCoordinates(form.province, districtVal);
-    if (coords) {
+    if (coords && !pinLockedRef.current) {
       setCustomerCoords(coords);
     }
   };
@@ -567,7 +576,7 @@ export default function CheckoutPage() {
       setErrors((prev) => ({ ...prev, ward: '' }));
     }
     const coords = findPreciseCoordinates(form.province, form.district, wardVal);
-    if (coords) {
+    if (coords && !pinLockedRef.current) {
       setCustomerCoords(coords);
     }
   };
@@ -578,6 +587,12 @@ export default function CheckoutPage() {
     setForm((prev) => ({ ...prev, address: val }));
     if (errors.address) {
       setErrors((prev) => ({ ...prev, address: '' }));
+    }
+    // Khách gõ tay lại địa chỉ: nhả khóa ghim để gợi ý và định vị hoạt động bình thường
+    if (pinLockedRef.current) {
+      pinAddressRef.current = null;
+      setLocationConfirmed(false);
+      setLocationConfirmedBy('MANUAL_INPUT');
     }
     // Xóa thông báo định vị cũ khi user gõ lại
     if (geoResolvedDesc) {
@@ -590,6 +605,11 @@ export default function CheckoutPage() {
     if (!form.address || form.address.trim().length < 2) {
       setSuggestions([]);
       setIsSearchingAddress(false);
+      return;
+    }
+    if (pinLockedRef.current && form.address === pinAddressRef.current) {
+      setSuggestions([]);
+      setShowSuggestions(false);
       return;
     }
 
@@ -623,7 +643,7 @@ export default function CheckoutPage() {
 
   // Geocode ngầm địa chỉ tự động chọn Tỉnh, Quận, Phường khi người dùng gõ số nhà tên đường
   useEffect(() => {
-    if (form.address && form.address.trim().length >= 4) {
+    if (form.address && form.address.trim().length >= 4 && !pinLockedRef.current) {
       const timer = setTimeout(async () => {
         try {
           const defaultProv = form.province || 'TP. Hồ Chí Minh';
@@ -640,7 +660,7 @@ export default function CheckoutPage() {
             )}&district=${encodeURIComponent(form.district)}&province=${encodeURIComponent(defaultProv)}`
           );
           if (data?.success) {
-            if (data.lat && data.lng) {
+            if (data.lat && data.lng && !pinLockedRef.current) {
               setCustomerCoords({ lat: data.lat, lng: data.lng });
             }
             if (data.components) {

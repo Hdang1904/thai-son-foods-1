@@ -49,7 +49,6 @@ export default function ProductCarousel({ title, products, subtitle, action, cla
   };
 
   if (products.length === 0) return null;
-
   return (
     <section className={cn('max-w-[1456px] mx-auto px-4 sm:px-6 py-6 md:py-8', className)}>
       <div className="flex items-end justify-between gap-3 mb-3">

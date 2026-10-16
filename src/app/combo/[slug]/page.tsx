@@ -6,6 +6,8 @@ import ComboDetailView from '@/components/product/ComboDetailView';
 import ProductCombosSidebar from '@/components/product/ProductCombosSidebar';
 import ProductSection from '@/components/home/ProductSection';
 import ProductReviewsSection from '@/components/product/ProductReviewsSection';
+import ProductDescription from '@/components/product/ProductDescription';
+import ProductSponsoredBanner from '@/components/product/ProductSponsoredBanner';
 
 import { query } from '@/lib/db';
 import { Combo } from '@/types';
@@ -194,6 +196,19 @@ export default async function ComboDetailPage({ params }: ComboPageProps) {
         <div className="border-t border-gray-200 bg-white">
           <div className="section-container max-sm:px-2.5 py-6 sm:py-8 lg:py-10 max-w-7xl mx-auto px-4 sm:px-6">
             <ProductCombosSidebar layout="horizontal" title="Các combo nổi bật đáng cân nhắc" />
+          </div>
+        </div>
+
+        {/* ── MÔ TẢ & CÂU CHUYỆN CHẤT LƯỢNG (giống trang sản phẩm) ── */}
+        <ProductDescription
+          productName={combo.name}
+          description={combo.description}
+        />
+
+        {/* ── BANNER SHOWCASE THƯƠNG HIỆU & SẢN PHẨM (giống trang sản phẩm) ── */}
+        <div className="border-t border-gray-200 bg-white">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <ProductSponsoredBanner />
           </div>
         </div>
 
